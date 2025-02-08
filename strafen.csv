@@ -1,0 +1,18 @@
+Name,Wahrscheinlichkeit,Beschreibung
+Maus Sensitivität Verdoppeln,0.5,Die Mausgeschwindigkeit wird für alle Spieler verdoppelt.
+Maus Sensitivität Halbieren,0.5,Die Mausgeschwindigkeit wird für alle Spieler halbiert.
+Bildschirm Helligkeit auf 0,0.3,Der Bildschirm wird vollständig dunkelgeschaltet.
+Caps Lock Entfernen,0.4,Alle Caps Lock-Tasten werden deaktiviert.
+Tastenkombinationen Entfernen (Q,0.0, E
+Invertierte Maus,0.2,Die Mausbewegung wird invertiert.
+Langsame Maus,0.3,Die Maus reagiert langsamer.
+Tastatur Verzögern,0.4,Alle Tastenanschläge werden verzögert verarbeitet.
+Zufällige Caps,0.3,Die Groß-/Kleinschreibung wird zufällig umgeschaltet.
+Screen Shake,0.2,Der Bildschirm wackelt für kurze Zeit.
+Schriftart Ändern,0.2,Die Schriftarten im System werden zufällig verändert.
+Invertierte Farben,0.3,Die Farben des Bildschirms werden invertiert.
+Mauszeiger Verschwinden,0.1,Der Mauszeiger verschwindet für einige Sekunden.
+Cursor Springen,0.2,Der Cursor springt zufällig auf dem Bildschirm.
+Sound Verzerren,0.3,Die Systemtöne werden verzerrt wiedergegeben.
+Verzögerte Eingabe,0.3,Die Eingaben werden verzögert verarbeitet.
+alex,0.0,

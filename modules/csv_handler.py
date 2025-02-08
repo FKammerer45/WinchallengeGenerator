@@ -1,18 +1,18 @@
 # modules/csv_handler.py
 import csv
 import os
-from config import CSV_FILE
+from config import CSV_FILE, STRAFEN_CSV
 
-def ensure_csv_exists():
-    if not os.path.exists(CSV_FILE):
-        with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+def ensure_csv_exists(filename, headers):
+    if not os.path.exists(filename):
+        with open(filename, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
+            writer.writerow(headers)
 
-def load_entries():
-    ensure_csv_exists()
+def load_entries(filename):
+    ensure_csv_exists(filename, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
     entries = []
-    with open(CSV_FILE, "r", newline="", encoding="utf-8") as f:
+    with open(filename, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             try:
@@ -26,10 +26,9 @@ def load_entries():
             entries.append(row)
     return entries
 
-def write_entries(entries):
-    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+def write_entries(filename, entries, headers):
+    with open(filename, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
+        writer.writerow(headers)
         for entry in entries:
-            writer.writerow([entry["Spiel"], entry["Spielmodus"],
-                             entry["Schwierigkeit"], entry["Spieleranzahl"]])
+            writer.writerow([entry[h] for h in headers])

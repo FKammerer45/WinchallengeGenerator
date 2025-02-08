@@ -1,10 +1,10 @@
 # modules/game_preferences.py
 import tkinter as tk
 from tkinter import ttk, messagebox
+from modules.csv_handler import load_entries
+from config import CSV_FILE  # CSV_FILE importieren
 
-# game_vars speichert für jedes Spiel:
-# { "selected": BooleanVar, "weight": StringVar, "allowed_modes": set, "available_modes": set }
-# Diese Variable wird in main.py initialisiert und dann von diesem Modul genutzt.
+# Globale Variable game_vars (wird in main.py genutzt)
 game_vars = {}
 
 def edit_game_modes(root, game):
@@ -21,7 +21,7 @@ def edit_game_modes(root, game):
         chk.pack(anchor="w", padx=10, pady=2)
         mode_vars[mode] = var
     def save_modes():
-        selected_modes = {mode for mode, var in mode_vars.items() if var.get()}
+        selected_modes = {m for m, var in mode_vars.items() if var.get()}
         if not selected_modes:
             messagebox.showerror("Fehler", "Mindestens ein Spielmodus muss ausgewählt sein.")
             return
@@ -30,14 +30,12 @@ def edit_game_modes(root, game):
     ttk.Button(win, text="Speichern", command=save_modes).pack(padx=5, pady=10)
 
 def update_game_selection_panel(parent_frame, root):
-    # Löscht den alten Inhalt des Panels
+    # Leere alten Inhalt im frame
     for widget in parent_frame.winfo_children():
         widget.destroy()
-    # Angenommen, du erhältst eine Liste aller Spiele aus der CSV
-    from modules.csv_handler import load_entries
-    entries = load_entries()
+    # Lade Einträge unter Verwendung von CSV_FILE
+    entries = load_entries(CSV_FILE)
     unique_games = sorted({e["Spiel"] for e in entries})
-    # Initialisiere game_vars, falls noch nicht vorhanden
     for game in unique_games:
         available_modes = {e["Spielmodus"] for e in entries if e["Spiel"] == game}
         if game not in game_vars:

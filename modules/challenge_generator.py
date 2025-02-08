@@ -1,34 +1,34 @@
 # modules/challenge_generator.py
 import random
 from modules.csv_handler import load_entries
+from config import CSV_FILE
 
-def generate_challenge_logic(num_players, desired_diff, selected_game_list, weights, game_vars, spin_b2b_value):
-    """
-    Erzeugt die Challenge.
-    num_players: int, Mindestspielerzahl
-    desired_diff: float, gewünschte Schwierigkeit
-    selected_game_list: Liste der ausgewählten Spiele (Keys aus game_vars)
-    weights: Liste von Gewichtungen, korrespondierend zu selected_game_list
-    game_vars: globales Dictionary mit den Einstellungen für jedes Spiel
-    spin_b2b_value: int (0-10) aus der Back-to-Back-Spinbox
-
-    Liefert:
-      result_str: String mit der Ergebnisformatierung
-    """
-    # Lade alle Einträge, die die Mindestspielerzahl erfüllen
-    entries = load_entries()
+def generate_challenge_logic(num_players, desired_diff, selected_game_list, weights, game_vars, raw_b2b):
+    # Lade alle Einträge, die die Mindestspielerzahl erfüllen.
+    entries = load_entries(CSV_FILE)
     filtered = [e for e in entries if e["Spieleranzahl"] >= num_players]
-    # Gruppiere Einträge nach Spiel, berücksichtige erlaubte Gamemodes aus game_vars
+    
+    # Erstelle ein Dictionary verfügbarer Spiele, basierend auf den erlaubten Gamemodes.
     available_games = {}
     for game in selected_game_list:
         allowed = game_vars[game]["allowed_modes"]
         game_entries = [e for e in filtered if e["Spiel"] == game and e["Spielmodus"] in allowed]
         if game_entries:
             available_games[game] = game_entries
-    if not available_games:
-        return None  # Kein passender Eintrag
+    
+    # Filtere die ausgewählten Spiele (und deren Gewichte) so, dass nur Spiele mit verfügbaren Einträgen bleiben.
+    valid_games = []
+    valid_weights = []
+    for game, weight in zip(selected_game_list, weights):
+        if game in available_games:
+            valid_games.append(game)
+            valid_weights.append(weight)
+    if not valid_games:
+        return None  # Keine Spiele gefunden
+
     # Back-to-Back Wahrscheinlichkeit transformieren
-    p_eff = (spin_b2b_value / 10) ** 1.447
+    p_eff = (raw_b2b / 10) ** 1.447
+
     segments = []
     total_diff = 0.0
     while total_diff < desired_diff:
@@ -38,7 +38,7 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
             seg_length = 1
         wins = []
         for _ in range(seg_length):
-            chosen_game = random.choices(selected_game_list, weights=weights, k=1)[0]
+            chosen_game = random.choices(valid_games, weights=valid_weights, k=1)[0]
             chosen_entry = random.choice(available_games[chosen_game])
             wins.append(chosen_entry)
         seg_sum = sum(win["Schwierigkeit"] for win in wins)
@@ -46,7 +46,7 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
         segments.append({"wins": wins, "length": seg_length, "seg_diff": seg_diff})
         total_diff += seg_diff
 
-    # Gruppiere Ergebnisse
+    # Gruppiere Normal Wins
     normal_segments = [seg for seg in segments if seg["length"] == 1]
     normal_group = {}
     for seg in normal_segments:
@@ -56,6 +56,8 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
             normal_group[key] = {"count": 0, "diff": 0.0}
         normal_group[key]["count"] += 1
         normal_group[key]["diff"] += win["Schwierigkeit"]
+
+    # Gruppiere Back-to-Back Segmente
     b2b_segments = [seg for seg in segments if seg["length"] > 1]
     b2b_grouped = []
     for seg in b2b_segments:
@@ -64,6 +66,7 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
             key = f"{win['Spiel']} ({win['Spielmodus']})"
             group[key] = group.get(key, 0) + 1
         b2b_grouped.append({"group": group, "length": seg["length"], "seg_diff": seg["seg_diff"]})
+
     # Formatieren des Ergebnisses
     result = f"Gesamtschwierigkeit: {total_diff:.2f}\n\n"
     if normal_group:
@@ -78,4 +81,4 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
             for key, count in seg["group"].items():
                 result += f"    {key}: {count} win(s)\n"
             result += "\n"
-    return result
+    return {"result": result, "normal": normal_group, "b2b": b2b_grouped}

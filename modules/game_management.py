@@ -1,14 +1,10 @@
 # modules/game_management.py
 from tkinter import messagebox
 from modules.csv_handler import load_entries, write_entries
+from config import CSV_FILE
 
 class GameManager:
     def __init__(self, entry_widgets, tree_widget, update_selection_panel_callback):
-        """
-        entry_widgets: dict mit den Einträgen für "spiel", "spielmodus", "schwierigkeit", "spieleranzahl"
-        tree_widget: Treeview-Widget, in dem Einträge angezeigt werden
-        update_selection_panel_callback: Funktion, die den Spielauswahlbereich neu baut.
-        """
         self.entry_spiel = entry_widgets["spiel"]
         self.entry_spielmodus = entry_widgets["spielmodus"]
         self.entry_schwierigkeit = entry_widgets["schwierigkeit"]
@@ -45,14 +41,14 @@ class GameManager:
         except ValueError:
             messagebox.showerror("Fehler", "Spieleranzahl muss mindestens 1 sein.")
             return
-        entries = load_entries()
+        entries = load_entries(CSV_FILE)
         entries.append({
             "Spiel": spiel,
             "Spielmodus": spielmodus,
             "Schwierigkeit": schwierigkeit,
             "Spieleranzahl": spieleranzahl
         })
-        write_entries(entries)
+        write_entries(CSV_FILE, entries, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
         messagebox.showinfo("Erfolg", "Eintrag hinzugefügt!")
         self.clear_entry_fields()
         self.update_entry_tree()
@@ -60,7 +56,7 @@ class GameManager:
 
     def update_entry_tree(self):
         self.tree.delete(*self.tree.get_children())
-        entries = load_entries()
+        entries = load_entries(CSV_FILE)
         for index, entry in enumerate(entries):
             self.tree.insert("", "end", iid=str(index),
                              values=(entry["Spiel"], entry["Spielmodus"],
@@ -72,9 +68,9 @@ class GameManager:
             messagebox.showerror("Fehler", "Kein Eintrag ausgewählt!")
             return
         index = int(item)
-        entries = load_entries()
+        entries = load_entries(CSV_FILE)
         del entries[index]
-        write_entries(entries)
+        write_entries(CSV_FILE, entries, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
         messagebox.showinfo("Erfolg", "Eintrag gelöscht!")
         self.update_entry_tree()
         self.update_selection_panel()
@@ -104,7 +100,7 @@ class GameManager:
         except ValueError:
             messagebox.showerror("Fehler", "Spieleranzahl muss mindestens 1 sein.")
             return
-        entries = load_entries()
+        entries = load_entries(CSV_FILE)
         if not (0 <= self.selected_index < len(entries)):
             messagebox.showerror("Fehler", "Ausgewählter Eintrag existiert nicht mehr.")
             return
@@ -114,9 +110,24 @@ class GameManager:
             "Schwierigkeit": schwierigkeit,
             "Spieleranzahl": spieleranzahl
         }
-        write_entries(entries)
+        write_entries(CSV_FILE, entries, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
         messagebox.showinfo("Erfolg", "Eintrag aktualisiert!")
         self.selected_index = None
         self.clear_entry_fields()
         self.update_entry_tree()
         self.update_selection_panel()
+
+    def on_treeview_double_click(self, event):
+        item = self.tree.focus()
+        if not item:
+            return
+        self.selected_index = int(item)
+        values = self.tree.item(item, "values")
+        self.entry_spiel.delete(0, "end")
+        self.entry_spiel.insert(0, values[0])
+        self.entry_spielmodus.delete(0, "end")
+        self.entry_spielmodus.insert(0, values[1])
+        self.entry_schwierigkeit.delete(0, "end")
+        self.entry_schwierigkeit.insert(0, values[2])
+        self.entry_spieler.delete(0, "end")
+        self.entry_spieler.insert(0, values[3])

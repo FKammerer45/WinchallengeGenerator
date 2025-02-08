@@ -1,18 +1,20 @@
 # main.py
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 from modules.csv_handler import ensure_csv_exists
+from config import CSV_FILE, STRAFEN_CSV
 from modules.game_management import GameManager
-from modules.challenge_generator import generate_challenge_logic
 from modules.game_preferences import update_game_selection_panel, game_vars
-from modules.gui_components import open_result_window, create_scrollable_frame
+from modules.challenge_generator import generate_challenge_logic
+from modules.gui_components import open_result_window
 from modules.image_utils import export_result_as_image, copy_image_to_clipboard
+from modules.strafen import load_strafen, write_strafen, ensure_strafen_csv
 
-# Sicherstellen, dass die CSV existiert
-ensure_csv_exists()
+# Sicherstellen, dass die CSV-Dateien existieren
+ensure_csv_exists(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
+ensure_strafen_csv()
+selected_strafe_index = None
 
-# Erstelle das Hauptfenster
 root = tk.Tk()
 root.title("Win Challenge Generator")
 root.geometry("900x600")
@@ -23,18 +25,15 @@ style.theme_use("clam")
 style.configure("TFrame", background="#2B2B2B")
 style.configure("TLabel", background="#2B2B2B", foreground="#FFFFFF", font=("Segoe UI", 12))
 style.configure("TButton", font=("Segoe UI", 12), padding=5)
-style.map("TButton",
-          background=[("active", "#357ABD")],
-          foreground=[("active", "#FFFFFF")])
+style.map("TButton", background=[("active", "#357ABD")], foreground=[("active", "#FFFFFF")])
 
 notebook = ttk.Notebook(root)
 notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
-# ------------------ Tab 1: Challenge Generator ------------------
+# ----- Tab 1: Challenge Generator -----
 tab_gen = ttk.Frame(notebook)
 notebook.add(tab_gen, text="Challenge Generator")
 
-# Widgets für die Challenge-Erzeugung
 ttk.Label(tab_gen, text="Anzahl Spieler:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
 combo_num_players = ttk.Combobox(tab_gen, values=["1", "2", "3", "4", "5"], state="readonly", width=5, font=("Segoe UI", 12))
 combo_num_players.current(0)
@@ -69,50 +68,8 @@ scrollbar_text = ttk.Scrollbar(tab_gen, orient="vertical", command=text_result.y
 text_result.configure(yscrollcommand=scrollbar_text.set)
 scrollbar_text.grid(row=6, column=2, sticky="ns")
 
-# ------------------ Tab 2: Games ------------------
-tab_entries = ttk.Frame(notebook)
-notebook.add(tab_entries, text="Games")
+challenge_data = None  # Global zum Speichern der Challenge-Daten
 
-tree_entries = ttk.Treeview(tab_entries, columns=("Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"), show="headings")
-for col in ("Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"):
-    tree_entries.heading(col, text=col)
-tree_entries.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="wens")
-
-# Widgets für die Eingabe im Games-Tab
-ttk.Label(tab_entries, text="Spiel:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-entry_spiel = ttk.Entry(tab_entries, font=("Segoe UI", 12))
-entry_spiel.grid(row=1, column=1, padx=5, pady=5)
-
-ttk.Label(tab_entries, text="Spielmodus:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-entry_spielmodus = ttk.Entry(tab_entries, font=("Segoe UI", 12))
-entry_spielmodus.grid(row=2, column=1, padx=5, pady=5)
-
-ttk.Label(tab_entries, text="Schwierigkeit (0-10):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-entry_schwierigkeit = ttk.Entry(tab_entries, font=("Segoe UI", 12))
-entry_schwierigkeit.grid(row=3, column=1, padx=5, pady=5)
-
-ttk.Label(tab_entries, text="Spieleranzahl:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-entry_spieler = ttk.Entry(tab_entries, font=("Segoe UI", 12))
-entry_spieler.grid(row=4, column=1, padx=5, pady=5)
-
-btn_add = ttk.Button(tab_entries, text="Eintrag hinzufügen", command=lambda: gm.add_entry())
-btn_add.grid(row=5, column=0, columnspan=2, padx=5, pady=5)
-btn_update = ttk.Button(tab_entries, text="Eintrag aktualisieren", command=lambda: gm.update_entry_in_csv())
-btn_update.grid(row=6, column=0, columnspan=2, padx=5, pady=5)
-btn_delete = ttk.Button(tab_entries, text="Eintrag löschen", command=lambda: gm.delete_entry())
-btn_delete.grid(row=7, column=0, columnspan=2, padx=5, pady=5)
-
-# Erstelle einen GameManager (übergeben der Widgets aus dem Games-Tab)
-entry_widgets = {
-    "spiel": entry_spiel,
-    "spielmodus": entry_spielmodus,
-    "schwierigkeit": entry_schwierigkeit,
-    "spieleranzahl": entry_spieler
-}
-gm = GameManager(entry_widgets, tree_entries, lambda: update_game_selection_panel(frame_games_inner, root))
-gm.update_entry_tree()
-
-# Funktion zur Erzeugung der Challenge (verwendet Challenge-Logik aus dem Modul)
 def on_generate_challenge():
     try:
         num_players = int(combo_num_players.get())
@@ -130,7 +87,6 @@ def on_generate_challenge():
     except ValueError:
         messagebox.showerror("Fehler", "Gewünschte Schwierigkeit muss eine Zahl > 0 sein.")
         return
-    # Sammle die ausgewählten Spiele und deren Gewichtungen
     selected_game_list = []
     weights = []
     for game, vars in game_vars.items():
@@ -144,17 +100,108 @@ def on_generate_challenge():
         messagebox.showerror("Fehler", "Bitte wähle mindestens ein Spiel aus.")
         return
     raw_b2b = int(spin_b2b.get())
-    # Hole das Ergebnis aus dem Challenge-Modul
-    from modules.challenge_generator import generate_challenge_logic
-    result = generate_challenge_logic(num_players, desired_diff, selected_game_list, weights, game_vars, raw_b2b)
-    if result is None:
+    data = generate_challenge_logic(num_players, desired_diff, selected_game_list, weights, game_vars, raw_b2b)
+    if data is None:
         messagebox.showerror("Fehler", "Keine passenden Einträge gefunden.")
         return
+    global challenge_data
+    challenge_data = data
     text_result.config(state="normal")
     text_result.delete("1.0", "end")
-    text_result.insert("end", result)
+    text_result.insert("end", data["result"])
     text_result.config(state="disabled")
     from modules.gui_components import open_result_window
-    open_result_window(root, result, on_generate_challenge)
+    open_result_window(root, data, on_generate_challenge)
+
+# ----- Tab 2: Games -----
+tab_entries = ttk.Frame(notebook)
+notebook.add(tab_entries, text="Games")
+
+from modules.game_management import GameManager
+tree_entries = ttk.Treeview(tab_entries, columns=("Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"), show="headings")
+for col in ("Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"):
+    tree_entries.heading(col, text=col)
+tree_entries.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="wens")
+
+ttk.Label(tab_entries, text="Spiel:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+entry_spiel = ttk.Entry(tab_entries, font=("Segoe UI", 12))
+entry_spiel.grid(row=1, column=1, padx=5, pady=5)
+
+ttk.Label(tab_entries, text="Spielmodus:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+entry_spielmodus = ttk.Entry(tab_entries, font=("Segoe UI", 12))
+entry_spielmodus.grid(row=2, column=1, padx=5, pady=5)
+
+ttk.Label(tab_entries, text="Schwierigkeit (0-10):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+entry_schwierigkeit = ttk.Entry(tab_entries, font=("Segoe UI", 12))
+entry_schwierigkeit.grid(row=3, column=1, padx=5, pady=5)
+
+ttk.Label(tab_entries, text="Spieleranzahl:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+entry_spieler = ttk.Entry(tab_entries, font=("Segoe UI", 12))
+entry_spieler.grid(row=4, column=1, padx=5, pady=5)
+
+gm = GameManager(
+    {"spiel": entry_spiel, "spielmodus": entry_spielmodus, "schwierigkeit": entry_schwierigkeit, "spieleranzahl": entry_spieler},
+    tree_entries,
+    lambda: update_game_selection_panel(frame_games_inner, root)
+)
+gm.update_entry_tree()
+
+# Hier den Double-Click binden:
+tree_entries.bind("<Double-1>", gm.on_treeview_double_click)
+
+ttk.Button(tab_entries, text="Eintrag hinzufügen", command=gm.add_entry).grid(row=5, column=0, columnspan=2, padx=5, pady=5)
+ttk.Button(tab_entries, text="Eintrag aktualisieren", command=gm.update_entry_in_csv).grid(row=6, column=0, columnspan=2, padx=5, pady=5)
+ttk.Button(tab_entries, text="Eintrag löschen", command=gm.delete_entry).grid(row=7, column=0, columnspan=2, padx=5, pady=5)
+
+# ----- Tab 3: Strafen ein -----
+tab_strafen = ttk.Frame(notebook)
+notebook.add(tab_strafen, text="Strafen")
+
+from modules.strafen import load_strafen, write_strafen
+def update_strafen_tree(tree):
+    tree.delete(*tree.get_children())
+    entries = load_strafen()
+    for index, entry in enumerate(entries):
+        tree.insert("", "end", iid=str(index),
+                    values=(entry["Name"], entry["Wahrscheinlichkeit"], entry.get("Beschreibung", "")))
+
+tree_strafen = ttk.Treeview(tab_strafen, columns=("Name", "Wahrscheinlichkeit", "Beschreibung"), show="headings")
+for col in ("Name", "Wahrscheinlichkeit", "Beschreibung"):
+    tree_strafen.heading(col, text=col)
+tree_strafen.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="wens")
+update_strafen_tree(tree_strafen)
+
+ttk.Label(tab_strafen, text="Name:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+entry_strafe_name = ttk.Entry(tab_strafen, font=("Segoe UI", 12))
+entry_strafe_name.grid(row=1, column=1, padx=5, pady=5)
+
+ttk.Label(tab_strafen, text="Wahrscheinlichkeit:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+entry_strafe_wahrscheinlichkeit = ttk.Entry(tab_strafen, font=("Segoe UI", 12))
+entry_strafe_wahrscheinlichkeit.grid(row=2, column=1, padx=5, pady=5)
+
+ttk.Label(tab_strafen, text="Beschreibung (optional):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+entry_strafe_beschreibung = ttk.Entry(tab_strafen, font=("Segoe UI", 12))
+entry_strafe_beschreibung.grid(row=3, column=1, padx=5, pady=5)
+
+def add_strafe_callback():
+    name = entry_strafe_name.get().strip()
+    wahrscheinlichkeit = entry_strafe_wahrscheinlichkeit.get().strip()
+    beschreibung = entry_strafe_beschreibung.get().strip()
+    if not name or not wahrscheinlichkeit:
+        messagebox.showerror("Fehler", "Name und Wahrscheinlichkeit sind Pflichtfelder.")
+        return
+    try:
+        w = float(wahrscheinlichkeit)
+    except ValueError:
+        messagebox.showerror("Fehler", "Wahrscheinlichkeit muss eine Zahl sein.")
+        return
+    from modules.strafen import load_strafen, write_strafen
+    entries = load_strafen()
+    entries.append({"Name": name, "Wahrscheinlichkeit": w, "Beschreibung": beschreibung})
+    write_strafen(entries)
+    messagebox.showinfo("Erfolg", "Strafe hinzugefügt!")
+    update_strafen_tree(tree_strafen)
+
+ttk.Button(tab_strafen, text="Strafe hinzufügen", command=add_strafe_callback).grid(row=4, column=0, columnspan=2, padx=5, pady=5)
 
 root.mainloop()
