@@ -1,5 +1,4 @@
 Spiel,Spielmodus,Schwierigkeit,Spieleranzahl
-LeagueOfLegends,URF,3.0,5
 LeagueOfLegends,Normal,4.0,5
 LeagueOfLegends,FlexQ,6.0,5
 CSGO,Premier,6.0,5
@@ -7,3 +6,10 @@ CSGO,Ranked,6.0,5
 Fallguys,normal,2.0,4
 LeagueOfLegends,DuoQ,8.0,2
 LeagueOfLegends,Aram,3.0,5
+PUBG,squad,8.0,4
+PUBG,Duos,7.0,2
+Valorant,Ranked,6.0,5
+RocketLeague,Duos,2.0,2
+RocketLeague,Trios,2.0,3
+AgeOfEmpires,Ranked,5.0,4
+Rainbow6Siege,Ranked,5.0,5
