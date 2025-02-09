@@ -7,7 +7,7 @@ from modules.game_preferences import initialize_game_vars, game_vars
 from modules.strafen import ensure_strafen_csv
 app = Flask(__name__)
 app.config["DEBUG"] = True
-
+accepted_challenges = [] 
 # Sicherstellen, dass die CSV-Dateien existieren
 ensure_csv_exists(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
 ensure_strafen_csv()
@@ -22,11 +22,8 @@ def index():
 
 @app.route("/challenge")
 def challenge():
-    # Beispiel: Rendere eine Challenge-Seite (falls du diese separat möchtest)
-    # challenge_data könnte über Session oder einen anderen Mechanismus übergeben werden.
-    # Hier als Platzhalter:
-    challenge_data = {}
-    return render_template("challenge.html", challenge_data=challenge_data)
+    # Übergib alle akzeptierten Challenges an challenge.html
+    return render_template("challenge.html", challenges=accepted_challenges)
 
 @app.route("/games")
 def games():
@@ -47,7 +44,7 @@ def strafen():
 @app.route("/generate_challenge", methods=["POST"])
 def generate_challenge():
     try:
-        print("==== DEBUG: /generate_challenge aufgerufen ====")
+        #print("==== DEBUG: /generate_challenge aufgerufen ====")
 
         # 1) Formulardaten
         num_players = int(request.form.get("num_players", 1))
@@ -55,7 +52,7 @@ def generate_challenge():
         raw_b2b = int(request.form.get("raw_b2b", 1))
 
         # 2) Spiele & Gewichte (keine Konvertierung zu Kleinbuchstaben/Leerzeichen entfernen)
-        selected_games = request.form.getlist("selected_games")
+        selected_games = request.form.getlist("selected_games")  
         weights = [float(w) for w in request.form.getlist("weights")]
 
         # 3) CSV + game_vars
@@ -66,11 +63,9 @@ def generate_challenge():
         for game in selected_games:
             param_name = f"allowed_modes_{game}[]"  # Hinzufügen von []
             chosen_modes = request.form.getlist(param_name)
-            print(f"DEBUG: Modusauswahl für {game}: {chosen_modes}")
+            
 
-            # Fallback auf verfügbare Modi, falls keine ausgewählt
-            if not chosen_modes:
-                chosen_modes = gv.get(game, {}).get("available_modes", [])
+            
             
             if game in gv:
                 gv[game]["allowed_modes"] = chosen_modes
@@ -85,7 +80,14 @@ def generate_challenge():
         print("Fehler in /generate_challenge:", e)
         return jsonify({"error": str(e)})
 
-
+@app.route("/accept_challenge", methods=["POST"])
+def accept_challenge():
+    # JSON mit Daten der Challenge
+    data = request.json or {}
+    # Hänge in die globale Liste:
+    accepted_challenges.append(data)
+    # Gebe OK zurück
+    return jsonify({"status": "ok"})
 
 
 
