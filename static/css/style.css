@@ -1,0 +1,76 @@
+/* Grundlegende Styles für die Web-App */
+
+body {
+    background-color: #2B2B2B;
+    color: #DCDCDC;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .navbar {
+    margin-bottom: 20px;
+  }
+  
+  /* Container & Cards */
+  .container {
+    margin-top: 20px;
+  }
+  
+  .card {
+    background-color: #1E1E1E;
+    border: 1px solid #357ABD;
+    color: #DCDCDC;
+    margin-bottom: 20px;
+  }
+  
+  .card-header {
+    background-color: #357ABD;
+    color: #FFFFFF;
+  }
+  
+  .btn-primary {
+    background-color: #357ABD;
+    border-color: #357ABD;
+  }
+  
+  .btn-primary:hover {
+    background-color: #2A5E8E;
+    border-color: #2A5E8E;
+  }
+  
+  /* Formularelemente */
+  input, select, textarea {
+    background-color: #1E1E1E;
+    border: 1px solid #444;
+    color: #DCDCDC;
+  }
+  
+  .form-control:focus {
+    border-color: #357ABD;
+    box-shadow: none;
+  }
+  
+  /* Timer & Challenge-Ergebnis */
+  #timerDisplay {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #FFFFFF;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  
+  /* Win-Checkboxen-Bereich */
+  .win-row {
+    border: 1px solid #444;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    background-color: #1E1E1E;
+  }
+  
+  .win-label {
+    font-weight: bold;
+    margin-right: 10px;
+  }
+  

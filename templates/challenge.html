@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Challenge Ergebnis{% endblock %}
+{% block content %}
+<div class="container">
+  <h2>Challenge Ergebnis</h2>
+  <div id="resultArea" class="border p-3 bg-dark text-light mb-4">
+    <!-- Challenge-Ergebnis (HTML-formatiert) -->
+    {{ challenge_data.result|safe }}
+  </div>
+  
+  <div id="timerControls" class="mb-4">
+    <h4>Timer</h4>
+    <div id="timerDisplay" style="font-size: 2rem;">00:00:00</div>
+    <button id="btnStart" class="btn btn-success">Start</button>
+    <button id="btnPause" class="btn btn-warning">Pause</button>
+    <button id="btnReset" class="btn btn-danger">Reset</button>
+  </div>
+  
+  <div id="winCheckboxes" class="mb-4">
+    <h4>Markiere die erreichten Wins:</h4>
+    <!-- Hier wird per JavaScript der Checkbox-Bereich aufgebaut -->
+  </div>
+  
+  <button id="btnAccept" class="btn btn-primary">Akzeptieren</button>
+  <button id="btnRegenerate" class="btn btn-secondary">Neu generieren</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// Beispielhafte Timer-Funktionalität
+let timerInterval;
+let elapsed = 0;
+const timerDisplay = document.getElementById("timerDisplay");
+document.getElementById("btnStart").addEventListener("click", () => {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    elapsed++;
+    const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const secs = String(elapsed % 60).padStart(2, '0');
+    timerDisplay.textContent = `${hrs}:${mins}:${secs}`;
+  }, 1000);
+});
+document.getElementById("btnPause").addEventListener("click", () => {
+  clearInterval(timerInterval);
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  clearInterval(timerInterval);
+  elapsed = 0;
+  timerDisplay.textContent = "00:00:00";
+});
+</script>
+{% endblock %}

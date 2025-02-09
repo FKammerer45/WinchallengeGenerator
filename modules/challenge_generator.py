@@ -5,14 +5,17 @@ from config import CSV_FILE
 
 def generate_challenge_logic(num_players, desired_diff, selected_game_list, weights, game_vars, raw_b2b):
     # Lade alle Einträge, die die Mindestspielerzahl erfüllen.
-    entries = load_entries(CSV_FILE)
+    entries = load_entries(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
+
     filtered = [e for e in entries if e["Spieleranzahl"] >= num_players]
     
     # Erstelle ein Dictionary verfügbarer Spiele, basierend auf den erlaubten Gamemodes.
     available_games = {}
     for game in selected_game_list:
         allowed = game_vars[game]["allowed_modes"]
-        game_entries = [e for e in filtered if e["Spiel"] == game and e["Spielmodus"] in allowed]
+
+        game_entries = [e for e in filtered if e["Spiel"].strip().lower() == game and e["Spielmodus"].strip() in allowed]
+
         if game_entries:
             available_games[game] = game_entries
     
@@ -45,7 +48,7 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
         seg_diff = seg_sum * (1.5 ** (seg_length - 1)) if seg_length > 1 else seg_sum
         segments.append({"wins": wins, "length": seg_length, "seg_diff": seg_diff})
         total_diff += seg_diff
-
+    
     # Gruppiere Normal Wins
     normal_segments = [seg for seg in segments if seg["length"] == 1]
     normal_group = {}
@@ -67,18 +70,19 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
             group[key] = group.get(key, 0) + 1
         b2b_grouped.append({"group": group, "length": seg["length"], "seg_diff": seg["seg_diff"]})
 
-    # Formatieren des Ergebnisses
-    result = f"Gesamtschwierigkeit: {total_diff:.2f}\n\n"
+    # Formatieren des Ergebnisses als HTML
+    result = f"<p><strong>Gesamtschwierigkeit:</strong> {total_diff:.2f}</p>"
     if normal_group:
-        result += "Normal Wins:\n"
+        result += "<h4>Normal Wins:</h4>"
         for key, info in normal_group.items():
-            result += f"  {key}: {info['count']} win(s) (Summe Schwierigkeit: {info['diff']:.2f})\n"
-        result += "\n"
+            result += f"<p>{key}: {info['count']} win(s) (Summe Schwierigkeit: {info['diff']:.2f})</p>"
     if b2b_grouped:
-        result += "Back-to-Back Wins:\n"
+        result += "<h4>Back-to-Back Wins:</h4>"
         for i, seg in enumerate(b2b_grouped, 1):
-            result += f"  Segment {i} ({seg['length']} wins, berechnete Schwierigkeit: {seg['seg_diff']:.2f}):\n"
+            result += f"<p>Segment {i} ({seg['length']} wins, berechnete Schwierigkeit: {seg['seg_diff']:.2f}):</p>"
             for key, count in seg["group"].items():
-                result += f"    {key}: {count} win(s)\n"
-            result += "\n"
+                result += f"<p style='margin-left:20px;'>{key}: {count} win(s)</p>"
+    
+            
     return {"result": result, "normal": normal_group, "b2b": b2b_grouped}
+

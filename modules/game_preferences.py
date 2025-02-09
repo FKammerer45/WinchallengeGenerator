@@ -1,57 +1,75 @@
 # modules/game_preferences.py
-import tkinter as tk
-from tkinter import ttk, messagebox
-from modules.csv_handler import load_entries
-from config import CSV_FILE  # CSV_FILE importieren
 
-# Globale Variable game_vars (wird in main.py genutzt)
+# Globales Dictionary, das die Spielpräferenzen speichert.
+
 game_vars = {}
 
-def edit_game_modes(root, game):
-    available = sorted(list(game_vars[game]["available_modes"]))
-    current_allowed = game_vars[game]["allowed_modes"]
-    mode_vars = {}
-    win = tk.Toplevel(root)
-    win.title(f"Gamemodes für {game}")
-    win.configure(bg="#2B2B2B")
-    tk.Label(win, text="Wähle die Spielmodi aus:", bg="#2B2B2B", fg="#FFFFFF", font=("Segoe UI", 12)).pack(padx=5, pady=5)
-    for mode in available:
-        var = tk.BooleanVar(value=(mode in current_allowed))
-        chk = ttk.Checkbutton(win, text=mode, variable=var)
-        chk.pack(anchor="w", padx=10, pady=2)
-        mode_vars[mode] = var
-    def save_modes():
-        selected_modes = {m for m, var in mode_vars.items() if var.get()}
-        if not selected_modes:
-            messagebox.showerror("Fehler", "Mindestens ein Spielmodus muss ausgewählt sein.")
-            return
-        game_vars[game]["allowed_modes"] = selected_modes
-        win.destroy()
-    ttk.Button(win, text="Speichern", command=save_modes).pack(padx=5, pady=10)
+# modules/game_preferences.py
 
-def update_game_selection_panel(parent_frame, root):
-    # Leere alten Inhalt im frame
-    for widget in parent_frame.winfo_children():
-        widget.destroy()
-    # Lade Einträge unter Verwendung von CSV_FILE
-    entries = load_entries(CSV_FILE)
-    unique_games = sorted({e["Spiel"] for e in entries})
+game_vars = {}
+
+def initialize_game_vars(entries):
+    global game_vars
+    game_vars = {}  # Zurücksetzen
+    # Standardisiere jeden Spielnamen: entferne Leerzeichen und, falls gewünscht, wandle in Kleinbuchstaben um
+    unique_games = {entry["Spiel"].strip().lower() for entry in entries}
     for game in unique_games:
-        available_modes = {e["Spielmodus"] for e in entries if e["Spiel"] == game}
-        if game not in game_vars:
-            game_vars[game] = {
-                "selected": tk.BooleanVar(value=False),
-                "weight": tk.StringVar(value="1.0"),
-                "allowed_modes": available_modes.copy(),
-                "available_modes": available_modes.copy()
-            }
-        row = tk.Frame(parent_frame, bg="#2B2B2B", bd=1, relief="solid")
-        row.pack(fill="x", padx=5, pady=2)
-        row.bind("<Double-1>", lambda event, g=game: edit_game_modes(root, g))
-        chk = tk.Checkbutton(row, variable=game_vars[game]["selected"], bg="#2B2B2B")
-        chk.pack(side="left", padx=5)
-        lbl = tk.Label(row, text=game, bg="#2B2B2B", fg="#FFFFFF", font=("Segoe UI", 12), width=20, anchor="w")
-        lbl.pack(side="left", padx=5)
-        lbl.bind("<Double-1>", lambda event, g=game: edit_game_modes(root, g))
-        spn = ttk.Spinbox(row, from_=0.0, to=10.0, increment=0.1, textvariable=game_vars[game]["weight"], width=5, font=("Segoe UI", 12))
-        spn.pack(side="left", padx=5)
+        available_modes = {entry["Spielmodus"].strip() for entry in entries if entry["Spiel"].strip().lower() == game}
+        game_vars[game] = {
+            "selected": False,
+            "weight": 1.0,
+            "allowed_modes": list(available_modes),
+            "available_modes": list(available_modes)
+        }
+    return game_vars
+
+def update_allowed_modes(game, new_allowed_modes):
+    """
+    Aktualisiert für das angegebene Spiel die erlaubten Spielmodi.
+    
+    Parameters:
+      - game: Name des Spiels (String)
+      - new_allowed_modes: Iterable von Strings (neue erlaubte Modi)
+    
+    Rückgabe:
+      True, wenn erfolgreich; sonst False.
+    """
+    if game in game_vars:
+        game_vars[game]["allowed_modes"] = set(new_allowed_modes)
+        return True
+    return False
+
+def set_game_weight(game, weight):
+    """
+    Setzt für das angegebene Spiel das Gewicht.
+    
+    Parameters:
+      - game: Name des Spiels (String)
+      - weight: Zahl (wird in float umgewandelt)
+    
+    Rückgabe:
+      True, wenn erfolgreich; sonst False.
+    """
+    if game in game_vars:
+        try:
+            game_vars[game]["weight"] = float(weight)
+            return True
+        except ValueError:
+            return False
+    return False
+
+def select_game(game, selected=True):
+    """
+    Setzt den Selektionsstatus für das angegebene Spiel.
+    
+    Parameters:
+      - game: Name des Spiels (String)
+      - selected: Boolean (True, wenn ausgewählt, sonst False)
+    
+    Rückgabe:
+      True, wenn erfolgreich; sonst False.
+    """
+    if game in game_vars:
+        game_vars[game]["selected"] = bool(selected)
+        return True
+    return False

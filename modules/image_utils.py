@@ -1,11 +1,11 @@
 # modules/image_utils.py
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
-import win32clipboard
-import win32con
-from tkinter import messagebox
 
 def create_result_image(result_text):
+    """
+    Erzeugt ein PIL-Image basierend auf dem result_text.
+    """
     lines = result_text.split("\n")
     try:
         font = ImageFont.truetype("arial.ttf", 16)
@@ -24,22 +24,13 @@ def create_result_image(result_text):
         y += line_height
     return img
 
-def export_result_as_image(result_text):
+def export_result_as_image(result_text, filename="challenge_result.jpg"):
+    """
+    Speichert das Bild, das aus result_text erstellt wurde, unter dem angegebenen Dateinamen.
+    Gibt den Dateinamen zurück.
+    """
     img = create_result_image(result_text)
-    img.save("challenge_result.jpg")
-    messagebox.showinfo("Erfolg", "Challenge als Bild gespeichert: challenge_result.jpg")
+    img.save(filename)
+    return filename
 
-def send_to_clipboard(clip_type, data):
-    win32clipboard.OpenClipboard()
-    win32clipboard.EmptyClipboard()
-    win32clipboard.SetClipboardData(clip_type, data)
-    win32clipboard.CloseClipboard()
-
-def copy_image_to_clipboard(result_text):
-    img = create_result_image(result_text)
-    output = BytesIO()
-    img.convert("RGB").save(output, "BMP")
-    data = output.getvalue()[14:]  # BMP-Header entfernen
-    output.close()
-    send_to_clipboard(win32con.CF_DIB, data)
-    messagebox.showinfo("Erfolg", "Bild wurde in die Zwischenablage kopiert.")
+# Clipboard-Funktionen entfallen in einer Web-Umgebung.
