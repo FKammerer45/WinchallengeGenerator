@@ -183,8 +183,10 @@ def generate_challenge():
 def accept_challenge():
     # JSON mit Daten der Challenge
     data = request.json or {}
+
     # Hänge in die globale Liste:
     accepted_challenges.append(data)
+
     # Gebe OK zurück
     return jsonify({"status": "ok"})
 

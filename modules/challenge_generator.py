@@ -7,7 +7,8 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
     # Lade alle Einträge, die die Mindestspielerzahl erfüllen.
     entries = load_entries(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
 
-    filtered = [e for e in entries if e["Spieleranzahl"] >= num_players]
+    filtered = [e for e in entries if int(e["Spieleranzahl"]) >= num_players]
+
     
     # Erstelle ein Dictionary verfügbarer Spiele, basierend auf den erlaubten Gamemodes.
     available_games = {}
@@ -44,7 +45,7 @@ def generate_challenge_logic(num_players, desired_diff, selected_game_list, weig
             chosen_game = random.choices(valid_games, weights=valid_weights, k=1)[0]
             chosen_entry = random.choice(available_games[chosen_game])
             wins.append(chosen_entry)
-        seg_sum = sum(win["Schwierigkeit"] for win in wins)
+        seg_sum = sum(float(win["Schwierigkeit"]) for win in wins)
         seg_diff = seg_sum * (1.5 ** (seg_length - 1)) if seg_length > 1 else seg_sum
         segments.append({"wins": wins, "length": seg_length, "seg_diff": seg_diff})
         total_diff += seg_diff

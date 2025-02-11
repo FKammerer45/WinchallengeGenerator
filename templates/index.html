@@ -5,8 +5,10 @@
 <div class="container mt-4">
     <h1 class="mb-4">Win Challenge Generator</h1>
 
+
     <!-- Formular für Challenge-Parameter -->
     <form id="challengeForm" method="post" action="{{ url_for('generate_challenge') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- Anzahl Spieler -->
         <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
@@ -191,7 +193,10 @@
         // Sende die Challenge-Daten an /accept_challenge
         fetch("{{ url_for('accept_challenge') }}", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": document.querySelector('input[name="csrf_token"]').value
+            },
             body: JSON.stringify(currentChallengeData)
         })
             .then(res => res.json())
