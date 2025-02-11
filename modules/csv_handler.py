@@ -9,33 +9,19 @@ def ensure_csv_exists(filename, headers):
             writer = csv.writer(f)
             writer.writerow(headers)
 
-def load_entries(filename, headers):
-    ensure_csv_exists(filename, headers)
+def load_entries(csv_file, columns):
     entries = []
-    with open(filename, "r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Passe die Datentypen anhand der Header an.
-            if "Spieleranzahl" in headers:
-                try:
-                    row["Schwierigkeit"] = float(row.get("Schwierigkeit", 0))
-                except ValueError:
-                    row["Schwierigkeit"] = 0.0
-                try:
-                    row["Spieleranzahl"] = int(row.get("Spieleranzahl", 1))
-                except ValueError:
-                    row["Spieleranzahl"] = 1
-            elif "Wahrscheinlichkeit" in headers:
-                try:
-                    row["Wahrscheinlichkeit"] = float(row.get("Wahrscheinlichkeit", 0))
-                except ValueError:
-                    row["Wahrscheinlichkeit"] = 0.0
-            entries.append(row)
+    if os.path.exists(csv_file):
+        with open(csv_file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                entry = {col: row[col] for col in columns}
+                entry["id"] = row["id"]  # ID hinzufügen
+                entries.append(entry)
     return entries
-
-def write_entries(filename, entries, headers):
-    with open(filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(headers)
+def write_entries(csv_file, entries, columns):
+    with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=["id"] + columns)
+        writer.writeheader()
         for entry in entries:
-            writer.writerow([entry.get(h, "") for h in headers])
+            writer.writerow(entry)

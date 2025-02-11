@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Games Konfiguration{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Games Konfiguration</h2>
+
+  <!-- Tabs Navigation -->
+  <ul class="nav nav-tabs" id="gamesTab" role="tablist">
+    <!-- Default-Tab -->
+    <li class="nav-item">
+      <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
+        aria-selected="true">Default</a>
+    </li>
+    <!-- Plus-Button für neuen Tab -->
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="addTabBtn" role="tab">+</a>
+    </li>
+  </ul>
+
+  <!-- Tab-Inhalte -->
+  <div class="tab-content mt-3" id="gamesTabContent">
+    <!-- Default Tab-Pane -->
+    <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
+      <!-- Einfügen-Button für Default Tab -->
+      <div class="my-3">
+        <button class="btn btn-primary insertGameBtn" data-tab="default">Einfügen</button>
+      </div>
+      <!-- Tabelle für Default Games -->
+      {% include "games/games_table.html" %}
+    </div>
+    <!-- Neue Tabs werden hier dynamisch hinzugefügt -->
+  </div>
+</div>
+
+<!-- Modals einbinden -->
+{% include "games/games_modals.html" %}
+
+{% endblock %}
+
+{% block scripts %}
+<!-- JavaScript einbinden -->
+
+<script src="{{ url_for('static', filename='js/games_scripts.js') }}"></script>
+{% endblock %}

@@ -24,7 +24,19 @@
         {% for c in challenges %}
         <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="challenge-{{ loop.index }}"
             role="tabpanel" aria-labelledby="challenge-tab-{{ loop.index }}">
-
+            <!-- Timer-Bereich -->
+            <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD; color:#DCDCDC;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div id="timerDisplay-{{ loop.index }}" style="font-family:monospace; margin-right:10px;">
+                            00:00:00
+                        </div>
+                        <button id="btnStart-{{ loop.index }}" class="btn btn-success btn-sm mr-1">Start</button>
+                        <button id="btnStop-{{ loop.index }}" class="btn btn-warning btn-sm mr-1">Stop</button>
+                        <button id="btnReset-{{ loop.index }}" class="btn btn-danger btn-sm">Reset</button>
+                    </div>
+                </div>
+            </div>
             <!-- Gemeinsame Darstellung in einem einzigen Card-Container -->
             <div class="card" style="background-color:#1E1E1E; border:1px solid #357ABD; color:#DCDCDC;">
                 <div class="card-header">
@@ -50,11 +62,14 @@
                                     (Summe Schwierigkeit: {{ info.diff|round(2) }})
                                 </td>
                                 <td>{{ info.count }}</td>
+
                                 <td>
-                                    {% for i in range(info.count) %}
-                                    <input type="checkbox" class="form-check-input mr-1">
+                                    {% for i in range(info.count|int) %}
+                                    <input type="checkbox" class="form-check-input"
+                                        style="margin-left: {{ i * 15 }}px;">
                                     {% endfor %}
                                 </td>
+
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -68,24 +83,29 @@
                     <table class="table table-dark table-striped">
                         <thead>
                             <tr>
-                                <th style="width:35%;">Spiel</th>
+                                <th style="width:35%;">Spiel / Segment</th>
                                 <th style="width:25%;">Wins</th>
                                 <th style="width:40%;">Checkboxen</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for seg in c.b2b %}
-                            {% set seg_index = loop.index %}
+                            <!-- Segment-Header: Gruppierung für das Segment -->
+                            <tr>
+                                <td colspan="3">
+                                    <strong>Segment {{ loop.index }}</strong> — ({{ seg.length }} wins, Diff: {{
+                                    seg.seg_diff|round(2) }})
+                                </td>
+                            </tr>
+                            <!-- Einträge innerhalb des Segments -->
                             {% for key, count in seg.group.items() %}
                             <tr>
-                                <td>
-                                    Segment {{ seg_index }} - {{ key }}<br>
-                                    <small>({{ seg.length }} wins, Diff: {{ seg.seg_diff|round(2) }})</small>
-                                </td>
+                                <td>{{ key }}</td>
                                 <td>{{ count }}</td>
                                 <td>
-                                    {% for i in range(count) %}
-                                    <input type="checkbox" class="form-check-input mr-1">
+                                    {% for i in range(count|int) %}
+                                    <input type="checkbox" class="form-check-input"
+                                        style="margin-left: {{ i * 15 }}px;">
                                     {% endfor %}
                                 </td>
                             </tr>
@@ -94,6 +114,8 @@
                         </tbody>
                     </table>
                     {% endif %}
+
+
                 </div>
             </div>
 
@@ -108,7 +130,42 @@
 
 {% block scripts %}
 <script>
-    // Hier kannst du den Timer-Code für jeden Tab separat implementieren, falls erforderlich.
-    // Beispiel: Separate Timer-Funktionen für jeden Tab können über eindeutige IDs gesteuert werden.
+    document.addEventListener("DOMContentLoaded", function () {
+        // Anzahl der Challenges ermitteln (Ausgabe aus der Jinja2 Variable)
+        var numChallenges = {{ challenges| length
+    }};
+
+    // Arrays zur Speicherung der Timer-Intervalle und der verstrichenen Zeit
+    var intervals = {};
+    var elapsedTimes = {};
+
+    for (let i = 1; i <= numChallenges; i++) {
+        elapsedTimes[i] = 0;
+
+        // Start-Button für Challenge i
+        document.getElementById("btnStart-" + i).addEventListener("click", function () {
+            clearInterval(intervals[i]);
+            intervals[i] = setInterval(function () {
+                elapsedTimes[i]++;
+                let hrs = String(Math.floor(elapsedTimes[i] / 3600)).padStart(2, '0');
+                let mins = String(Math.floor((elapsedTimes[i] % 3600) / 60)).padStart(2, '0');
+                let secs = String(elapsedTimes[i] % 60).padStart(2, '0');
+                document.getElementById("timerDisplay-" + i).textContent = `${hrs}:${mins}:${secs}`;
+            }, 1000);
+        });
+
+        // Stop-Button für Challenge i
+        document.getElementById("btnStop-" + i).addEventListener("click", function () {
+            clearInterval(intervals[i]);
+        });
+
+        // Reset-Button für Challenge i
+        document.getElementById("btnReset-" + i).addEventListener("click", function () {
+            clearInterval(intervals[i]);
+            elapsedTimes[i] = 0;
+            document.getElementById("timerDisplay-" + i).textContent = "00:00:00";
+        });
+    }
+  });
 </script>
 {% endblock %}

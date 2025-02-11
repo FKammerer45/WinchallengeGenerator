@@ -1,3 +1,4 @@
 challenge_result.jpg
 *.pyc
-
+.env
+notes.md
