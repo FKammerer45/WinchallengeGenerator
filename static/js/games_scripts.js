@@ -109,9 +109,9 @@ document.getElementById("saveNewGameBtn").addEventListener("click", function () 
   }
 
   // AJAX-Request an die neue Route /add_game
-  fetch("{{ url_for('add_game') }}", {
+  fetch("/add_game", {
     method: "POST",
-    headers: { 
+    headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": document.querySelector('input[name="csrf_token"]').value
     },
@@ -122,32 +122,32 @@ document.getElementById("saveNewGameBtn").addEventListener("click", function () 
       spieleranzahl: spieleranzahl
     })
   })
-  .then(response => {
-    if (!response.ok) throw new Error("Serverfehler: " + response.statusText);
-    return response.json();
-  })
-  .then(data => {
-    if (data.error) {
-      showGameFormAlert(data.error);
-    } else {
-      // Füge den neuen Eintrag zur Tabelle im aktuellen Tab hinzu
-      const newRow = `<tr data-id="${data.entry_id}">
+    .then(response => {
+      if (!response.ok) throw new Error("Serverfehler: " + response.statusText);
+      return response.json();
+    })
+    .then(data => {
+      if (data.error) {
+        showGameFormAlert(data.error);
+      } else {
+        // Füge den neuen Eintrag zur Tabelle im aktuellen Tab hinzu
+        const newRow = `<tr data-id="${data.entry_id}">
                         <td>${spiel}</td>
                         <td>${spielmodus}</td>
                         <td>${schwierigkeit.toFixed(1)}</td>
                         <td>${spieleranzahl}</td>
                       </tr>`;
-      document.querySelector(`#${window.currentTargetTab} .gamesTable`).insertAdjacentHTML('beforeend', newRow);
-      // Modal schließen und Formular zurücksetzen
-      $("#newGameModal").modal("hide");
-      form.reset();
-      document.getElementById("gameFormAlert").innerHTML = "";
-    }
-  })
-  .catch(err => {
-    console.error("Fehler beim Hinzufügen:", err);
-    showGameFormAlert("Netzwerkfehler: " + err.message);
-  });
+        document.querySelector(`#${window.currentTargetTab} .gamesTable`).insertAdjacentHTML('beforeend', newRow);
+        // Modal schließen und Formular zurücksetzen
+        $("#newGameModal").modal("hide");
+        form.reset();
+        document.getElementById("gameFormAlert").innerHTML = "";
+      }
+    })
+    .catch(err => {
+      console.error("Fehler beim Hinzufügen:", err);
+      showGameFormAlert("Netzwerkfehler: " + err.message);
+    });
 });
 
 function showGameFormAlert(message) {
@@ -244,24 +244,24 @@ document.getElementById("deleteGameBtn").addEventListener("click", function () {
       },
       body: JSON.stringify({ id: entryId })
     })
-    .then(response => {
-      if (!response.ok) throw new Error('Serverfehler: ' + response.statusText);
-      return response.json();
-    })
-    .then(data => {
-      if (data.success) {
-        const targetRow = document.querySelector(`tr[data-id="${entryId}"]`);
-        if (targetRow) {
-          targetRow.remove();
+      .then(response => {
+        if (!response.ok) throw new Error('Serverfehler: ' + response.statusText);
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          const targetRow = document.querySelector(`tr[data-id="${entryId}"]`);
+          if (targetRow) {
+            targetRow.remove();
+          }
+          $("#editGameModal").modal("hide");
+        } else {
+          showAlert("Fehler beim Löschen: " + data.error, "editGameAlert");
         }
-        $("#editGameModal").modal("hide");
-      } else {
-        showAlert("Fehler beim Löschen: " + data.error, "editGameAlert");
-      }
-    })
-    .catch(error => {
-      showAlert("Netzwerkfehler: " + error.message, "editGameAlert");
-    });
+      })
+      .catch(error => {
+        showAlert("Netzwerkfehler: " + error.message, "editGameAlert");
+      });
   }
 });
 

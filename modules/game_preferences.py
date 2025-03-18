@@ -1,27 +1,32 @@
-# modules/game_preferences.py
-
-# Globales Dictionary, das die Spielpräferenzen speichert.
-
-game_vars = {}
 
 # modules/game_preferences.py
 
 game_vars = {}
 
 def initialize_game_vars(entries):
-    global game_vars
-    game_vars = {}  # Zurücksetzen
-    # Standardisiere jeden Spielnamen: entferne Leerzeichen und, falls gewünscht, wandle in Kleinbuchstaben um
     unique_games = {entry["Spiel"].strip().lower() for entry in entries}
+    gv = {}
     for game in unique_games:
-        available_modes = {entry["Spielmodus"].strip() for entry in entries if entry["Spiel"].strip().lower() == game}
-        game_vars[game] = {
+        gv[game] = {
             "selected": False,
             "weight": 1.0,
-            "allowed_modes": list(available_modes),
-            "available_modes": list(available_modes)
+            "allowed_modes": [],
+            "available_modes": []
         }
-    return game_vars
+    for entry in entries:
+        game = entry["Spiel"].strip().lower()
+        mode = entry["Spielmodus"].strip()
+        if game in gv:
+            if mode not in gv[game]["available_modes"]:
+                gv[game]["available_modes"].append(mode)
+            if mode not in gv[game]["allowed_modes"]:
+                gv[game]["allowed_modes"].append(mode)
+    return gv
+
+
+
+
+# The rest of the functions remain unchanged
 
 def update_allowed_modes(game, new_allowed_modes):
     """

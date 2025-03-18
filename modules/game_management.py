@@ -1,14 +1,23 @@
 # modules/game_management.py
-from modules.csv_handler import load_entries, write_entries
-from config import CSV_FILE
+from modules.models import GameEntry as Game
+from modules.models import  SessionLocal
 
 class GameManager:
     @staticmethod
     def get_all_entries():
         """
-        Gibt alle Einträge aus der Spiele-CSV zurück.
+        Returns all game entries from the SQL database.
         """
-        return load_entries(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
+        session = SessionLocal()
+        entries = session.query(Game).all()
+        session.close()
+        # Convert each SQLAlchemy model to a dict if needed.
+        # You can add a to_dict() method to your GameEntry model. For example:
+        #   def to_dict(self):
+        #       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return [entry.to_dict() for entry in entries]
+
+
     
     @staticmethod
     def add_entry(spiel, spielmodus, schwierigkeit, spieleranzahl):
@@ -35,18 +44,26 @@ class GameManager:
                 raise ValueError
         except ValueError:
             raise ValueError("Spieleranzahl muss eine ganze Zahl und mindestens 1 sein.")
-        entries = load_entries(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
-        entries.append({
-            "Spiel": spiel,
-            "Spielmodus": spielmodus,
-            "Schwierigkeit": schwierigkeit,
-            "Spieleranzahl": spieleranzahl
-        })
-        write_entries(CSV_FILE, entries, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
-        return "Eintrag hinzugefügt"
+        new_game = Game(
+            Spiel=spiel,
+            Spielmodus=spielmodus,
+            Schwierigkeit=schwierigkeit,
+            Spieleranzahl=spieleranzahl
+        )
+        session = SessionLocal()
+        new_entry = Game(
+            Spiel=spiel,
+            Spielmodus=spielmodus,
+            Schwierigkeit=schwierigkeit,
+            Spieleranzahl=spieleranzahl
+        )
+        session.add(new_entry)
+        session.commit()
+        session.close()
+        return "Entry added"
 
     @staticmethod
-    def update_entry(index, spiel, spielmodus, schwierigkeit, spieleranzahl):
+    def update_entry(game_id, spiel, spielmodus, schwierigkeit, spieleranzahl):
         """
         Aktualisiert den Spieleintrag an der angegebenen Indexposition.
         Parameter:
@@ -54,6 +71,7 @@ class GameManager:
           spiel, spielmodus, schwierigkeit, spieleranzahl: Neue Werte
         Liefert eine Erfolgsmeldung oder löst eine Exception aus.
         """
+        session = SessionLocal()
         if not (spiel and spielmodus and schwierigkeit is not None and spieleranzahl is not None):
             raise ValueError("Alle Felder müssen ausgefüllt werden.")
         try:
@@ -68,27 +86,31 @@ class GameManager:
                 raise ValueError
         except ValueError:
             raise ValueError("Spieleranzahl muss eine ganze Zahl und mindestens 1 sein.")
-        entries = load_entries(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
-        if index < 0 or index >= len(entries):
-            raise IndexError("Ausgewählter Eintrag existiert nicht.")
-        entries[index] = {
-            "Spiel": spiel,
-            "Spielmodus": spielmodus,
-            "Schwierigkeit": schwierigkeit,
-            "Spieleranzahl": spieleranzahl
-        }
-        write_entries(CSV_FILE, entries, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
-        return "Eintrag aktualisiert"
+        game = Game.query.get(game_id)
+        if not game:
+            session.close()
+            raise IndexError("Selected entry does not exist.")
+        game.Spiel = spiel
+        game.Spielmodus = spielmodus
+        game.Schwierigkeit = schwierigkeit
+        game.Spieleranzahl = spieleranzahl
+        session.commit()
+        session.close()
+        return "Entry updated"
 
     @staticmethod
-    def delete_entry(index):
+    def delete_entry(game_id):
         """
-        Löscht den Spieleintrag an der angegebenen Indexposition.
-        Liefert eine Erfolgsmeldung oder löst eine Exception aus.
+        Deletes the game entry with the given id.
         """
-        entries = load_entries(CSV_FILE, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
-        if index < 0 or index >= len(entries):
-            raise IndexError("Kein Eintrag ausgewählt oder Eintrag existiert nicht.")
-        del entries[index]
-        write_entries(CSV_FILE, entries, ["Spiel", "Spielmodus", "Schwierigkeit", "Spieleranzahl"])
-        return "Eintrag gelöscht"
+        session = SessionLocal()
+        entry = session.query(Game).filter(Game.id == index).first()
+        if not entry:
+            session.close()
+            raise IndexError("No entry selected or entry does not exist.")
+        session.delete(entry)
+        session.commit()
+        session.close()
+        return "Entry deleted"
+
+
