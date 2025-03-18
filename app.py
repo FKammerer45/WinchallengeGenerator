@@ -1,9 +1,11 @@
 # app.py
 import logging
+from modules.auth import auth_bp
 from flask_wtf.csrf import CSRFProtect
+from flask_login import LoginManager
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
-from modules.models import SessionLocal, GameEntry, Base, engine
+from modules.models import SessionLocal, GameEntry, Base, engine, User
 from modules.challenge_generator import generate_challenge_logic
 from modules.game_preferences import initialize_game_vars, game_vars
 import os
@@ -14,12 +16,26 @@ csrf = CSRFProtect(app)
 # Ein zufälliges Secret Key setzen (wichtig für CSRF)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
+app.register_blueprint(auth_bp)
+
 app.config["DEBUG"] = True
 accepted_challenges = [] 
 
 logging.basicConfig(level=logging.DEBUG, 
                     format='%(asctime)s %(levelname)s: %(message)s',
                     handlers=[logging.StreamHandler()])
+
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "auth.login"
+
+@login_manager.user_loader
+def load_user(user_id):
+    session = SessionLocal()
+    user = session.query(User).get(user_id)
+    session.close()
+    return user
 
 @app.before_request
 def init_db():
