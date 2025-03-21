@@ -1,29 +1,23 @@
-# import_games.py
 import csv
-from modules.models import GameEntry, SessionLocal
-from config import CSV_FILE
+from modules.models import Penalty, SessionLocal
+from config import STRAFEN_CSV
 
-def import_games():
+def import_penalties():
     session = SessionLocal()
-    with open(CSV_FILE, newline="", encoding="utf-8") as f:
-        # If your CSV has duplicate ID columns, the DictReader will pick the later occurrence.
-        # Since the model uses autoincrement, we ignore the CSV id fields.
+    with open(STRAFEN_CSV, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             try:
-                # Create a new GameEntry using the relevant columns
-                game_entry = GameEntry(
-                    Spiel=row["Spiel"],
-                    Spielmodus=row["Spielmodus"],
-                    Schwierigkeit=float(row["Schwierigkeit"]),
-                    Spieleranzahl=int(row["Spieleranzahl"])
+                penalty_entry = Penalty(
+                    Strafe=row["Strafe"],  # Assumes your CSV header is "Strafe"
+                    Wahrscheinlichkeit=float(row["Wahrscheinlichkeit"])  # Assumes header "Wahrscheinlichkeit"
                 )
-                session.add(game_entry)
+                session.add(penalty_entry)
             except Exception as e:
                 print(f"Error processing row {row}: {e}")
         session.commit()
     session.close()
 
 if __name__ == "__main__":
-    import_games()
-    print("Games imported successfully.")
+    import_penalties()
+    print("Penalties imported successfully.")

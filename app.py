@@ -10,16 +10,22 @@ from modules.challenge_generator import generate_challenge_logic
 from modules.game_preferences import initialize_game_vars, game_vars
 import os
 app = Flask(__name__)
-DATABASE_URL = os.getenv("DATABASE_URL", os.getenv('DATABASE_URL'))
+app.config.from_object("config")
 # CSRF-Schutz aktivieren
 csrf = CSRFProtect(app)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 # Ein zufälliges Secret Key setzen (wichtig für CSRF)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+
 
 app.register_blueprint(auth_bp)
 
 app.config["DEBUG"] = True
 accepted_challenges = [] 
+
+
 
 logging.basicConfig(level=logging.DEBUG, 
                     format='%(asctime)s %(levelname)s: %(message)s',
@@ -36,6 +42,15 @@ def load_user(user_id):
     user = session.query(User).get(user_id)
     session.close()
     return user
+
+@app.context_processor
+def inject_config():
+    return dict(config=app.config)
+
+@app.context_processor
+def inject_recaptcha_key():
+    return dict(RECAPTCHA_PUBLIC_KEY=app.config['RECAPTCHA_PUBLIC_KEY'])
+
 
 @app.before_request
 def init_db():
