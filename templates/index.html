@@ -3,212 +3,192 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">Win Challenge Generator</h1>
+  <h1 class="mb-4">Win Challenge Generator</h1>
 
+  <!-- Form for challenge parameters -->
+  <form id="challengeForm" method="post" action="{{ url_for('generate_challenge') }}">
+    <!-- CSRF Token -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <!-- Formular für Challenge-Parameter -->
-    <form id="challengeForm" method="post" action="{{ url_for('generate_challenge') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <!-- Anzahl Spieler -->
-        <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
-            <div class="card-body text-light">
-                <label for="numPlayers" class="font-weight-bold">Anzahl Spieler:</label>
-                <select class="form-control" id="numPlayers" name="num_players"
-                    style="background-color:#2B2B2B; color:#fff; border:none;">
-                    <option>1</option>
-                    <option>2</option>
-                    <option>3</option>
-                    <option>4</option>
-                    <option>5</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Gewünschte Schwierigkeit -->
-        <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
-            <div class="card-body text-light">
-                <label for="desiredDiff" class="font-weight-bold">Gewünschte Schwierigkeit:</label>
-                <input type="number" step="0.1" class="form-control" id="desiredDiff" name="desired_diff"
-                    placeholder="z.B. 50.0" required value="60"
-                    style="background-color:#2B2B2B; color:#fff; border:none;">
-            </div>
-        </div>
-
-        <!-- Back-to-Back Wahrscheinlichkeit -->
-        <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
-            <div class="card-body text-light">
-                <label for="spinB2B" class="font-weight-bold">
-                    Back-to-Back Wahrscheinlichkeit (0 = keine, 10 = ausschließlich):
-                </label>
-                <input type="number" class="form-control" id="spinB2B" name="raw_b2b" min="0" max="10" value="1"
-                    style="background-color:#2B2B2B; color:#fff; border:none;">
-            </div>
-        </div>
-
-        <!-- Spiele-Auswahl (mit Tabellenlayout für weniger Abstand) -->
-        <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
-            <div class="card-header text-light">
-                <strong>Wähle die Spiele aus:</strong>
-            </div>
-            <div class="card-body p-2" style="background-color:#1E1E1E;">
-                <table class="table table-dark table-striped mb-0">
-                    <thead>
-                        <tr>
-                            <th style="width:20%;">Spiel</th>
-                            <th style="width:25%;">Wahrscheinlichkeit</th>
-                            <th style="width:40%;">Modusauswahl</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for game, settings in game_vars.items() %}
-                        <tr>
-                            <!-- Spiel + Checkbox -->
-                            <td>
-                                <input class="form-check-input" type="checkbox" name="selected_games" value="{{ game }}"
-                                    id="game{{ loop.index }}"
-                                    style="margin-left: 3px;margin-top:9px;margin-top:10px; margin-right:8px; vertical-align: middle;">
-                                <label class="form-check-label" for="game{{ loop.index }}"
-                                    style="margin-left: 20px;font-weight:bold; vertical-align: middle; ">
-                                    {{ game }}
-                                </label>
-                            </td>
-
-                            <!-- Gewicht -->
-                            <td>
-                                <input type="number" name="weights" value="{{ settings.weight }}" step="0.1"
-                                    style="width:70px; background-color:#2B2B2B; color:#fff; border:none;">
-                            </td>
-
-                            <!-- Modus auswählen (Button + Modal) -->
-                            <td>
-                                <button type="button" class="btn btn-sm btn-secondary" data-toggle="modal"
-                                    data-target="#modesModal{{ loop.index }}">
-                                    Modus auswählen
-                                </button>
-
-                                <!-- Modal pro Spiel -->
-                                <div class="modal fade" id="modesModal{{ loop.index }}" tabindex="-1" role="dialog"
-                                    aria-labelledby="modesModalLabel{{ loop.index }}" aria-hidden="true">
-                                    <div class="modal-dialog" role="document">
-                                        <div class="modal-content" style="color:#000;">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="modesModalLabel{{ loop.index }}">
-                                                    Gamemodes für {{ game }}
-                                                </h5>
-                                                <button type="button" class="close" data-dismiss="modal"
-                                                    aria-label="Close">
-                                                    <span aria-hidden="true">&times;</span>
-                                                </button>
-                                            </div>
-                                            <div class="modal-body">
-                                                {% set outer_index = loop.index %}
-                                                {% for mode in settings.available_modes %}
-                                                <div class="form-check mb-2">
-                                                    <input class="form-check-input" type="checkbox"
-                                                        name="allowed_modes_{{ game }}[]" value="{{ mode }}"
-                                                        id="mode{{ outer_index }}-{{ loop.index }}" {% if mode in
-                                                        settings.allowed_modes %} checked {% endif %}>
-                                                    <label class="form-check-label ml-1"
-                                                        for="mode{{ outer_index }}-{{ loop.index }}">
-                                                        {{ mode }}
-                                                    </label>
-                                                </div>
-                                                {% endfor %}
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-primary" data-dismiss="modal">
-                                                    Speichern
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Button für Challenge generieren -->
-        <button type="submit" class="btn btn-primary btn-lg">
-            Challenge generieren
-        </button>
-    </form>
-
-    <!-- Challenge-Ergebnis (in einem Kasten) -->
-    <div class="mt-3">
-        <div id="challengeResult" class="card p-3" style="display:none;"></div>
-
-        <!-- "Challenge akzeptieren" Button -->
-        <button id="acceptBtn" class="btn btn-success mt-3" style="display:none;">
-            Challenge akzeptieren
-        </button>
+    <!-- Number of Players Card -->
+    <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
+      <div class="card-body text-light">
+        <label for="numPlayers" class="font-weight-bold">Anzahl Spieler:</label>
+        <select class="form-control" id="numPlayers" name="num_players"
+                style="background-color:#2B2B2B; color:#fff; border:none;">
+          <option>1</option>
+          <option>2</option>
+          <option>3</option>
+          <option>4</option>
+          <option>5</option>
+        </select>
+      </div>
     </div>
 
+    <!-- Desired Difficulty Card -->
+    <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
+      <div class="card-body text-light">
+        <label for="desiredDiff" class="font-weight-bold">Gewünschte Schwierigkeit:</label>
+        <input type="number" step="0.1" class="form-control" id="desiredDiff" name="desired_diff"
+               placeholder="z.B. 50.0" required value="60"
+               style="background-color:#2B2B2B; color:#fff; border:none;">
+      </div>
+    </div>
 
+    <!-- Back-to-Back Probability Card -->
+    <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
+      <div class="card-body text-light">
+        <label for="spinB2B" class="font-weight-bold">
+          Back-to-Back Wahrscheinlichkeit (0 = keine, 10 = ausschließlich):
+        </label>
+        <input type="number" class="form-control" id="spinB2B" name="raw_b2b" min="0" max="10" value="1"
+               style="background-color:#2B2B2B; color:#fff; border:none;">
+      </div>
+    </div>
+
+    <!-- Games Selection Card -->
+    <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD;">
+      <div class="card-header text-light">
+        <strong>Wähle die Spiele aus:</strong>
+      </div>
+      <div class="card-body p-2" style="background-color:#1E1E1E;">
+        <table class="table table-dark table-striped mb-0">
+          <thead>
+            <tr>
+              <th style="width:20%;">Spiel</th>
+              <th style="width:25%;">Wahrscheinlichkeit</th>
+              <th style="width:40%;">Modusauswahl</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for game, settings in game_vars.items() %}
+            <tr>
+              <!-- Checkbox for selecting game -->
+              <td>
+                <input class="form-check-input" type="checkbox" name="selected_games" value="{{ game }}"
+                       id="game{{ loop.index }}"
+                       style="margin-left: 3px; margin-top:10px; margin-right:8px; vertical-align: middle;">
+                <label class="form-check-label" for="game{{ loop.index }}"
+                       style="margin-left: 20px; font-weight:bold; vertical-align: middle;">
+                  {{ game }}
+                </label>
+              </td>
+              <!-- Weight input -->
+              <td>
+                <input type="number" name="weights" value="{{ settings.weight }}" step="0.1"
+                       style="width:70px; background-color:#2B2B2B; color:#fff; border:none;">
+              </td>
+              <!-- Mode selection button with modal trigger -->
+              <td>
+                <button type="button" class="btn btn-sm btn-secondary" data-toggle="modal"
+                        data-target="#modesModal{{ loop.index }}">
+                  Modus auswählen
+                </button>
+                <!-- Modal for game modes -->
+                <div class="modal fade" id="modesModal{{ loop.index }}" tabindex="-1" role="dialog"
+                     aria-labelledby="modesModalLabel{{ loop.index }}" aria-hidden="true">
+                  <div class="modal-dialog" role="document">
+                    <div class="modal-content" style="color:#000;">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="modesModalLabel{{ loop.index }}">Gamemodes für {{ game }}</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                      <div class="modal-body">
+                        {% set outer_index = loop.index %}
+                        {% for mode in settings.available_modes %}
+                        <div class="form-check mb-2">
+                          <input class="form-check-input" type="checkbox"
+                                 name="allowed_modes_{{ game }}[]" value="{{ mode }}"
+                                 id="mode{{ outer_index }}-{{ loop.index }}"
+                                 {% if mode in settings.allowed_modes %} checked {% endif %}>
+                          <label class="form-check-label ml-1" for="mode{{ outer_index }}-{{ loop.index }}">
+                            {{ mode }}
+                          </label>
+                        </div>
+                        {% endfor %}
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-dismiss="modal">Speichern</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Submit Button for generating the challenge -->
+    <button type="submit" class="btn btn-primary btn-lg">Challenge generieren</button>
+  </form>
+
+  <!-- Container for displaying challenge result and accept button -->
+  <div class="mt-3">
+    <div id="challengeResult" class="card p-3" style="display:none;"></div>
+    <button id="acceptBtn" class="btn btn-success mt-3" style="display:none;">Challenge akzeptieren</button>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    let currentChallengeData = null;
+  let currentChallengeData = null;
 
-    document.getElementById("challengeForm").addEventListener("submit", function (e) {
-        e.preventDefault();
-        const formData = new FormData(this);
+  // Event listener for challenge form submission
+  document.getElementById("challengeForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const formData = new FormData(this);
 
-        fetch("{{ url_for('generate_challenge') }}", {
-            method: "POST",
-            body: formData
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    // Zeige die Challenge an
-                    const resultDiv = document.getElementById("challengeResult");
-                    resultDiv.style.display = "block";
-                    resultDiv.innerHTML = data.result;  // HTML aus "result"
+    fetch("{{ url_for('generate_challenge') }}", {
+      method: "POST",
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert(data.error);
+      } else {
+        // Display challenge result and store data for acceptance
+        const resultDiv = document.getElementById("challengeResult");
+        resultDiv.style.display = "block";
+        resultDiv.innerHTML = data.result;
+        currentChallengeData = data;
+        // Show accept button
+        document.getElementById("acceptBtn").style.display = "inline-block";
+      }
+    })
+    .catch(err => console.error("Fehler:", err));
+  });
 
-                    currentChallengeData = data; // Speichere es in JS für "Accept"
-
-                    // Zeige den "Challenge akzeptieren" Button
-                    const acceptBtn = document.getElementById("acceptBtn");
-                    acceptBtn.style.display = "inline-block";
-                }
-            })
-            .catch(err => console.error("Fehler:", err));
-    });
-
-    // Klick auf "Challenge akzeptieren"
-    document.getElementById("acceptBtn").addEventListener("click", function () {
-        if (!currentChallengeData) {
-            alert("Keine Challenge generiert.");
-            return;
-        }
-        // Sende die Challenge-Daten an /accept_challenge
-        fetch("{{ url_for('accept_challenge') }}", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": document.querySelector('input[name="csrf_token"]').value
-            },
-            body: JSON.stringify(currentChallengeData)
-        })
-            .then(res => res.json())
-            .then(resData => {
-                if (resData.status === "ok") {
-                    // Wechsle in derselben Registerkarte auf /challenge
-                    window.location.href = "{{ url_for('challenge') }}";
-                } else {
-                    alert("Fehler beim Akzeptieren der Challenge.");
-                }
-            })
-            .catch(err => console.error("Fehler beim Accept:", err));
-    });
+  // Event listener for accepting a challenge
+  document.getElementById("acceptBtn").addEventListener("click", function () {
+    if (!currentChallengeData) {
+      alert("Keine Challenge generiert.");
+      return;
+    }
+    fetch("{{ url_for('accept_challenge') }}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.querySelector('input[name="csrf_token"]').value
+      },
+      body: JSON.stringify(currentChallengeData)
+    })
+    .then(res => res.json())
+    .then(resData => {
+      if (resData.status === "ok") {
+        // Redirect to challenges page in the same tab
+        window.location.href = "{{ url_for('challenge') }}";
+      } else {
+        alert("Fehler beim Akzeptieren der Challenge.");
+      }
+    })
+    .catch(err => console.error("Fehler beim Accept:", err));
+  });
 </script>
 {% endblock %}

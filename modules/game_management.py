@@ -1,116 +1,150 @@
 # modules/game_management.py
-from modules.models import GameEntry as Game
-from modules.models import  SessionLocal
+import logging
+from typing import List
+from modules.models import GameEntry as Game, SessionLocal
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class GameManager:
     @staticmethod
-    def get_all_entries():
+    def get_all_entries() -> List[dict]:
         """
-        Returns all game entries from the SQL database.
+        Returns all game entries from the SQL database as a list of dictionaries.
         """
         session = SessionLocal()
-        entries = session.query(Game).all()
-        session.close()
-        # Convert each SQLAlchemy model to a dict if needed.
-        # You can add a to_dict() method to your GameEntry model. For example:
-        #   def to_dict(self):
-        #       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        return [entry.to_dict() for entry in entries]
+        try:
+            entries = session.query(Game).all()
+            logger.debug("Fetched %d game entries", len(entries))
+            return [entry.to_dict() for entry in entries]
+        except Exception as ex:
+            logger.exception("Error fetching game entries: %s", ex)
+            raise
+        finally:
+            session.close()
 
-
-    
     @staticmethod
-    def add_entry(spiel, spielmodus, schwierigkeit, spieleranzahl):
+    def add_entry(spiel: str, spielmodus: str, schwierigkeit: float, spieleranzahl: int) -> str:
         """
-        Fügt einen neuen Spieleintrag hinzu.
-        Parameter:
-          spiel: String
-          spielmodus: String
-          schwierigkeit: Zahl (0-10)
-          spieleranzahl: Integer (>= 1)
-        Liefert eine Erfolgsmeldung oder löst eine Exception aus.
+        Adds a new game entry to the database.
+        
+        Parameters:
+          spiel: Game name (String)
+          spielmodus: Game mode (String)
+          schwierigkeit: Difficulty (Number between 0 and 10)
+          spieleranzahl: Number of players (Integer, >= 1)
+        
+        Returns:
+          Success message or raises an Exception.
         """
+        # Validate input
         if not (spiel and spielmodus and schwierigkeit is not None and spieleranzahl is not None):
             raise ValueError("Alle Felder müssen ausgefüllt werden.")
         try:
             schwierigkeit = float(schwierigkeit)
             if not (0 <= schwierigkeit <= 10):
-                raise ValueError
+                raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
         except ValueError:
             raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
         try:
             spieleranzahl = int(spieleranzahl)
             if spieleranzahl < 1:
-                raise ValueError
+                raise ValueError("Spieleranzahl muss mindestens 1 sein.")
         except ValueError:
             raise ValueError("Spieleranzahl muss eine ganze Zahl und mindestens 1 sein.")
-        new_game = Game(
-            Spiel=spiel,
-            Spielmodus=spielmodus,
-            Schwierigkeit=schwierigkeit,
-            Spieleranzahl=spieleranzahl
-        )
+
         session = SessionLocal()
-        new_entry = Game(
-            Spiel=spiel,
-            Spielmodus=spielmodus,
-            Schwierigkeit=schwierigkeit,
-            Spieleranzahl=spieleranzahl
-        )
-        session.add(new_entry)
-        session.commit()
-        session.close()
-        return "Entry added"
+        try:
+            new_entry = Game(
+                Spiel=spiel,
+                Spielmodus=spielmodus,
+                Schwierigkeit=schwierigkeit,
+                Spieleranzahl=spieleranzahl
+            )
+            session.add(new_entry)
+            session.commit()
+            logger.debug("Added new game entry with id %s", new_entry.id)
+            return "Entry added"
+        except Exception as ex:
+            session.rollback()
+            logger.exception("Error adding new game entry: %s", ex)
+            raise
+        finally:
+            session.close()
 
     @staticmethod
-    def update_entry(game_id, spiel, spielmodus, schwierigkeit, spieleranzahl):
+    def update_entry(game_id: int, spiel: str, spielmodus: str, schwierigkeit: float, spieleranzahl: int) -> str:
         """
-        Aktualisiert den Spieleintrag an der angegebenen Indexposition.
-        Parameter:
-          index: Integer, Index des Eintrags
-          spiel, spielmodus, schwierigkeit, spieleranzahl: Neue Werte
-        Liefert eine Erfolgsmeldung oder löst eine Exception aus.
+        Updates the game entry with the given game_id.
+        
+        Parameters:
+          game_id: The ID of the game entry to update.
+          spiel, spielmodus, schwierigkeit, spieleranzahl: New values.
+        
+        Returns:
+          Success message or raises an Exception.
         """
-        session = SessionLocal()
+        # Validate input
         if not (spiel and spielmodus and schwierigkeit is not None and spieleranzahl is not None):
             raise ValueError("Alle Felder müssen ausgefüllt werden.")
         try:
             schwierigkeit = float(schwierigkeit)
             if not (0 <= schwierigkeit <= 10):
-                raise ValueError
+                raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
         except ValueError:
             raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
         try:
             spieleranzahl = int(spieleranzahl)
             if spieleranzahl < 1:
-                raise ValueError
+                raise ValueError("Spieleranzahl muss mindestens 1 sein.")
         except ValueError:
             raise ValueError("Spieleranzahl muss eine ganze Zahl und mindestens 1 sein.")
-        game = Game.query.get(game_id)
-        if not game:
+
+        session = SessionLocal()
+        try:
+            game = session.query(Game).get(game_id)
+            if not game:
+                raise IndexError("Selected entry does not exist.")
+            game.Spiel = spiel
+            game.Spielmodus = spielmodus
+            game.Schwierigkeit = schwierigkeit
+            game.Spieleranzahl = spieleranzahl
+            session.commit()
+            logger.debug("Updated game entry with id %s", game_id)
+            return "Entry updated"
+        except Exception as ex:
+            session.rollback()
+            logger.exception("Error updating game entry with id %s: %s", game_id, ex)
+            raise
+        finally:
             session.close()
-            raise IndexError("Selected entry does not exist.")
-        game.Spiel = spiel
-        game.Spielmodus = spielmodus
-        game.Schwierigkeit = schwierigkeit
-        game.Spieleranzahl = spieleranzahl
-        session.commit()
-        session.close()
-        return "Entry updated"
 
     @staticmethod
-    def delete_entry(game_id):
+    def delete_entry(game_id: int) -> str:
         """
-        Deletes the game entry with the given id.
+        Deletes the game entry with the given game_id.
+        
+        Parameters:
+          game_id: The ID of the game entry to delete.
+        
+        Returns:
+          Success message or raises an Exception.
         """
         session = SessionLocal()
-        entry = session.query(Game).filter(Game.id == index).first()
-        if not entry:
+        try:
+            entry = session.query(Game).filter(Game.id == game_id).first()
+            if not entry:
+                raise IndexError("No entry selected or entry does not exist.")
+            session.delete(entry)
+            session.commit()
+            logger.debug("Deleted game entry with id %s", game_id)
+            return "Entry deleted"
+        except Exception as ex:
+            session.rollback()
+            logger.exception("Error deleting game entry with id %s: %s", game_id, ex)
+            raise
+        finally:
             session.close()
-            raise IndexError("No entry selected or entry does not exist.")
-        session.delete(entry)
-        session.commit()
-        session.close()
-        return "Entry deleted"
+
 
 

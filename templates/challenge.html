@@ -3,169 +3,164 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">Alle akzeptierten Challenges</h1>
+  <h1 class="mb-4">Alle akzeptierten Challenges</h1>
 
-    {% if challenges %}
-    <!-- Bootstrap Nav-Tabs für jede akzeptierte Challenge -->
+  {% if challenges %}
+    <!-- Nav-Tabs for each accepted challenge -->
     <ul class="nav nav-tabs" id="challengeTabs" role="tablist">
-        {% for c in challenges %}
+      {% for c in challenges %}
         <li class="nav-item">
-            <a class="nav-link {% if loop.first %}active{% endif %}" id="challenge-tab-{{ loop.index }}"
-                data-toggle="tab" href="#challenge-{{ loop.index }}" role="tab"
-                aria-controls="challenge-{{ loop.index }}"
-                aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
-                Challenge {{ loop.index }}
-            </a>
+          <a class="nav-link {% if loop.first %}active{% endif %}" id="challenge-tab-{{ loop.index }}"
+             data-toggle="tab" href="#challenge-{{ loop.index }}" role="tab"
+             aria-controls="challenge-{{ loop.index }}"
+             aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+            Challenge {{ loop.index }}
+          </a>
         </li>
-        {% endfor %}
+      {% endfor %}
     </ul>
 
+    <!-- Tab Content -->
     <div class="tab-content mt-3" id="challengeTabsContent">
-        {% for c in challenges %}
+      {% for c in challenges %}
         <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="challenge-{{ loop.index }}"
-            role="tabpanel" aria-labelledby="challenge-tab-{{ loop.index }}">
-            <!-- Timer-Bereich -->
-            <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD; color:#DCDCDC;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div id="timerDisplay-{{ loop.index }}" style="font-family:monospace; margin-right:10px;">
-                            00:00:00
-                        </div>
-                        <button id="btnStart-{{ loop.index }}" class="btn btn-success btn-sm mr-1">Start</button>
-                        <button id="btnStop-{{ loop.index }}" class="btn btn-warning btn-sm mr-1">Stop</button>
-                        <button id="btnReset-{{ loop.index }}" class="btn btn-danger btn-sm">Reset</button>
-                    </div>
-                </div>
+             role="tabpanel" aria-labelledby="challenge-tab-{{ loop.index }}">
+          <!-- Timer Card -->
+          <div class="card mb-3" style="background-color:#1E1E1E; border:1px solid #357ABD; color:#DCDCDC;">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div id="timerDisplay-{{ loop.index }}" style="font-family:monospace; margin-right:10px;">00:00:00</div>
+                <button id="btnStart-{{ loop.index }}" class="btn btn-success btn-sm mr-1">Start</button>
+                <button id="btnStop-{{ loop.index }}" class="btn btn-warning btn-sm mr-1">Stop</button>
+                <button id="btnReset-{{ loop.index }}" class="btn btn-danger btn-sm">Reset</button>
+              </div>
             </div>
-            <!-- Gemeinsame Darstellung in einem einzigen Card-Container -->
-            <div class="card" style="background-color:#1E1E1E; border:1px solid #357ABD; color:#DCDCDC;">
-                <div class="card-header">
-                    <strong>Challenge Ergebnis</strong>
-                </div>
-                <div class="card-body">
-                    <!-- Normal Wins Abschnitt -->
-                    {% if c.normal %}
-                    <h5>Normal Wins</h5>
-                    <table class="table table-dark table-striped">
-                        <thead>
-                            <tr>
-                                <th style="width:35%;">Spiel</th>
-                                <th style="width:25%;">Wins</th>
-                                <th style="width:40%;">Checkboxen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for key, info in c.normal.items() %}
-                            <tr>
-                                <td>
-                                    {{ key }}<br>
-                                    (Summe Schwierigkeit: {{ info.diff|round(2) }})
-                                </td>
-                                <td>{{ info.count }}</td>
+          </div>
 
-                                <td>
-                                    {% for i in range(info.count|int) %}
-                                    <input type="checkbox" class="form-check-input"
-                                        style="margin-left: {{ i * 15 }}px;">
-                                    {% endfor %}
-                                </td>
-
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% endif %}
-
-                    <!-- Back-to-Back Wins Abschnitt -->
-                    {% if c.b2b %}
-                    <hr style="border-top: 1px solid #357ABD;">
-                    <p class="text-center font-italic" style="margin-top:-10px;">Back-to-Back Wins</p>
-                    <table class="table table-dark table-striped">
-                        <thead>
-                            <tr>
-                                <th style="width:35%;">Spiel / Segment</th>
-                                <th style="width:25%;">Wins</th>
-                                <th style="width:40%;">Checkboxen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for seg in c.b2b %}
-                            <!-- Segment-Header: Gruppierung für das Segment -->
-                            <tr>
-                                <td colspan="3">
-                                    <strong>Segment {{ loop.index }}</strong> — ({{ seg.length }} wins, Diff: {{
-                                    seg.seg_diff|round(2) }})
-                                </td>
-                            </tr>
-                            <!-- Einträge innerhalb des Segments -->
-                            {% for key, count in seg.group.items() %}
-                            <tr>
-                                <td>{{ key }}</td>
-                                <td>{{ count }}</td>
-                                <td>
-                                    {% for i in range(count|int) %}
-                                    <input type="checkbox" class="form-check-input"
-                                        style="margin-left: {{ i * 15 }}px;">
-                                    {% endfor %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% endif %}
-
-
-                </div>
+          <!-- Challenge Result Card -->
+          <div class="card" style="background-color:#1E1E1E; border:1px solid #357ABD; color:#DCDCDC;">
+            <div class="card-header">
+              <strong>Challenge Ergebnis</strong>
             </div>
+            <div class="card-body">
+              <!-- Normal Wins Section -->
+              {% if c.normal %}
+                <h5>Normal Wins</h5>
+                <table class="table table-dark table-striped">
+                  <thead>
+                    <tr>
+                      <th style="width:35%;">Spiel</th>
+                      <th style="width:25%;">Wins</th>
+                      <th style="width:40%;">Checkboxen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for key, info in c.normal.items() %}
+                      <tr>
+                        <td>
+                          {{ key }}<br>
+                          (Summe Schwierigkeit: {{ info.diff|round(2) }})
+                        </td>
+                        <td>{{ info.count }}</td>
+                        <td>
+                          {% for i in range(info.count|int) %}
+                            <input type="checkbox" class="form-check-input" style="margin-left: {{ i * 15 }}px;">
+                          {% endfor %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% endif %}
 
+              <!-- Back-to-Back Wins Section -->
+              {% if c.b2b %}
+                <hr style="border-top: 1px solid #357ABD;">
+                <p class="text-center font-italic" style="margin-top:-10px;">Back-to-Back Wins</p>
+                <table class="table table-dark table-striped">
+                  <thead>
+                    <tr>
+                      <th style="width:35%;">Spiel / Segment</th>
+                      <th style="width:25%;">Wins</th>
+                      <th style="width:40%;">Checkboxen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for seg in c.b2b %}
+                      <!-- Header for each segment -->
+                      <tr>
+                        <td colspan="3">
+                          <strong>Segment {{ loop.index }}</strong> — ({{ seg.length }} wins, Diff: {{ seg.seg_diff|round(2) }})
+                        </td>
+                      </tr>
+                      {% for key, count in seg.group.items() %}
+                        <tr>
+                          <td>{{ key }}</td>
+                          <td>{{ count }}</td>
+                          <td>
+                            {% for i in range(count|int) %}
+                              <input type="checkbox" class="form-check-input" style="margin-left: {{ i * 15 }}px;">
+                            {% endfor %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% endif %}
+            </div>
+          </div>
         </div>
-        {% endfor %}
+      {% endfor %}
     </div>
-    {% else %}
+  {% else %}
     <p>Keine Challenges akzeptiert.</p>
-    {% endif %}
+  {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // Anzahl der Challenges ermitteln (Ausgabe aus der Jinja2 Variable)
-        var numChallenges = {{ challenges| length
-    }};
+document.addEventListener("DOMContentLoaded", function () {
+  // Retrieve the number of challenges from the Jinja2 variable
+  const numChallenges = {{ challenges|length }};
+  // Initialize arrays to store timer intervals and elapsed times for each challenge
+  const intervals = {};
+  const elapsedTimes = {};
 
-    // Arrays zur Speicherung der Timer-Intervalle und der verstrichenen Zeit
-    var intervals = {};
-    var elapsedTimes = {};
+  for (let i = 1; i <= numChallenges; i++) {
+    elapsedTimes[i] = 0;
+    const timerDisplay = document.getElementById("timerDisplay-" + i);
+    const btnStart = document.getElementById("btnStart-" + i);
+    const btnStop = document.getElementById("btnStop-" + i);
+    const btnReset = document.getElementById("btnReset-" + i);
 
-    for (let i = 1; i <= numChallenges; i++) {
+    if (btnStart && timerDisplay) {
+      // Start timer for challenge i
+      btnStart.addEventListener("click", function () {
+        clearInterval(intervals[i]);
+        intervals[i] = setInterval(() => {
+          elapsedTimes[i]++;
+          const hrs = String(Math.floor(elapsedTimes[i] / 3600)).padStart(2, '0');
+          const mins = String(Math.floor((elapsedTimes[i] % 3600) / 60)).padStart(2, '0');
+          const secs = String(elapsedTimes[i] % 60).padStart(2, '0');
+          timerDisplay.textContent = `${hrs}:${mins}:${secs}`;
+        }, 1000);
+      });
+
+      // Stop timer for challenge i
+      btnStop.addEventListener("click", function () {
+        clearInterval(intervals[i]);
+      });
+
+      // Reset timer for challenge i
+      btnReset.addEventListener("click", function () {
+        clearInterval(intervals[i]);
         elapsedTimes[i] = 0;
-
-        // Start-Button für Challenge i
-        document.getElementById("btnStart-" + i).addEventListener("click", function () {
-            clearInterval(intervals[i]);
-            intervals[i] = setInterval(function () {
-                elapsedTimes[i]++;
-                let hrs = String(Math.floor(elapsedTimes[i] / 3600)).padStart(2, '0');
-                let mins = String(Math.floor((elapsedTimes[i] % 3600) / 60)).padStart(2, '0');
-                let secs = String(elapsedTimes[i] % 60).padStart(2, '0');
-                document.getElementById("timerDisplay-" + i).textContent = `${hrs}:${mins}:${secs}`;
-            }, 1000);
-        });
-
-        // Stop-Button für Challenge i
-        document.getElementById("btnStop-" + i).addEventListener("click", function () {
-            clearInterval(intervals[i]);
-        });
-
-        // Reset-Button für Challenge i
-        document.getElementById("btnReset-" + i).addEventListener("click", function () {
-            clearInterval(intervals[i]);
-            elapsedTimes[i] = 0;
-            document.getElementById("timerDisplay-" + i).textContent = "00:00:00";
-        });
+        timerDisplay.textContent = "00:00:00";
+      });
     }
-  });
+  }
+});
 </script>
 {% endblock %}

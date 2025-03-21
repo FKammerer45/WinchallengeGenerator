@@ -2,89 +2,94 @@
 <html lang="de">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Win Challenge Generator{% endblock %}</title>
-    <!-- Bootstrap CSS via CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-
-    {% block head %}{% endblock %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Win Challenge Generator{% endblock %}</title>
+  
+  <!-- Bootstrap CSS via CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- reCAPTCHA API -->
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  
+  {% block head %}{% endblock %}
 </head>
 
 <body>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div id="flash-messages">
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-                </div>
-            {% endfor %}
+  {# Display flashed messages, if any #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div id="flash-messages">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <a class="navbar-brand" href="{{ url_for('index') }}">Win Challenge</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <!-- Left-side navigation items -->
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('challenge') }}">Challenge</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('games') }}">Games</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('strafen') }}">Strafen</a>
+        </li>
+      </ul>
+
+      <!-- Right-side login/logout -->
+      <ul class="navbar-nav ml-auto">
+        {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            <div class="p-2" style="background-color: #28a745; border-radius: 5px;">
+              <span class="nav-link text-white">Hi, {{ current_user.username }}</span>
             </div>
+          </li>
+          <li class="nav-item">
+            <div class="p-2 ml-2" style="background-color: #dc3545; border-radius: 5px;">
+              <a class="nav-link text-white" href="{{ url_for('auth.logout') }}">Logout</a>
+            </div>
+          </li>
+        {% else %}
+          <li class="nav-item">
+            <div class="p-2" style="background-color: #007BFF; border-radius: 5px;">
+              <a class="nav-link text-white" href="{{ url_for('auth.login') }}">Login</a>
+            </div>
+          </li>
         {% endif %}
-    {% endwith %}
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <a class="navbar-brand" href="{{ url_for('index') }}">Win Challenge</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <!-- Left-side nav items -->
-          <ul class="navbar-nav">
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('index') }}">Home</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('challenge') }}">Challenge</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('games') }}">Games</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('strafen') }}">Strafen</a>
-            </li>
-          </ul>
-      
-          <!-- Right-side login box -->
-          <ul class="navbar-nav ml-auto">
-            {% if current_user.is_authenticated %}
-              <li class="nav-item">
-                <div class="p-2" style="background-color: #28a745; border-radius: 5px;">
-                  <span class="nav-link text-white">Hi, {{ current_user.username }}</span>
-                </div>
-              </li>
-              <li class="nav-item">
-                <div class="p-2 ml-2" style="background-color: #dc3545; border-radius: 5px;">
-                  <a class="nav-link text-white" href="{{ url_for('auth.logout') }}">Logout</a>
-                </div>
-              </li>
-            {% else %}
-              <li class="nav-item">
-                <div class="p-2" style="background-color: #007BFF; border-radius: 5px;">
-                  <a class="nav-link text-white" href="{{ url_for('auth.login') }}">Login</a>
-                </div>
-              </li>
-            {% endif %}
-          </ul>
-        </div>
-      </nav>
-      
-
-    <div class="container my-4">
-        {% block content %}{% endblock %}
+      </ul>
     </div>
+  </nav>
 
-    <!-- jQuery und Bootstrap JS via CDN -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
-    {% block scripts %}{% endblock %}
+  <!-- Main Content Area -->
+  <div class="container my-4">
+    {% block content %}{% endblock %}
+  </div>
+
+  <!-- jQuery and Bootstrap JS via CDN -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  {% block scripts %}{% endblock %}
 </body>
 
 </html>

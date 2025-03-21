@@ -1,62 +1,85 @@
-// app.js - Gemeinsame JavaScript-Funktionen
+// static/js/app.js - Gemeinsame JavaScript-Funktionen
 
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", () => {
     console.log("app.js loaded");
 
-    // Beispiel: AJAX-Submit für das Challenge-Formular (wenn Formular-ID "challengeForm" vorhanden)
+    // Handle AJAX submission for the challenge form (if it exists)
     const challengeForm = document.getElementById("challengeForm");
     if (challengeForm) {
-        challengeForm.addEventListener("submit", function(e) {
+        challengeForm.addEventListener("submit", (e) => {
             e.preventDefault();
-            const formData = new FormData(challengeForm);
-            fetch("/generate_challenge", {
-                method: "POST",
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                    //console.log("Challenge-Ergebnis (Response):", data);
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    // Ergebnis in einem Container anzeigen (z. B. mit ID "challengeResult")
-                    document.getElementById("challengeResult").innerHTML = data.result;
-                    // Hier kannst du zusätzliche Funktionen (z.B. Timer) initialisieren
-                }
-            })
-            .catch(error => console.error("Error:", error));
-            
-
+            submitChallengeForm(challengeForm);
         });
     }
 
-    // Beispiel: Timer-Funktionalität (für challenge.html)
-    let timerInterval;
-    let elapsed = 0;
+    // Initialize timer functionality for challenge.html
+    initializeTimer();
+});
+
+/**
+ * Submits the challenge form via AJAX and updates the result container.
+ * @param {HTMLFormElement} form - The challenge form element.
+ */
+const submitChallengeForm = (form) => {
+    const formData = new FormData(form);
+    fetch("/generate_challenge", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            const resultContainer = document.getElementById("challengeResult");
+            if (resultContainer) {
+                resultContainer.innerHTML = data.result;
+                console.log("Challenge result updated.");
+            } else {
+                console.error("Element with id 'challengeResult' not found.");
+            }
+        }
+    })
+    .catch(error => console.error("Error during challenge generation:", error));
+};
+
+/**
+ * Initializes the timer functionality: start, pause, and reset.
+ */
+const initializeTimer = () => {
+    let timerInterval = null;
+    let elapsedSeconds = 0;
+
     const timerDisplay = document.getElementById("timerDisplay");
     const btnStart = document.getElementById("btnStart");
     const btnPause = document.getElementById("btnPause");
     const btnReset = document.getElementById("btnReset");
 
     if (btnStart && timerDisplay) {
-        function updateTimer() {
-            elapsed++;
-            const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
-            const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
-            const secs = String(elapsed % 60).padStart(2, '0');
+        const updateTimer = () => {
+            elapsedSeconds++;
+            const hrs = String(Math.floor(elapsedSeconds / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, '0');
+            const secs = String(elapsedSeconds % 60).padStart(2, '0');
             timerDisplay.textContent = `${hrs}:${mins}:${secs}`;
-        }
-        btnStart.addEventListener("click", function() {
+        };
+
+        btnStart.addEventListener("click", () => {
             clearInterval(timerInterval);
             timerInterval = setInterval(updateTimer, 1000);
+            console.log("Timer started.");
         });
-        btnPause.addEventListener("click", function() {
+        btnPause.addEventListener("click", () => {
             clearInterval(timerInterval);
+            console.log("Timer paused.");
         });
-        btnReset.addEventListener("click", function() {
+        btnReset.addEventListener("click", () => {
             clearInterval(timerInterval);
-            elapsed = 0;
+            elapsedSeconds = 0;
             timerDisplay.textContent = "00:00:00";
+            console.log("Timer reset.");
         });
+    } else {
+        console.warn("Timer elements not found; skipping timer initialization.");
     }
-});
+};

@@ -1,20 +1,22 @@
+<!-- Table displaying game entries -->
 <table class="table table-dark table-striped">
     <thead>
-        <tr>
-            <th>Spiel</th>
-            <th>Spielmodus</th>
-            <th>Schwierigkeit</th>
-            <th>Spieleranzahl</th>
-        </tr>
+      <tr>
+        <th>Spiel</th>
+        <th>Spielmodus</th>
+        <th>Schwierigkeit</th>
+        <th>Spieleranzahl</th>
+      </tr>
     </thead>
     <tbody class="gamesTable" id="defaultGamesTable">
-        {% for game in games %}
+      {% for game in games %}
         <tr data-id="{{ game.id }}">
-            <td>{{ game["Spiel"] }}</td>
-            <td>{{ game["Spielmodus"] }}</td>
-            <td>{{ game["Schwierigkeit"] }}</td>
-            <td>{{ game["Spieleranzahl"] }}</td>
+          <td>{{ game["Spiel"] }}</td>
+          <td>{{ game["Spielmodus"] }}</td>
+          <td>{{ game["Schwierigkeit"] }}</td>
+          <td>{{ game["Spieleranzahl"] }}</td>
         </tr>
-        {% endfor %}
+      {% endfor %}
     </tbody>
-</table>
+  </table>
+  

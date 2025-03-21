@@ -1,47 +1,58 @@
-# app.py
+#app.py
 import logging
-from modules.auth import auth_bp
+from flask import Flask, render_template, request, jsonify
 from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager
-from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify
+from modules.auth import auth_bp
 from modules.models import SessionLocal, GameEntry, Base, engine, User
 from modules.challenge_generator import generate_challenge_logic
-from modules.game_preferences import initialize_game_vars, game_vars
-import os
+from modules.game_preferences import initialize_game_vars
+from contextlib import contextmanager
+
+# Initialize Flask app and load configuration from config.py
 app = Flask(__name__)
 app.config.from_object("config")
-# CSRF-Schutz aktivieren
+
+# Enable CSRF protection
 csrf = CSRFProtect(app)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-# Ein zufälliges Secret Key setzen (wichtig für CSRF)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-
-
-
+# Register Blueprints
 app.register_blueprint(auth_bp)
 
-app.config["DEBUG"] = True
-accepted_challenges = [] 
+# Global list for accepted challenges
+accepted_challenges_list = []
 
+# Configure logging
+logging.basicConfig(
+    level=app.config.get("LOG_LEVEL", "DEBUG"),
+    format=app.config.get("LOG_FORMAT", '%(asctime)s %(levelname)s: %(message)s'),
+    handlers=[logging.StreamHandler()]
+)
 
-
-logging.basicConfig(level=logging.DEBUG, 
-                    format='%(asctime)s %(levelname)s: %(message)s',
-                    handlers=[logging.StreamHandler()])
-
-
+# Setup Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "auth.login"
 
 @login_manager.user_loader
 def load_user(user_id):
+    with SessionLocal() as db_session:
+        return db_session.query(User).get(user_id)
+
+# Context managers for sessions
+@contextmanager
+def get_db_session():
+    """Provide a transactional scope around a series of operations."""
     session = SessionLocal()
-    user = session.query(User).get(user_id)
-    session.close()
-    return user
+    try:
+        yield session
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logging.exception("Database error:")
+        raise e
+    finally:
+        session.close()
 
 @app.context_processor
 def inject_config():
@@ -49,192 +60,155 @@ def inject_config():
 
 @app.context_processor
 def inject_recaptcha_key():
-    return dict(RECAPTCHA_PUBLIC_KEY=app.config['RECAPTCHA_PUBLIC_KEY'])
-
+    return dict(RECAPTCHA_PUBLIC_KEY=app.config.get('RECAPTCHA_PUBLIC_KEY'))
 
 @app.before_request
-def init_db():
+def ensure_db_schema():
+    # Create all tables if they don't exist
     Base.metadata.create_all(bind=engine)
 
 @app.route("/")
 def index():
     logging.debug("Starting database query for GameEntry")
-    session = SessionLocal()
-    db_entries = session.query(GameEntry).all()
-    logging.debug(f"Retrieved {len(db_entries)} game entries")
-    entries = [entry.to_dict() for entry in db_entries]  # Convert to dict
-    gv = initialize_game_vars(entries)
-    session.close()
-    return render_template("index.html", game_vars=gv)
-
+    with SessionLocal() as db_session:
+        db_entries = db_session.query(GameEntry).all()
+        logging.debug(f"Retrieved {len(db_entries)} game entries")
+        entries = [entry.to_dict() for entry in db_entries]
+        game_preferences = initialize_game_vars(entries)
+    return render_template("index.html", game_vars=game_preferences)
 
 @app.route("/challenge")
 def challenge():
-    # Übergib alle akzeptierten Challenges an challenge.html
-    return render_template("challenge.html", challenges=accepted_challenges)
+    # Pass all accepted challenges to challenge.html
+    return render_template("challenge.html", challenges=accepted_challenges_list)
 
 @app.route("/games")
 def games():
-    session = SessionLocal()
-    db_entries = session.query(GameEntry).all()
-    # Extrahiere einzigartige Spielnamen (z. B. aus dem Attribut "Spiel" der DB-Objekte)
-    existing_games = sorted({entry.Spiel for entry in db_entries})
-    entries = [entry.to_dict() for entry in db_entries]
-    gv = initialize_game_vars(entries)
-    session.close()
-    return render_template("games/games.html", games=entries, existing_games=existing_games, game_vars=gv)
-
+    with SessionLocal() as db_session:
+        db_entries = db_session.query(GameEntry).all()
+        existing_games = sorted({entry.Spiel for entry in db_entries})
+        entries = [entry.to_dict() for entry in db_entries]
+        game_preferences = initialize_game_vars(entries)
+    return render_template("games/games.html", games=entries, existing_games=existing_games, game_vars=game_preferences)
 
 @app.route("/add_game", methods=["POST"])
 def add_game():
     try:
-        data = request.get_json()  # Erwartet JSON-Daten vom Client
-        session = SessionLocal()
-        new_entry = GameEntry(
-            Spiel=data.get("spiel"),
-            Spielmodus=data.get("spielmodus"),
-            Schwierigkeit=float(data.get("schwierigkeit")),
-            Spieleranzahl=int(data.get("spieleranzahl"))
-        )
-        session.add(new_entry)
-        session.commit()
-        new_id = new_entry.id  # Automatisch generierte ID aus der DB
-        session.close()
+        data = request.get_json()
+        with get_db_session() as db_session:
+            new_entry = GameEntry(
+                Spiel=data.get("spiel"),
+                Spielmodus=data.get("spielmodus"),
+                Schwierigkeit=float(data.get("schwierigkeit")),
+                Spieleranzahl=int(data.get("spieleranzahl"))
+            )
+            db_session.add(new_entry)
+            db_session.flush()  # To get new_entry.id before commit
+            new_id = new_entry.id
         return jsonify({"entry_id": new_id})
     except Exception as e:
-        return jsonify({"error": str(e)})
-
+        logging.exception("Error adding game:")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/update_game', methods=['POST'])
 def update_game():
     data = request.get_json()
     entry_id = data.get('id')
-    session = SessionLocal()
     try:
-        entry = session.query(GameEntry).filter_by(id=entry_id).first()
-        if not entry:
-            raise IndexError("Ausgewählter Eintrag existiert nicht.")
-        entry.Spiel = data.get('spiel')
-        entry.Spielmodus = data.get('spielmodus')
-        entry.Schwierigkeit = float(data.get('schwierigkeit'))
-        entry.Spieleranzahl = int(data.get('spieleranzahl'))
-        session.commit()
+        with get_db_session() as db_session:
+            entry = db_session.query(GameEntry).filter_by(id=entry_id).first()
+            if not entry:
+                raise IndexError("Selected entry does not exist.")
+            entry.Spiel = data.get('spiel')
+            entry.Spielmodus = data.get('spielmodus')
+            entry.Schwierigkeit = float(data.get('schwierigkeit'))
+            entry.Spieleranzahl = int(data.get('spieleranzahl'))
         return jsonify(success=True)
     except Exception as e:
-        session.rollback()
-        print("Fehler beim Aktualisieren:", e)
+        logging.exception("Error updating game:")
         return jsonify(error=str(e)), 500
-    finally:
-        session.close()
-
 
 @app.route('/delete_game', methods=['POST'])
 def delete_game():
     data = request.get_json()
     entry_id = data.get('id')
-    session = SessionLocal()
     try:
-        entry = session.query(GameEntry).filter_by(id=entry_id).first()
-        if not entry:
-            raise IndexError("Kein Eintrag ausgewählt oder Eintrag existiert nicht.")
-        session.delete(entry)
-        session.commit()
+        with get_db_session() as db_session:
+            entry = db_session.query(GameEntry).filter_by(id=entry_id).first()
+            if not entry:
+                raise IndexError("No entry selected or entry does not exist.")
+            db_session.delete(entry)
         return jsonify(success=True)
     except Exception as e:
-        session.rollback()
-        print("Fehler beim Löschen:", e)
+        logging.exception("Error deleting game:")
         return jsonify(error=str(e)), 500
-    finally:
-        session.close()
-        
+
 @app.route('/save_game', methods=['POST'])
 def save_game():
     data = request.get_json()
-    print("Empfangene Daten (Speichern):", data)  # Debugging
-
+    logging.debug("Received data for saving: %s", data)
     try:
-        session = SessionLocal()
-        new_entry = GameEntry(
-            Spiel=data['spiel'],
-            Spielmodus=data['spielmodus'],
-            Schwierigkeit=float(data['schwierigkeit']),
-            Spieleranzahl=int(data['spieleranzahl'])
-        )
-        session.add(new_entry)
-        session.commit()
-        new_id = new_entry.id  # Automatisch generierte ID
-        session.close()
-        print("Neuer Eintrag gespeichert:", new_entry)
+        with get_db_session() as db_session:
+            new_entry = GameEntry(
+                Spiel=data['spiel'],
+                Spielmodus=data['spielmodus'],
+                Schwierigkeit=float(data['schwierigkeit']),
+                Spieleranzahl=int(data['spieleranzahl'])
+            )
+            db_session.add(new_entry)
+            db_session.flush()
+            new_id = new_entry.id
+            logging.debug("New entry saved: %s", new_entry)
         return jsonify({'success': True, 'entry_id': new_id})
     except Exception as e:
-        print("Fehler beim Speichern:", e)
+        logging.exception("Error saving game:")
         return jsonify({'error': str(e)}), 500
-
-
 
 @app.route("/strafen")
 def strafen():
-    # Rendert die Strafen-Konfigurationsseite.
     from modules.strafen import load_strafen
     entries = load_strafen()
     return render_template("strafen.html", strafen=entries)
 
-
 @app.route("/generate_challenge", methods=["POST"])
 def generate_challenge():
     try:
-        # 1) Get form data
+        # Retrieve form data
         num_players = int(request.form.get("num_players", 1))
         desired_diff = float(request.form.get("desired_diff", 10.0))
         raw_b2b = int(request.form.get("raw_b2b", 1))
 
-        # 2) Get selected games and weights
+        # Get selected games and weights
         selected_games = request.form.getlist("selected_games")
         weights = [float(w) for w in request.form.getlist("weights")]
 
-        # 3) Query the database once here
-        session = SessionLocal()
-        db_entries = session.query(GameEntry).all()
-        session.close()
-        # Convert entries to dicts
+        # Query database once
+        with SessionLocal() as db_session:
+            db_entries = db_session.query(GameEntry).all()
         entries = [entry.to_dict() for entry in db_entries]
+        game_preferences = initialize_game_vars(entries)
 
-        # Initialize game preferences with these entries
-        gv = initialize_game_vars(entries)
-
-        # 4) Process allowed modes from form (using same logic)
+        # Update allowed modes from form inputs
         for game in selected_games:
-            param_name = f"allowed_modes_{game}[]"  # with [] in the parameter name
+            param_name = f"allowed_modes_{game}[]"
             chosen_modes = request.form.getlist(param_name)
-            if game in gv:
-                gv[game]["allowed_modes"] = chosen_modes
+            if game in game_preferences:
+                game_preferences[game]["allowed_modes"] = chosen_modes
 
-        # 5) Generate the challenge based on these entries and game preferences
-        result = generate_challenge_logic(
-            num_players, desired_diff, selected_games, weights, gv, raw_b2b
+        # Generate challenge
+        challenge_result = generate_challenge_logic(
+            num_players, desired_diff, selected_games, weights, game_preferences, raw_b2b
         )
-        return jsonify(result if result else {"error": "No matching entries found."})
+        return jsonify(challenge_result if challenge_result else {"error": "No matching entries found."})
     except Exception as e:
-        print("Error in /generate_challenge:", e)
-        return jsonify({"error": str(e)})
-
-
-
+        logging.exception("Error in generate_challenge:")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/accept_challenge", methods=["POST"])
 def accept_challenge():
-    # JSON mit Daten der Challenge
-    data = request.json or {}
-
-    # Hänge in die globale Liste:
-    accepted_challenges.append(data)
-
-    # Gebe OK zurück
+    data = request.get_json() or {}
+    accepted_challenges_list.append(data)
     return jsonify({"status": "ok"})
-
-
-
-
 
 if __name__ == "__main__":
     app.run()

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Strafen Konfiguration{% endblock %}
+
 {% block content %}
 <div class="container">
   <h2>Strafen Konfiguration</h2>
+  <!-- Table for displaying penalty (Strafen) entries -->
   <table class="table table-dark table-striped">
     <thead>
       <tr>
@@ -13,14 +15,14 @@
     </thead>
     <tbody>
       {% for s in strafen %}
-      <tr>
-        <td>{{ s["Name"] }}</td>
-        <td>{{ s["Wahrscheinlichkeit"] }}</td>
-        <td>{{ s["Beschreibung"] }}</td>
-      </tr>
+        <tr>
+          <td>{{ s["Name"] }}</td>
+          <td>{{ s["Wahrscheinlichkeit"] }}</td>
+          <td>{{ s["Beschreibung"] }}</td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
-  <!-- Hier kannst du auch Formulare zur Bearbeitung/Hinzufügung von Strafen einfügen -->
+  {# Optional: Insert forms for editing/adding penalties here #}
 </div>
 {% endblock %}
