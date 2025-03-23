@@ -33,7 +33,7 @@ def initialize_game_vars(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
                 prefs[game_name]["available_modes"].append(mode)
             if mode and mode not in prefs[game_name]["allowed_modes"]:
                 prefs[game_name]["allowed_modes"].append(mode)
-    logger.debug("Initialized game preferences: %s", prefs)
+    
     return prefs
 
 def update_allowed_modes(game: str, new_allowed_modes: Iterable[str]) -> bool:
@@ -47,7 +47,7 @@ def update_allowed_modes(game: str, new_allowed_modes: Iterable[str]) -> bool:
     if game in game_vars:
         # Convert the new allowed modes to a unique list
         game_vars[game]["allowed_modes"] = list(set(new_allowed_modes))
-        logger.debug("Updated allowed_modes for game '%s': %s", game, game_vars[game]["allowed_modes"])
+        
         return True
     logger.warning("Game '%s' not found in game_vars during update_allowed_modes", game)
     return False
@@ -63,7 +63,7 @@ def set_game_weight(game: str, weight: float) -> bool:
     if game in game_vars:
         try:
             game_vars[game]["weight"] = float(weight)
-            logger.debug("Set weight for game '%s' to %f", game, game_vars[game]["weight"])
+           
             return True
         except ValueError:
             logger.error("Invalid weight value for game '%s': %s", game, weight)
@@ -81,7 +81,7 @@ def select_game(game: str, selected: bool = True) -> bool:
     """
     if game in game_vars:
         game_vars[game]["selected"] = bool(selected)
-        logger.debug("Set selected status for game '%s' to %s", game, selected)
+        
         return True
     logger.warning("Game '%s' not found in game_vars during select_game", game)
     return False

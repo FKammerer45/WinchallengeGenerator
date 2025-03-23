@@ -1,12 +1,45 @@
 # modules/game_management.py
 import logging
-from typing import List
+from typing import List, Tuple
 from modules.models import GameEntry as Game, SessionLocal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 class GameManager:
+    @staticmethod
+    def _validate_game_input(game_name: str, game_mode: str, difficulty: float, number_of_players: int) -> Tuple[float, int]:
+        """
+        Validates and converts input values for a game entry.
+        
+        Parameters:
+          game_name: The game name.
+          game_mode: The game mode.
+          difficulty: The difficulty value (expected between 0 and 10).
+          number_of_players: The number of players (integer, >= 1).
+        
+        Returns:
+          A tuple (difficulty_val, number_of_players_val) as a float and an int.
+          
+        Raises:
+          ValueError: If any of the inputs are missing or invalid.
+        """
+        if not (game_name and game_mode and difficulty is not None and number_of_players is not None):
+            raise ValueError("All fields must be filled in.")
+        try:
+            difficulty_val = float(difficulty)
+            if not (0 <= difficulty_val <= 10):
+                raise ValueError("Difficulty must be a number between 0 and 10.")
+        except ValueError:
+            raise ValueError("Difficulty must be a number between 0 and 10.")
+        try:
+            number_of_players_val = int(number_of_players)
+            if number_of_players_val < 1:
+                raise ValueError("Number of players must be at least 1.")
+        except ValueError:
+            raise ValueError("Number of players must be an integer and at least 1.")
+        return difficulty_val, number_of_players_val
+
     @staticmethod
     def get_all_entries() -> List[dict]:
         """
@@ -15,7 +48,7 @@ class GameManager:
         session = SessionLocal()
         try:
             entries = session.query(Game).all()
-            logger.debug("Fetched %d game entries", len(entries))
+            
             return [entry.to_dict() for entry in entries]
         except Exception as ex:
             logger.exception("Error fetching game entries: %s", ex)
@@ -24,46 +57,37 @@ class GameManager:
             session.close()
 
     @staticmethod
-    def add_entry(spiel: str, spielmodus: str, schwierigkeit: float, spieleranzahl: int) -> str:
+    def add_entry(game_name: str, game_mode: str, difficulty: float, number_of_players: int) -> str:
         """
         Adds a new game entry to the database.
         
         Parameters:
-          spiel: Game name (String)
-          spielmodus: Game mode (String)
-          schwierigkeit: Difficulty (Number between 0 and 10)
-          spieleranzahl: Number of players (Integer, >= 1)
+          game_name: Game name.
+          game_mode: Game mode.
+          difficulty: Difficulty (between 0 and 10).
+          number_of_players: Number of players (>= 1).
         
         Returns:
-          Success message or raises an Exception.
+          "Entry added" on success.
+          
+        Raises:
+          Exception: If adding the entry fails.
         """
-        # Validate input
-        if not (spiel and spielmodus and schwierigkeit is not None and spieleranzahl is not None):
-            raise ValueError("Alle Felder müssen ausgefüllt werden.")
-        try:
-            schwierigkeit = float(schwierigkeit)
-            if not (0 <= schwierigkeit <= 10):
-                raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
-        except ValueError:
-            raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
-        try:
-            spieleranzahl = int(spieleranzahl)
-            if spieleranzahl < 1:
-                raise ValueError("Spieleranzahl muss mindestens 1 sein.")
-        except ValueError:
-            raise ValueError("Spieleranzahl muss eine ganze Zahl und mindestens 1 sein.")
+        difficulty_val, number_of_players_val = GameManager._validate_game_input(
+            game_name, game_mode, difficulty, number_of_players
+        )
 
         session = SessionLocal()
         try:
             new_entry = Game(
-                Spiel=spiel,
-                Spielmodus=spielmodus,
-                Schwierigkeit=schwierigkeit,
-                Spieleranzahl=spieleranzahl
+                Spiel=game_name,
+                Spielmodus=game_mode,
+                Schwierigkeit=difficulty_val,
+                Spieleranzahl=number_of_players_val
             )
             session.add(new_entry)
             session.commit()
-            logger.debug("Added new game entry with id %s", new_entry.id)
+           
             return "Entry added"
         except Exception as ex:
             session.rollback()
@@ -73,44 +97,35 @@ class GameManager:
             session.close()
 
     @staticmethod
-    def update_entry(game_id: int, spiel: str, spielmodus: str, schwierigkeit: float, spieleranzahl: int) -> str:
+    def update_entry(game_id: int, game_name: str, game_mode: str, difficulty: float, number_of_players: int) -> str:
         """
         Updates the game entry with the given game_id.
         
         Parameters:
           game_id: The ID of the game entry to update.
-          spiel, spielmodus, schwierigkeit, spieleranzahl: New values.
+          game_name, game_mode, difficulty, number_of_players: New values.
         
         Returns:
-          Success message or raises an Exception.
+          "Entry updated" on success.
+          
+        Raises:
+          Exception: If the update fails or the entry doesn't exist.
         """
-        # Validate input
-        if not (spiel and spielmodus and schwierigkeit is not None and spieleranzahl is not None):
-            raise ValueError("Alle Felder müssen ausgefüllt werden.")
-        try:
-            schwierigkeit = float(schwierigkeit)
-            if not (0 <= schwierigkeit <= 10):
-                raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
-        except ValueError:
-            raise ValueError("Schwierigkeit muss eine Zahl zwischen 0 und 10 sein.")
-        try:
-            spieleranzahl = int(spieleranzahl)
-            if spieleranzahl < 1:
-                raise ValueError("Spieleranzahl muss mindestens 1 sein.")
-        except ValueError:
-            raise ValueError("Spieleranzahl muss eine ganze Zahl und mindestens 1 sein.")
+        difficulty_val, number_of_players_val = GameManager._validate_game_input(
+            game_name, game_mode, difficulty, number_of_players
+        )
 
         session = SessionLocal()
         try:
             game = session.query(Game).get(game_id)
             if not game:
                 raise IndexError("Selected entry does not exist.")
-            game.Spiel = spiel
-            game.Spielmodus = spielmodus
-            game.Schwierigkeit = schwierigkeit
-            game.Spieleranzahl = spieleranzahl
+            game.Spiel = game_name
+            game.Spielmodus = game_mode
+            game.Schwierigkeit = difficulty_val
+            game.Spieleranzahl = number_of_players_val
             session.commit()
-            logger.debug("Updated game entry with id %s", game_id)
+           
             return "Entry updated"
         except Exception as ex:
             session.rollback()
@@ -128,7 +143,10 @@ class GameManager:
           game_id: The ID of the game entry to delete.
         
         Returns:
-          Success message or raises an Exception.
+          "Entry deleted" on success.
+          
+        Raises:
+          Exception: If deletion fails or the entry doesn't exist.
         """
         session = SessionLocal()
         try:
@@ -137,7 +155,7 @@ class GameManager:
                 raise IndexError("No entry selected or entry does not exist.")
             session.delete(entry)
             session.commit()
-            logger.debug("Deleted game entry with id %s", game_id)
+            
             return "Entry deleted"
         except Exception as ex:
             session.rollback()
@@ -145,6 +163,3 @@ class GameManager:
             raise
         finally:
             session.close()
-
-
-

@@ -1,20 +1,25 @@
 {% extends "base.html" %}
-
-{% block title %}Games Konfiguration{% endblock %}
+{% block title %}Games Configuration{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-  <h2>Games Konfiguration</h2>
+  <h2>Games Configuration</h2>
+
+  <!-- Pass login status to JavaScript -->
+  <script>
+    const isLoggedIn = {{ current_user.is_authenticated| tojson }};
+  </script>
 
   <!-- Tabs Navigation -->
   <ul class="nav nav-tabs" id="gamesTab" role="tablist">
-    <!-- Default Tab -->
-    <li class="nav-item">
-      <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default" aria-selected="true">
+    <!-- Default (read-only) tab -->
+    <li class="nav-item" ondblclick="alert('The Default tab cannot be renamed.')" style="cursor: not-allowed;">
+      <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
+        aria-selected="true">
         Default
       </a>
     </li>
-    <!-- Plus Button for adding a new tab -->
+    <!-- Plus-Button for new editable tab -->
     <li class="nav-item">
       <a class="nav-link" href="#" id="addTabBtn" role="tab">+</a>
     </li>
@@ -22,24 +27,32 @@
 
   <!-- Tab Contents -->
   <div class="tab-content mt-3" id="gamesTabContent">
-    <!-- Default Tab Pane -->
+    <!-- Default Tab Pane (read-only, no editing buttons) -->
     <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
-      <!-- Insert Button for the Default Tab -->
+      <!-- Insert button added to the default tab -->
+      <!-- New button to load default entries -->
+      <button id="loadDefaultEntriesBtn" class="btn btn-warning mb-3">
+        Load Default Entries
+      </button>
       <div class="my-3">
-        <button class="btn btn-primary insertGameBtn" data-tab="default">Einfügen</button>
+        <button class="btn btn-primary insertGameBtn" data-tab="default">Insert</button>
       </div>
-      <!-- Include table for Default Games -->
       {% include "games/games_table.html" %}
     </div>
-    <!-- New tabs will be added dynamically here -->
+    <!-- New tabs will be dynamically created here (editable) -->
   </div>
-</div>
 
-<!-- Include modals for game entry operations -->
-{% include "games/games_modals.html" %}
+  <!-- Include modals markup so the newGameModal exists in the DOM -->
+  {% include "games/games_modals.html" %}
+</div>
 {% endblock %}
 
 {% block scripts %}
-  <!-- Include Games Scripts JavaScript -->
-  <script src="{{ url_for('static', filename='js/games_scripts.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/main.js') }}"></script>
+<script>
+  // Optional: Prevent renaming of the default tab on double-click.
+  document.getElementById("default-tab").addEventListener("dblclick", (e) => {
+    alert("The Default tab cannot be renamed.");
+  });
+</script>
 {% endblock %}

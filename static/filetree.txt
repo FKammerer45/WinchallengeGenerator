@@ -1,0 +1,18 @@
+Auflistung der Ordnerpfade
+Volumeseriennummer : 5C8A-5F35
+C:.
+¦   filetree.txt
+¦   
++---css
+¦       style.css
+¦       
++---images
++---js
+    ¦   app.js
+    ¦   
+    +---games
+            entryManagement.js
+            localStorageUtils.js
+            main.js
+            tabManagement.js
+            
