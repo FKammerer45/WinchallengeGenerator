@@ -171,50 +171,52 @@ import json  # Add at the top if not already imported
 @app.route("/generate_challenge", methods=["POST"])
 def generate_challenge():
     try:
-        # Get JSON data if available, otherwise form data.
         if request.is_json:
             data = request.get_json()
+            selected_games = data.get("selected_games", [])
+            weights = data.get("weights", [])
+            num_players = int(data.get("num_players", 1))
+            desired_diff = float(data.get("desired_diff", 10.0))
+            raw_b2b = int(data.get("raw_b2b", 1))
+            entries = data.get("entries", [])
         else:
-            data = request.form.to_dict(flat=True)
-    
-
-        # Extract required parameters.
-        num_players = int(data.get("num_players", 1))
-        desired_diff = float(data.get("desired_diff", 10.0))
-        raw_b2b = int(data.get("raw_b2b", 1))
-        selected_games = data.get("selected_games", [])
-        weights = [float(w) for w in data.get("weights", [])]
+            selected_games = request.form.getlist("selected_games")
+            weights = request.form.getlist("weights")
+            num_players = int(request.form.get("num_players", 1))
+            desired_diff = float(request.form.get("desired_diff", 10.0))
+            raw_b2b = int(request.form.get("raw_b2b", 1))
+            import json
+            entries = json.loads(request.form.get("entries", "[]"))
 
 
-        # Retrieve game entries from the payload.
-        entries = data.get("entries", [])
-        if isinstance(entries, str):
-            entries = json.loads(entries)
+        # Convert selected_games to lowercase for matching.
+        selected_games = [g.lower() for g in selected_games]
 
-        if not entries:
-            logging.error("No game entries provided.")
-            return jsonify({"error": "No game entries provided here."}), 400
 
         # Initialize game preferences using the provided entries.
+        from modules.game_preferences import initialize_game_vars
         game_preferences = initialize_game_vars(entries)
- 
 
-        # Optionally update allowed modes if provided.
-        if "allowed_modes" in data:
-            for game in selected_games:
-                if game in game_preferences and game in data["allowed_modes"]:
-                    game_preferences[game]["allowed_modes"] = data["allowed_modes"][game]
 
-        # Generate challenge using the provided local entries.
+        # Generate the challenge.
+        from modules.challenge_generator import generate_challenge_logic
         challenge_result = generate_challenge_logic(
-            num_players, desired_diff, selected_games, weights, game_preferences, raw_b2b, entries=entries
+            num_players,
+            desired_diff,
+            selected_games,
+            [float(w) for w in weights],
+            game_preferences,
+            raw_b2b,
+            entries=entries
         )
         if challenge_result is None:
             return jsonify({"error": "No matching entries found."})
         return jsonify(challenge_result)
     except Exception as e:
-        logging.exception("Error in generate_challenge:")
+        app.logger.exception("Error in generate_challenge:")
         return jsonify({"error": str(e)}), 500
+
+
 
 
 
