@@ -1,17 +1,27 @@
 # modules/models.py
 import logging
 from typing import Dict, Any
-from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from werkzeug.security import check_password_hash
 from config import DATABASE_URL
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.debug("Using DATABASE_URL: %s", DATABASE_URL)
 
 Base = declarative_base()
+
+class SavedGameTab(Base):
+    __tablename__ = 'saved_game_tabs'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    client_tab_id = Column(String(100), nullable=False)  # NEW: stores the local tab id (e.g. "tabPane-3")
+    tab_name = Column(String(100), nullable=False)
+    entries_json = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
 
 class GameEntry(Base):
     __tablename__ = 'game_entries'

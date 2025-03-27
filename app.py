@@ -2,12 +2,16 @@
 import logging
 from flask import Flask, render_template, request, jsonify
 from flask_wtf.csrf import CSRFProtect
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user, login_required
+from sqlalchemy import JSON
 from modules.auth import auth_bp
-from modules.models import SessionLocal, GameEntry, Base, engine, User
+from modules.models import SessionLocal, GameEntry, Base, engine, User , SavedGameTab
 from modules.challenge_generator import generate_challenge_logic
 from modules.game_preferences import initialize_game_vars
+from sqlalchemy.exc import SQLAlchemyError
+
 from contextlib import contextmanager
+import json
 
 # Initialize Flask app and load configuration from config.py
 app = Flask(__name__)
@@ -228,7 +232,6 @@ def accept_challenge():
     accepted_challenges_list.append(data)
     return jsonify({"status": "ok"})
 
-
 @app.route("/load_default_entries", methods=["GET"])
 def load_default_entries():
     try:
@@ -239,6 +242,115 @@ def load_default_entries():
     except Exception as e:
         logging.exception("Error loading default entries:")
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/save_tab", methods=["POST"])
+@login_required
+def save_tab():
+    data = request.get_json()
+    if not data:
+        app.logger.error("No data provided to /save_tab endpoint.")
+        return jsonify({"error": "No data provided"}), 400
+
+    # Debug: Print the received data.
+    app.logger.debug("Data received for saving tab: %s", data)
+
+    # Use keys "tabId" and "tabName" as provided by the client.
+    tab_id = data.get("tabId")
+    tab_name = data.get("tabName")
+    entries = data.get("entries")
+
+
+    if not tab_id or tab_id == "default":
+        app.logger.error("Attempt to save default tab or missing tabId: %s", tab_id)
+        return jsonify({"error": "Cannot save the default tab"}), 400
+
+    # Log the values we are about to save.
+    app.logger.debug("Attempting to save tab. tabId (client): %s, tabName: %s, entries: %s", 
+                       tab_id, tab_name, entries)
+
+    session = SessionLocal()
+    try:
+        # Check how many saved tabs the user already has.
+        saved_count = session.query(SavedGameTab).filter_by(user_id=current_user.id).count()
+        if saved_count >= 5:
+            app.logger.error("User %s has reached the maximum number of saved tabs.", current_user.id)
+            return jsonify({"error": "You have reached the maximum number of saved tabs (5)."}), 400
+
+        # Try to find an existing saved tab for this client_tab_id.
+        saved_tab = session.query(SavedGameTab).filter_by(
+            user_id=current_user.id, client_tab_id=tab_id
+        ).first()
+
+        # Debug: Log if we found an existing tab.
+        if saved_tab:
+            app.logger.debug("Found existing SavedGameTab: id=%s", saved_tab.id)
+            saved_tab.tab_name = tab_name
+            saved_tab.entries_json = json.dumps(entries)
+        else:
+            app.logger.debug("No existing SavedGameTab found; creating a new one.")
+            saved_tab = SavedGameTab(
+                user_id=current_user.id,
+                client_tab_id=tab_id,
+                tab_name=tab_name,
+                entries_json=json.dumps(entries)
+            )
+            session.add(saved_tab)
+        session.commit()
+        app.logger.debug("SavedGameTab committed to DB with id: %s", saved_tab.id)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        app.logger.exception("Error saving tab:")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+@app.route("/delete_tab", methods=["POST"])
+@login_required
+def delete_tab():
+    data = request.get_json()
+    if not data or "tabId" not in data:
+        return jsonify({"error": "Missing tabId"}), 400
+
+    client_tab_id = data["tabId"]
+    # First delete locally (client code does that) then attempt to delete in DB
+    try:
+        with SessionLocal() as db_session:
+            tab = db_session.query(SavedGameTab).filter_by(
+                user_id=current_user.id, client_tab_id=client_tab_id
+            ).first()
+            if tab:
+                db_session.delete(tab)
+                db_session.commit()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        app.logger.exception("Error deleting tab:")
+        return jsonify({"error": "Server error while deleting tab."}), 500
+
+
+
+@app.route("/load_saved_tabs", methods=["GET"])
+@login_required
+def load_saved_tabs():
+    try:
+        with SessionLocal() as db_session:
+            saved_tabs = db_session.query(SavedGameTab).filter_by(user_id=current_user.id).all()
+            tabs_data = {}
+            
+
+            for tab in saved_tabs:
+                
+                # Use client_tab_id as the key
+                tabs_data[tab.client_tab_id] = {
+                    "tab_name": tab.tab_name,
+                    "entries_json": tab.entries_json,
+                    "timestamp": tab.timestamp.isoformat() if tab.timestamp else None,
+                }
+        return jsonify(tabs_data)
+    except Exception as e:
+        app.logger.exception("Error loading saved tabs:")
+        return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == "__main__":

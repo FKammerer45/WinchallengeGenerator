@@ -2,24 +2,37 @@
 import { addLocalGameEntry, updateLocalGameEntry, removeLocalGameEntry, getLocalEntries } from "./localStorageUtils.js";
 
 export function renderGamesForTab(tabId) {
+  // Normalize the tab id so that it is a valid CSS selector:
+  // If the tabId is not "default" and doesn't start with "tabPane-", prepend "tabPane-"
+  let normalizedTabId = tabId;
+  if (tabId !== "default" && !tabId.startsWith("tabPane-")) {
+    normalizedTabId = "tabPane-" + tabId;
+  }
+  
   const entries = getLocalEntries();
-  const tbody = document.querySelector(`#${tabId} .gamesTable`);
-  if (tbody) {
-    tbody.innerHTML = "";
-    if (entries[tabId]) {
-      entries[tabId].forEach(entry => {
-        const row = `<tr data-id="${entry.id}">
-                        <td>${entry.game}</td>
-                        <td>${entry.gameMode}</td>
-                        <td>${entry.difficulty}</td>
-                        <td>${entry.numberOfPlayers}</td>
-                     </tr>`;
-        tbody.insertAdjacentHTML("beforeend", row);
-      });
-    }
+  // Use the normalizedTabId for querying the DOM
+  const tbody = document.querySelector(`#${normalizedTabId} .gamesTable`);
+  if (!tbody) {
+    console.error(`renderGamesForTab: No element found for id #${normalizedTabId} .gamesTable`);
+    return;
+  }
+  
+  tbody.innerHTML = "";
+  if (entries[tabId] && entries[tabId].length > 0) {
+    entries[tabId].forEach(entry => {
+      const row = `<tr data-id="${entry.id}">
+                      <td>${entry.game}</td>
+                      <td>${entry.gameMode}</td>
+                      <td>${entry.difficulty}</td>
+                      <td>${entry.numberOfPlayers}</td>
+                   </tr>`;
+      tbody.insertAdjacentHTML("beforeend", row);
+    });
+  } else {
+    // Optionally, you can display a message if no entries exist
+    tbody.innerHTML = `<tr><td colspan="4">No entries for this tab.</td></tr>`;
   }
 }
-
 export function handleSaveNewGame() {
   const form = document.getElementById("newGameForm");
   const game = form.newGameName.value.trim();

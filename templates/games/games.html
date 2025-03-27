@@ -9,6 +9,7 @@
   <script>
     const isLoggedIn = {{ current_user.is_authenticated| tojson }};
   </script>
+
   <!-- Confirm Load Default Entries Modal -->
   <div class="modal fade" id="confirmLoadDefaultModal" tabindex="-1" role="dialog"
     aria-labelledby="confirmLoadDefaultModalLabel" aria-hidden="true">
@@ -31,14 +32,25 @@
     </div>
   </div>
 
+  <!-- Header Actions for Logged-In Users -->
+  {% if current_user.is_authenticated %}
+  <div class="mb-3">
+    <!-- Save Tab Button (saves the currently active tab) -->
+    <button id="saveTabBtn" class="btn btn-success">Save Current Tab</button>
+    <!-- Delete Tab Button (deletes the currently active tab; default cannot be deleted) -->
+    <button id="deleteTabBtn" class="btn btn-danger">Delete Current Tab</button>
+    <!-- Load Saved Tabs Button (loads all tabs saved to the account) -->
+    <button id="loadSavedTabsBtn" class="btn btn-info">Load Saved Entries</button>
+    <small class="ml-3 text-muted">You can save up to 5 tabs.</small>
+  </div>
+  {% endif %}
+
   <!-- Tabs Navigation -->
   <ul class="nav nav-tabs" id="gamesTab" role="tablist">
     <!-- Default (read-only) tab -->
     <li class="nav-item" ondblclick="alert('The Default tab cannot be renamed.')" style="cursor: not-allowed;">
       <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
-        aria-selected="true">
-        Default
-      </a>
+        aria-selected="true">Default</a>
     </li>
     <!-- Plus-Button for new editable tab -->
     <li class="nav-item">
@@ -50,11 +62,8 @@
   <div class="tab-content mt-3" id="gamesTabContent">
     <!-- Default Tab Pane (read-only, no editing buttons) -->
     <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
-      <!-- Insert button added to the default tab -->
-      <!-- New button to load default entries -->
-      <button id="loadDefaultEntriesBtn" class="btn btn-warning mb-3">
-        Load Default Entries
-      </button>
+      <!-- Button to load default entries -->
+      <button id="loadDefaultEntriesBtn" class="btn btn-warning mb-3">Load Default Entries</button>
       <div class="my-3">
         <button class="btn btn-primary insertGameBtn" data-tab="default">Insert</button>
       </div>
@@ -63,7 +72,7 @@
     <!-- New tabs will be dynamically created here (editable) -->
   </div>
 
-  <!-- Include modals markup so the newGameModal exists in the DOM -->
+  <!-- Include modals markup so the newGameModal and editGameModal exist in the DOM -->
   {% include "games/games_modals.html" %}
 </div>
 {% endblock %}
@@ -71,9 +80,159 @@
 {% block scripts %}
 <script type="module" src="{{ url_for('static', filename='js/games/main.js') }}"></script>
 <script>
-  // Optional: Prevent renaming of the default tab on double-click.
+  // Prevent renaming of the default tab on double-click.
   document.getElementById("default-tab").addEventListener("dblclick", (e) => {
     alert("The Default tab cannot be renamed.");
   });
+
+  // Save Tab Button functionality (available only to logged-in users)
+  const saveTabBtn = document.getElementById("saveTabBtn");
+  if (saveTabBtn) {
+    saveTabBtn.addEventListener("click", () => {
+      const activeTabLink = document.querySelector('#gamesTab .nav-link.active');
+      if (!activeTabLink) {
+        alert("No active tab found.");
+        return;
+      }
+      const currentTabId = activeTabLink.getAttribute("href").substring(1);
+      if (currentTabId === "default") {
+        alert("The default tab cannot be saved. Please select another tab.");
+        return;
+      }
+      const allEntries = JSON.parse(localStorage.getItem("localEntries")) || {};
+      const currentTabEntries = allEntries[currentTabId] || [];
+      const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+      // Use keys 'tabId' and 'tabName' (camelCase) as expected by the server
+      const tabData = {
+        tabId: currentTabId,
+        tabName: activeTabLink.textContent,
+        entries: currentTabEntries,
+        csrf_token: csrfToken
+      };
+      fetch("/save_tab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify(tabData)
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("Server error while saving tab.");
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.status === "ok") {
+            alert("Tab saved successfully.");
+          } else {
+            alert("Error saving tab: " + data.error);
+          }
+        })
+        .catch(error => {
+          console.error("Error saving tab:", error);
+          alert("Error saving tab: " + error);
+        });
+    });
+  }
+
+
+  // Delete Tab Button functionality (available only to logged-in users)
+  const deleteTabBtn = document.getElementById("deleteTabBtn");
+  if (deleteTabBtn) {
+    deleteTabBtn.addEventListener("click", () => {
+      const activeTabLink = document.querySelector('#gamesTab .nav-link.active');
+      if (!activeTabLink) {
+        alert("No active tab found.");
+        return;
+      }
+      const currentTabId = activeTabLink.getAttribute("href").substring(1);
+      if (currentTabId === "default") {
+        alert("The default tab cannot be deleted.");
+        return;
+      }
+      if (!confirm("Are you sure you want to delete the current tab? This action cannot be undone.")) {
+        return;
+      }
+      const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+      // Delete locally first: remove from both localTabs and localEntries
+      let localTabs = JSON.parse(localStorage.getItem("localTabs")) || {};
+      let localEntries = JSON.parse(localStorage.getItem("localEntries")) || {};
+      delete localTabs[currentTabId];
+      delete localEntries[currentTabId];
+      localStorage.setItem("localTabs", JSON.stringify(localTabs));
+      localStorage.setItem("localEntries", JSON.stringify(localEntries));
+
+      // Then send deletion request to the server:
+      fetch("/delete_tab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify({ tabId: currentTabId })
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("Server error while deleting tab.");
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.status === "ok") {
+            alert("Tab deleted successfully.");
+            location.reload();
+          } else {
+            alert("Error deleting tab: " + data.error);
+          }
+        })
+        .catch(error => {
+          console.error("Error deleting tab:", error);
+          alert("Error deleting tab: " + error);
+        });
+    });
+  }
+
+
+
+// Load Saved Tabs Button functionality (available only to logged-in users)
+const loadSavedTabsBtn = document.getElementById("loadSavedTabsBtn");
+if (loadSavedTabsBtn) {
+  loadSavedTabsBtn.addEventListener("click", () => {
+    fetch("/load_saved_tabs")
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Server error while loading saved tabs.");
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.error) {
+          alert("Error loading saved tabs: " + data.error);
+        } else {
+          let localTabs = JSON.parse(localStorage.getItem("localTabs")) || {};
+          for (const tabId in data.tabs) {
+            localTabs[tabId] = data.tabs[tabId];
+          }
+          localStorage.setItem("localTabs", JSON.stringify(localTabs));
+          // Use console.log instead of alert so the user isn't interrupted twice.
+          console.log("Saved tabs loaded successfully.");
+          // Optionally, you could show a single alert here if you prefer:
+          // alert("Saved tabs loaded successfully.");
+          location.reload();
+        }
+      })
+      .catch(error => {
+        console.error("Error loading saved tabs:", error);
+        alert("Error loading saved tabs: " + error);
+      });
+  });
+}
+
+
+
+
 </script>
 {% endblock %}
