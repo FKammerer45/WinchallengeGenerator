@@ -183,6 +183,7 @@ def generate_challenge():
             desired_diff = float(data.get("desired_diff", 10.0))
             raw_b2b = int(data.get("raw_b2b", 1))
             entries = data.get("entries", [])
+            selected_modes = data.get("selected_modes", {})  # New parameter
         else:
             selected_games = request.form.getlist("selected_games")
             weights = request.form.getlist("weights")
@@ -191,18 +192,20 @@ def generate_challenge():
             raw_b2b = int(request.form.get("raw_b2b", 1))
             import json
             entries = json.loads(request.form.get("entries", "[]"))
-
+            selected_modes_str = request.form.get("selected_modes", "{}")
+            try:
+                selected_modes = json.loads(selected_modes_str)
+            except Exception as e:
+                selected_modes = {}
 
         # Convert selected_games to lowercase for matching.
         selected_games = [g.lower() for g in selected_games]
-
 
         # Initialize game preferences using the provided entries.
         from modules.game_preferences import initialize_game_vars
         game_preferences = initialize_game_vars(entries)
 
-
-        # Generate the challenge.
+        # Generate the challenge including the selected_modes parameter.
         from modules.challenge_generator import generate_challenge_logic
         challenge_result = generate_challenge_logic(
             num_players,
@@ -211,7 +214,8 @@ def generate_challenge():
             [float(w) for w in weights],
             game_preferences,
             raw_b2b,
-            entries=entries
+            entries=entries,
+            selected_modes=selected_modes  # New parameter passed to the generator
         )
         if challenge_result is None:
             return jsonify({"error": "No matching entries found."})

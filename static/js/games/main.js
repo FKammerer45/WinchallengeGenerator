@@ -118,6 +118,25 @@ function updateGameSelectionCard() {
 // -------------------------
 // Attach Challenge Form Handler (Challenge Page)
 // -------------------------
+function gatherSelectedModes() {
+  const selectedModes = {};
+  // For each row in the games table…
+  const rows = document.querySelectorAll("#gamesSelectionTbody tr");
+  rows.forEach(row => {
+    const gameName = row.getAttribute("data-game");
+    if (gameName) {
+      // Find all checked checkboxes for this game.
+      const checkboxes = row.querySelectorAll(`input[name="allowed_modes_${gameName}[]"]:checked`);
+      if (checkboxes.length > 0) {
+        // Store the values (modes) in an array.
+        // We convert the game name to lowercase so that server-side matching is consistent.
+        selectedModes[gameName.toLowerCase()] = Array.from(checkboxes).map(cb => cb.value);
+      }
+    }
+  });
+  return selectedModes;
+}
+
 function attachChallengeFormHandler() {
   const challengeForm = document.getElementById("challengeForm");
   if (!challengeForm) {
@@ -126,9 +145,65 @@ function attachChallengeFormHandler() {
   }
   challengeForm.addEventListener("submit", function (e) {
     e.preventDefault();
-    // Add your challenge form submission logic here…
+    const formData = new FormData(this);
+    const selectedTab = document.getElementById("gameSourceSelect").value;
+    
+    // Retrieve and parse local entries from localStorage.
+    const allEntriesStr = localStorage.getItem("localEntries") || "{}";
+    let allEntries;
+    try {
+      allEntries = JSON.parse(allEntriesStr);
+    } catch (error) {
+      console.error("Error parsing localEntries from localStorage:", error);
+      allEntries = {};
+    }
+    const entries = allEntries[selectedTab] || [];
+    console.log("Converted entries to be sent for tab", selectedTab, ":", entries);
+    
+    if (entries.length === 0) {
+      alert("No game entries found for the selected tab. Please add entries before generating a challenge.");
+      return;
+    }
+    
+    // Convert keys for server (local key -> expected key).
+    const convertedEntries = entries.map(entry => ({
+      id: entry.id,
+      Spiel: entry.game,
+      Spielmodus: entry.gameMode,
+      Schwierigkeit: entry.difficulty,
+      Spieleranzahl: entry.numberOfPlayers,
+      tabName: entry.tabName
+    }));
+    console.log("Final converted entries:", convertedEntries);
+    
+    formData.append("entries", JSON.stringify(convertedEntries));
+    
+    // NEW STEP: Gather selected allowed modes and add them to the form data.
+    const selectedModes = gatherSelectedModes();
+    formData.append("selected_modes", JSON.stringify(selectedModes));
+    
+    fetch(window.generateChallengeUrl, {
+      method: "POST",
+      body: formData
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert(data.error);
+        } else {
+          const resultDiv = document.getElementById("challengeResult");
+          resultDiv.style.display = "block";
+          resultDiv.innerHTML = data.result;
+          window.currentChallengeData = data;
+          document.getElementById("acceptBtn").style.display = "inline-block";
+        }
+      })
+      .catch(error => console.error("Error during challenge generation:", error));
   });
 }
+
+
+
 
 // -------------------------
 // Attach Load Default Entries Button Handler (Challenge Page)
@@ -281,24 +356,30 @@ function attachLoadSavedTabsHandler() {
 // Attach Tab Rename Handler (for non-default tabs)
 // -------------------------
 function attachTabRenameHandler() {
-  document.querySelectorAll('#gamesTab .nav-link').forEach((tab) => {
-    if (tab.id !== "default-tab") {
-      tab.addEventListener("dblclick", () => {
-        const currentName = tab.textContent.trim();
-        const newName = prompt("Enter new name for the tab:", currentName);
-        if (newName && newName.trim() !== "" && newName !== currentName) {
-          tab.textContent = newName;
-          const clientTabId = tab.getAttribute("data-tab");
-          let localTabs = JSON.parse(localStorage.getItem("localTabs")) || {};
-          if (localTabs[clientTabId]) {
-            localTabs[clientTabId].name = newName;
-            localStorage.setItem("localTabs", JSON.stringify(localTabs));
-          }
+  const gamesTab = document.getElementById("gamesTab");
+  if (!gamesTab) {
+    console.error("Element with id 'gamesTab' not found.");
+    return;
+  }
+  gamesTab.addEventListener("dblclick", (e) => {
+    const tab = e.target.closest(".nav-link");
+    // Only allow renaming if a tab was double-clicked and it is not the default tab.
+    if (tab && tab.id !== "default-tab") {
+      const currentName = tab.textContent.trim();
+      const newName = prompt("Enter new name for the tab:", currentName);
+      if (newName && newName.trim() !== "" && newName !== currentName) {
+        tab.textContent = newName;
+        const clientTabId = tab.getAttribute("data-tab");
+        let localTabs = JSON.parse(localStorage.getItem("localTabs")) || {};
+        if (localTabs[clientTabId]) {
+          localTabs[clientTabId].name = newName;
+          localStorage.setItem("localTabs", JSON.stringify(localTabs));
         }
-      });
+      }
     }
   });
 }
+
 
 // -------------------------
 // Main Initialization
@@ -389,6 +470,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("dblclick", (e) => {
       const targetRow = e.target.closest("tr");
       if (targetRow && targetRow.parentElement.classList.contains("gamesTable")) {
+        // Determine which tab pane this row is in
+        const tabPane = targetRow.closest(".tab-pane");
+        if (tabPane) {
+          window.currentTargetTab = tabPane.id; // update current tab id
+          console.log("Setting currentTargetTab to:", tabPane.id);
+        }
+        
         const cells = targetRow.querySelectorAll("td");
         const entryData = {
           id: targetRow.dataset.id,
@@ -397,11 +485,14 @@ document.addEventListener("DOMContentLoaded", () => {
           difficulty: cells[2] ? cells[2].textContent : "",
           numberOfPlayers: cells[3] ? cells[3].textContent : ""
         };
+        console.log("Editing entry:", entryData);
+    
         const editEntryId = document.getElementById("editEntryId");
         const editGameName = document.getElementById("editGameName");
         const editGameMode = document.getElementById("editGameMode");
         const editDifficulty = document.getElementById("editDifficulty");
         const editPlayers = document.getElementById("editPlayers");
+    
         if (editEntryId && editGameName && editGameMode && editDifficulty && editPlayers) {
           editEntryId.value = entryData.id || "";
           editGameName.value = entryData.game;

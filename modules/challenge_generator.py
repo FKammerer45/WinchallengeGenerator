@@ -12,11 +12,12 @@ def generate_challenge_logic(
     weights: List[float],
     game_vars: Dict[str, Any],
     raw_b2b: int,
-    entries: Optional[List[Dict[str, Any]]] = None
+    entries: Optional[List[Dict[str, Any]]] = None,
+    selected_modes: Optional[Dict[str, List[str]]] = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Generate a win challenge using provided game entries (from local storage).
-
+    Generate a win challenge using provided game entries.
+    
     Parameters:
       num_players: Minimum players required.
       desired_diff: Desired total difficulty.
@@ -25,34 +26,44 @@ def generate_challenge_logic(
       game_vars: Dictionary of game variables (including allowed modes).
       raw_b2b: Raw back-to-back parameter.
       entries: List of game entry dictionaries.
-
+      selected_modes: Dict mapping each game name to a list of selected modes.
+      
     Returns:
       A dictionary with the challenge result (as HTML) and grouped wins,
       or None if no valid games are available.
     """
-
     if entries is None:
         logger.error("No game entries provided.")
         return None
 
     # Filter entries by minimum player count.
     filtered = [entry for entry in entries if int(entry.get("Spieleranzahl", 0)) >= num_players]
+    logger.debug("Filtered entries count: %d out of %d", len(filtered), len(entries))
     if not filtered:
-        logger.error("No entries passed the minimum player count requirement: %d", num_players)
+        logger.warning("No entries passed the minimum player count requirement: %d", num_players)
     
     # Build dictionary of available games using allowed modes.
     available_games = {}
     for game in selected_games:
         if game not in game_vars:
+            logger.warning("Game '%s' not found in game_vars", game)
             continue
+        # Get allowed modes from game_vars.
         allowed = game_vars[game].get("allowed_modes", [])
+        # If the client sent selected modes, restrict allowed to the intersection.
+        if selected_modes and game in selected_modes:
+            allowed = list(set(allowed) & set(selected_modes[game]))
         game_entries = [
             entry for entry in filtered 
             if entry.get("Spiel", "").strip().lower() == game and 
                entry.get("Spielmodus", "").strip() in allowed
         ]
+        logger.debug("Game '%s': Found %d matching entries (Allowed modes: %s)", 
+                     game, len(game_entries), allowed)
         if game_entries:
             available_games[game] = game_entries
+
+    logger.debug("Available games after filtering: %s", available_games)
 
     # Validate games and weights.
     valid_games = []
@@ -61,14 +72,16 @@ def generate_challenge_logic(
         if game in available_games:
             valid_games.append(game)
             valid_weights.append(weight)
+    logger.debug("Valid games: %s with weights: %s", valid_games, valid_weights)
     
     if not valid_games:
-        logger.error("No valid games after filtering. Selected games: %s, Available games: %s",
-                     selected_games, list(available_games.keys()))
+        logger.warning("No valid games after filtering. Selected games: %s, Available games: %s", 
+                       selected_games, list(available_games.keys()))
         return None
 
     # Calculate effective back-to-back probability.
     p_eff = (raw_b2b / 10) ** 1.447
+    logger.debug("Effective back-to-back probability (p_eff): %f", p_eff)
 
     segments = []
     total_diff = 0.0
@@ -85,6 +98,8 @@ def generate_challenge_logic(
         seg_diff = seg_sum * (1.5 ** (seg_length - 1)) if seg_length > 1 else seg_sum
         segments.append({"wins": wins, "length": seg_length, "seg_diff": seg_diff})
         total_diff += seg_diff
+        logger.debug("Iteration %d: Segment length: %d, Segment diff: %.2f, Total diff: %.2f", 
+                     iteration, seg_length, seg_diff, total_diff)
 
     # Group normal segments.
     normal_group = {}
@@ -118,4 +133,6 @@ def generate_challenge_logic(
             for key, count in seg["group"].items():
                 result_html += f"<p style='margin-left:20px;'>{key}: {count} win(s)</p>"
 
+    logger.debug("Final challenge result generated with total diff: %.2f", total_diff)
     return {"result": result_html, "normal": normal_group, "b2b": b2b_grouped}
+
