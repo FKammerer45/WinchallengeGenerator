@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Games Configuration{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Games Configuration</h2>
+
+  <script>
+    // Used by games.js and gamesExtensions.js to conditionally attach handlers/show UI
+    const isLoggedIn = {{ current_user.is_authenticated| tojson }};
+    // Used by gamesExtensions.js for API calls requiring CSRF protection
+    const csrfToken = "{{ csrf_token() }}";
+  </script>
+
+  <div class="modal fade" id="confirmLoadDefaultModal" tabindex="-1" role="dialog"
+    aria-labelledby="confirmLoadDefaultModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content text-dark"> <div class="modal-header">
+          <h5 class="modal-title" id="confirmLoadDefaultModalLabel">Load Default Entries</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          Are you sure you want to load the default entries from the database? This will override entries currently in your local 'Default' tab.
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelLoadDefaultBtn" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" id="confirmLoadDefaultBtn" class="btn btn-primary">Yes, Load</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if current_user.is_authenticated %}
+  <div class="mb-3 d-flex flex-wrap">
+    <button id="saveTabBtn" class="btn btn-success mr-2 mb-2" title="Save the currently active tab to your account">Save Current Tab</button>
+    <button id="deleteTabBtn" class="btn btn-danger mr-2 mb-2" title="Delete the currently active tab from local storage and your account">Delete Current Tab</button>
+    <button id="loadSavedTabsBtn" class="btn btn-info mr-2 mb-2" title="Load all tabs saved to your account (overwrites local tabs)">Load Saved Tabs</button>
+    <small class="ml-auto text-muted align-self-center">You can save up to 5 tabs.</small>
+  </div>
+  {% endif %}
+
+  <ul class="nav nav-tabs" id="gamesTab" role="tablist">
+    <li class="nav-item">
+      <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
+        aria-selected="true" title="This tab cannot be renamed or deleted. Double-click other tabs to rename.">Default</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="addTabBtn" role="tab" title="Add New Tab">+</a>
+    </li>
+     </ul>
+
+  <div class="tab-content mt-3" id="gamesTabContent">
+    <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
+       <button id="loadDefaultEntriesBtn" class="btn btn-warning mb-3" title="Load all entries from the central database into this local tab">Load Entries From DB</button>
+       <div class="my-3">
+         <button class="btn btn-primary insertGameBtn" data-tab="default" title="Add a new entry to this local tab">Insert New Entry</button>
+      </div>
+      {% include "games/games_table.html" %}
+    </div>
+     </div>
+
+  {% include "games/games_modals.html" %}
+  <input type="hidden" name="csrf_token_field_fallback" value="{{ csrf_token() }}">
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/games/games.js') }}"></script>
+
+<script>
+  document.addEventListener('dblclick', function(event) {
+      const link = event.target.closest('.nav-link');
+      if (link && link.id === 'default-tab') {
+          event.preventDefault();
+          alert("The Default tab cannot be renamed or deleted.");
+      }
+  });
+</script>
+
+{% endblock %}

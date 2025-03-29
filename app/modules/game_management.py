@@ -1,7 +1,7 @@
 # modules/game_management.py
 import logging
 from typing import List, Tuple
-from modules.models import GameEntry as Game, SessionLocal
+from app.models import GameEntry as Game, SessionLocal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
