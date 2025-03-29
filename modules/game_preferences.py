@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Iterable, Any
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # Global dictionary for game preferences
 game_vars: Dict[str, Dict[str, Any]] = {}
@@ -14,8 +15,13 @@ def initialize_game_vars(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
     :param entries: A list of dictionaries with game entry data.
     :return: A dictionary mapping each game (in lowercase) to its preferences.
     """
+    logger.debug("Initializing game preferences with %d entries.", len(entries))
+    
     # Gather unique game names (lowercased)
     unique_games = {entry["Spiel"].strip().lower() for entry in entries if "Spiel" in entry}
+
+    logger.debug("Unique games found: %s", unique_games)
+    
     prefs: Dict[str, Dict[str, Any]] = {}
     for game in unique_games:
         prefs[game] = {
@@ -24,17 +30,26 @@ def initialize_game_vars(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str, A
             "allowed_modes": [],
             "available_modes": []
         }
+        logger.debug("Initialized preferences for game '%s': %s", game, prefs[game])
+        
     # Populate available and allowed modes for each game
     for entry in entries:
         game_name = entry.get("Spiel", "").strip().lower()
         mode = entry.get("Spielmodus", "").strip()
+        logger.debug("Processing entry: game='%s', mode='%s'", game_name, mode)
         if game_name in prefs:
             if mode and mode not in prefs[game_name]["available_modes"]:
                 prefs[game_name]["available_modes"].append(mode)
+                logger.debug("Added mode '%s' to available_modes for game '%s'", mode, game_name)
             if mode and mode not in prefs[game_name]["allowed_modes"]:
                 prefs[game_name]["allowed_modes"].append(mode)
+                logger.debug("Added mode '%s' to allowed_modes for game '%s'", mode, game_name)
+        else:
+            logger.debug("Game '%s' not found in prefs (unexpected)", game_name)
     
+    logger.debug("Final game preferences: %s", prefs)
     return prefs
+
 
 def update_allowed_modes(game: str, new_allowed_modes: Iterable[str]) -> bool:
     """

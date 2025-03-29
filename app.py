@@ -170,59 +170,111 @@ def strafen():
     entries = load_strafen()
     return render_template("strafen.html", strafen=entries)
 
-import json  # Add at the top if not already imported
 
 @app.route("/generate_challenge", methods=["POST"])
 def generate_challenge():
     try:
+        import json # Keep local import just in case
+
+        # --- 1. Parse Input Parameters ---
         if request.is_json:
+            # Handling raw JSON POST (less likely from current frontend)
             data = request.get_json()
+            if not data:
+                return jsonify({"error": "Invalid JSON data received."}), 400
             selected_games = data.get("selected_games", [])
-            weights = data.get("weights", [])
+            weights_str = data.get("weights", []) # Keep as string list initially
             num_players = int(data.get("num_players", 1))
             desired_diff = float(data.get("desired_diff", 10.0))
             raw_b2b = int(data.get("raw_b2b", 1))
-            entries = data.get("entries", [])
-            selected_modes = data.get("selected_modes", {})  # New parameter
+            # This is the pool of entries the client wants to generate from
+            generation_pool_entries = data.get("entries", [])
+            selected_modes = data.get("selected_modes", {})
         else:
+            # Handling FormData POST (current frontend implementation)
             selected_games = request.form.getlist("selected_games")
-            weights = request.form.getlist("weights")
+            weights_str = request.form.getlist("weights") # Keep as string list initially
             num_players = int(request.form.get("num_players", 1))
             desired_diff = float(request.form.get("desired_diff", 10.0))
             raw_b2b = int(request.form.get("raw_b2b", 1))
-            import json
-            entries = json.loads(request.form.get("entries", "[]"))
-            selected_modes_str = request.form.get("selected_modes", "{}")
-            try:
-                selected_modes = json.loads(selected_modes_str)
-            except Exception as e:
-                selected_modes = {}
+             # This is the pool of entries the client wants to generate from
+            generation_pool_entries = json.loads(request.form.get("entries", "[]"))
+            selected_modes = json.loads(request.form.get("selected_modes", "{}"))
 
-        # Convert selected_games to lowercase for matching.
-        selected_games = [g.lower() for g in selected_games]
+        app.logger.debug("Received selected_games: %s", selected_games)
+        app.logger.debug("Received weights (str): %s", weights_str)
+        app.logger.debug("Number of entries in potential pool: %d", len(generation_pool_entries))
+        app.logger.debug("Received selected_modes: %s", selected_modes)
 
-        # Initialize game preferences using the provided entries.
+        # --- 2. Determine Game Variables (Available Modes/Games) ---
+        # This assumes the client sends ALL relevant entries from the source tab.
+        # This matches the *input* of the original code but clarifies the intent.
+        # If generation_pool_entries is empty, game_vars_for_logic will be {}
         from modules.game_preferences import initialize_game_vars
-        game_preferences = initialize_game_vars(entries)
+        game_vars_for_logic = initialize_game_vars(generation_pool_entries)
+        app.logger.debug("Initialized game_vars based on submitted pool: %s", game_vars_for_logic)
 
-        # Generate the challenge including the selected_modes parameter.
+        # --- 3. Process Weights ---
+        processed_weights = []
+        if len(selected_games) == len(weights_str):
+            try:
+                processed_weights = [float(w) for w in weights_str]
+            except ValueError:
+                app.logger.warning("Invalid value in weights list: %s. Using default weight 1.0 for all.", weights_str)
+                processed_weights = [1.0] * len(selected_games)
+        else:
+             app.logger.warning("Mismatch between selected_games count (%d) and weights count (%d). Using default weight 1.0 for all.",
+                                len(selected_games), len(weights_str))
+             processed_weights = [1.0] * len(selected_games)
+
+        # --- 4. Prepare Final Parameters for Logic ---
+        selected_games_lower = [g.lower() for g in selected_games]
+
+        # --- 5. Call Challenge Generation Logic ---
         from modules.challenge_generator import generate_challenge_logic
+        # Pass selected_modes directly; the logic function handles filtering based on it and game_vars
         challenge_result = generate_challenge_logic(
-            num_players,
-            desired_diff,
-            selected_games,
-            [float(w) for w in weights],
-            game_preferences,
-            raw_b2b,
-            entries=entries,
-            selected_modes=selected_modes  # New parameter passed to the generator
+            num_players=num_players,
+            desired_diff=desired_diff,
+            selected_games=selected_games_lower, # Use lowercase list
+            weights=processed_weights,          # Use processed float weights
+            game_vars=game_vars_for_logic,      # Use game_vars derived from submitted pool
+            raw_b2b=raw_b2b,
+            entries=generation_pool_entries,    # Pass the client pool here
+            selected_modes=selected_modes       # Pass the user mode selection here
         )
+
+        # --- 6. Handle Result ---
         if challenge_result is None:
-            return jsonify({"error": "No matching entries found."})
+            available_keys = list(game_vars_for_logic.keys())
+            app.logger.error("No valid games after filtering. Selected: %s, Available in Pool: %s",
+                             selected_games_lower, available_keys)
+            # Provide a more helpful error message
+            error_msg = ("No matching entries found. "
+                         "Possible reasons: "
+                         "1. No entries exist for the selected game(s) in the chosen source tab. "
+                         "2. Selected entries don't meet the minimum player count. "
+                         "3. No entries match the selected game modes (if any were chosen).")
+            return jsonify({"error": error_msg})
+
         return jsonify(challenge_result)
+
+    # --- Specific Exception Handling ---
+    except json.JSONDecodeError as e:
+        app.logger.error("Failed to decode JSON input: %s", e)
+        # Check which field might have caused it (crude check)
+        err_field = "'entries'" if "'entries'" in request.form else "'selected_modes'" if "'selected_modes'" in request.form else "data"
+        return jsonify({"error": f"Invalid format for JSON data in {err_field}. {e}"}), 400
+    except ValueError as e:
+        # Catch errors from int() or float() conversions of basic params
+        app.logger.error("Invalid numeric value received: %s", e)
+        return jsonify({"error": f"Invalid numeric value provided (e.g., for players, difficulty, b2b, weights). {e}"}), 400
     except Exception as e:
-        app.logger.exception("Error in generate_challenge:")
-        return jsonify({"error": str(e)}), 500
+        # Catch any other unexpected errors
+        app.logger.exception("Unexpected error in generate_challenge:")
+        return jsonify({"error": "An unexpected server error occurred."}), 500
+
+
 
 
 
