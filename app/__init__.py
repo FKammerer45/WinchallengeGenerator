@@ -121,12 +121,14 @@ def create_app(config_object=config):
         from .routes.games_api import games_api_bp
         from .routes.tabs_api import tabs_api_bp
         from .routes.challenge_api import challenge_api_bp
+        from .routes.penalties_api import penalties_api_bp
 
         app.register_blueprint(auth_bp, url_prefix='/auth')
         app.register_blueprint(main_bp)
         app.register_blueprint(games_api_bp) # Prefix defined in blueprint (/api/games)
         app.register_blueprint(tabs_api_bp)  # Prefix defined in blueprint (/api/tabs)
         app.register_blueprint(challenge_api_bp) # Prefix defined in blueprint (/api/challenge)
+        app.register_blueprint(penalties_api_bp)
         app.logger.info("Blueprints registered successfully.")
     except ImportError as e:
          app.logger.error(f"Failed to import or register blueprints: {e}", exc_info=True)

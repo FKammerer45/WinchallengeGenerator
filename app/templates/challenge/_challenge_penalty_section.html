@@ -1,0 +1,42 @@
+{# templates/challenge/_challenge_penalty_section.html #}
+{# Displays penalty assignment button, wheels, and result #}
+{# Expects: loop_index (int), penalty_tab_id (str), players (list) #}
+
+<div class="card mb-3 bg-dark text-light border-warning">
+   <div class="card-body text-center">
+       {# Button to trigger penalty assignment #}
+       <button class="btn btn-warning lostGameBtn"
+               data-challenge-index="{{ loop_index }}"
+               data-penalty-tab-id="{{ penalty_tab_id }}"
+               data-players='{{ players|tojson|safe }}'
+               title="Click if a game was lost to assign a random penalty">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dice-3 mr-1" viewBox="0 0 16 16"><path d="M13 1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2zM3 0a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V3a3 3 0 0 0-3-3z"/><path d="M5.5 4a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0m8 8a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0m-4-4a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0"/></svg>
+               Lost Game - Assign Penalty
+       </button>
+
+       {# --- Wheel Containers (Initially Hidden) --- #}
+       <div class="row justify-content-center mt-3">
+            {# Player Wheel - Increased Canvas Size #}
+            <div class="col-md-5 text-center wheel-container" id="playerWheelContainer-{{ loop_index }}" style="display: none; position: relative;"> {# Added relative positioning for pointer #}
+                <h6 class="text-muted">Selecting Player...</h6>
+                {# Increased width/height for 50% larger radius (150 vs 100) + pointer space #}
+                <canvas id="playerWheelCanvas-{{ loop_index }}" width="350" height="350">Canvas not supported</canvas>
+                 {# Simple triangle pointer using CSS borders #}
+                 <div class="wheel-pointer"></div>
+            </div>
+            {# Penalty Wheel - Increased Canvas Size #}
+            <div class="col-md-5 text-center wheel-container" id="penaltyWheelContainer-{{ loop_index }}" style="display: none; position: relative;"> {# Added relative positioning for pointer #}
+                 <h6 class="text-muted">Selecting Penalty...</h6>
+                 {# Increased width/height #}
+                 <canvas id="penaltyWheelCanvas-{{ loop_index }}" width="350" height="350">Canvas not supported</canvas>
+                  {# Simple triangle pointer using CSS borders #}
+                  <div class="wheel-pointer"></div>
+            </div>
+       </div>
+
+       {# --- Result Display Area --- #}
+       <div id="penaltyResult-{{ loop_index }}" class="mt-3 penalty-result-display" style="display: none;">
+           {# Content injected by JavaScript #}
+       </div>
+   </div>
+</div>

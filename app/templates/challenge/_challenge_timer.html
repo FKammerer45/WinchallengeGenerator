@@ -1,0 +1,16 @@
+{# templates/challenge/_challenge_timer.html #}
+{# Expects: loop_index (int) passed from the include #}
+<div class="card mb-3 bg-dark text-light border-secondary">
+   <div class="card-body py-2">
+     <div class="d-flex align-items-center flex-wrap">
+       {# Timer Display - Added class 'timer-display' #}
+       <div id="timerDisplay-{{ loop_index }}" class="mr-3 timer-display" style="font-family:monospace; font-size: 1.4em;">00:00:00</div>
+       <div class="ml-md-auto">
+          {# Timer Buttons - Added classes 'timer-start', 'timer-stop', 'timer-reset' #}
+          <button id="btnStart-{{ loop_index }}" class="btn btn-success btn-sm mr-1 timer-start" title="Start Timer">Start</button>
+          <button id="btnStop-{{ loop_index }}" class="btn btn-warning btn-sm mr-1 timer-stop" title="Stop Timer">Stop</button>
+          <button id="btnReset-{{ loop.index }}" class="btn btn-danger btn-sm timer-reset" title="Reset Timer">Reset</button>
+       </div>
+     </div>
+   </div>
+</div>

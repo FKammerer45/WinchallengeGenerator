@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="en"> <head>
+<html lang="en">
+
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Win Challenge Generator{% endblock %}</title>
@@ -14,24 +16,24 @@
 <body>
   {# Display flashed messages, if any #}
   {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div id="flash-messages" class="container mt-2">
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
+  {% if messages %}
+  <div id="flash-messages" class="container mt-2">
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% endwith %}
 
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <a class="navbar-brand" href="{{ url_for('main.index') }}">Win Challenge</a>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
-            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
@@ -46,28 +48,28 @@
           <a class="nav-link" href="{{ url_for('main.games_config') }}">Games</a>
         </li>
         <li class="nav-item">
-           <a class="nav-link" href="{{ url_for('main.penalties_view') }}">Penalties</a>
+          <a class="nav-link" href="{{ url_for('main.penalties_config') }}">Penalties</a>
         </li>
       </ul>
 
       <ul class="navbar-nav ml-auto">
         {% if current_user.is_authenticated %}
-          <li class="nav-item">
-            <div class="p-2" style="background-color: #28a745; border-radius: 5px;">
-              <span class="nav-link text-white">Hi, {{ current_user.username }}</span>
-            </div>
-          </li>
-          <li class="nav-item">
-            <div class="p-2 ml-2" style="background-color: #dc3545; border-radius: 5px;">
-              <a class="nav-link text-white" href="{{ url_for('auth.logout') }}">Logout</a>
-            </div>
-          </li>
+        <li class="nav-item">
+          <div class="p-2" style="background-color: #28a745; border-radius: 5px;">
+            <span class="nav-link text-white">Hi, {{ current_user.username }}</span>
+          </div>
+        </li>
+        <li class="nav-item">
+          <div class="p-2 ml-2" style="background-color: #dc3545; border-radius: 5px;">
+            <a class="nav-link text-white" href="{{ url_for('auth.logout') }}">Logout</a>
+          </div>
+        </li>
         {% else %}
-          <li class="nav-item">
-            <div class="p-2" style="background-color: #007BFF; border-radius: 5px;">
-              <a class="nav-link text-white" href="{{ url_for('auth.login') }}">Login</a>
-            </div>
-          </li>
+        <li class="nav-item">
+          <div class="p-2" style="background-color: #007BFF; border-radius: 5px;">
+            <a class="nav-link text-white" href="{{ url_for('auth.login') }}">Login</a>
+          </div>
+        </li>
         {% endif %}
       </ul>
     </div>

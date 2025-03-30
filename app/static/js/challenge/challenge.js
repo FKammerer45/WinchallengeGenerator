@@ -1,41 +1,43 @@
 // challenge.js
-import { getLocalTabs, getLocalEntries, initLocalStorage } from "../games/localStorageUtils.js"; // Added initLocalStorage just in case
-// import { renderGamesForTab } from "../games/entryManagement.js"; // Import seems unused here
+import { getLocalTabs as getGameTabs, getLocalEntries, initLocalStorage as initGameStorage } from "../games/localStorageUtils.js";
+import { getLocalPenaltyTabs, initPenaltiesLocalStorage } from "../penalties/penaltyLocalStorageUtils.js";
 
 // -------------------------
 // Populate Game Source Dropdown
 // -------------------------
+export function populatePenaltySourceDropdown() {
+  const dropdown = document.getElementById("penaltySourceSelect");
+  if (!dropdown) { console.warn("Penalty source dropdown not found."); return; }
+  dropdown.innerHTML = "";
+  try {
+    const tabs = getLocalPenaltyTabs(); // Use penalty getter
+    if (!tabs) { console.error("Failed to get penalty tabs."); return; }
+    for (const tabId in tabs) {
+      const option = document.createElement("option");
+      option.value = tabId; // e.g., "default" or "penaltyPane-1"
+      option.textContent = tabs[tabId]?.name || tabId;
+      dropdown.appendChild(option);
+    }
+    console.log("Penalty source dropdown populated.");
+  } catch (error) { console.error("Error populating penalty source dropdown:", error); }
+}
+
+
 export function populateGameSourceDropdown() {
   const dropdown = document.getElementById("gameSourceSelect");
-  if (!dropdown) {
-    console.error("Dropdown with id 'gameSourceSelect' not found.");
-    return;
-  }
-  dropdown.innerHTML = ""; // Clear existing options
+  if (!dropdown) { console.error("Game source dropdown not found."); return; }
+  dropdown.innerHTML = "";
   try {
-    const tabs = getLocalTabs(); // Assumes localStorage is initialized
-    if (!tabs) {
-        console.error("Failed to get tabs from local storage.");
-        // Optionally add a default option or error message
-        return;
-    }
-    // Add default tab first if desired, or just loop
-    // const defaultOption = document.createElement("option");
-    // defaultOption.value = "default";
-    // defaultOption.textContent = tabs["default"]?.name || "Default"; // Use optional chaining
-    // dropdown.appendChild(defaultOption);
-
+    const tabs = getGameTabs(); // Use game getter
+    if (!tabs) { console.error("Failed to get game tabs."); return; }
     for (const tabId in tabs) {
-        // if (tabId === "default") continue; // Skip if added above
-        const option = document.createElement("option");
-        option.value = tabId;
-        option.textContent = tabs[tabId]?.name || tabId; // Use optional chaining
-        dropdown.appendChild(option);
+      const option = document.createElement("option");
+      option.value = tabId;
+      option.textContent = tabs[tabId]?.name || tabId;
+      dropdown.appendChild(option);
     }
-  } catch (error) {
-      console.error("Error populating game source dropdown:", error);
-      // Display error to user?
-  }
+    console.log("Game source dropdown populated.");
+  } catch (error) { console.error("Error populating game source dropdown:", error); }
 }
 
 // -------------------------
@@ -47,19 +49,19 @@ export function updateGameSelectionCard() {
 
   if (!dropdown || !tbody) {
     console.error("Required elements ('gameSourceSelect' or 'gamesSelectionTbody') not found for updateGameSelectionCard.");
-    if(tbody) tbody.innerHTML = `<tr><td colspan="3">Error loading games list.</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="3">Error loading games list.</td></tr>`;
     return;
   }
 
   const selectedTab = dropdown.value;
   let entries = [];
   try {
-      const allEntries = JSON.parse(localStorage.getItem("localEntries") || "{}");
-      entries = allEntries[selectedTab] || [];
-  } catch(e) {
-      console.error("Error parsing localEntries:", e);
-      tbody.innerHTML = `<tr><td colspan="3">Error loading entries from storage.</td></tr>`;
-      return;
+    const allEntries = JSON.parse(localStorage.getItem("localEntries") || "{}");
+    entries = allEntries[selectedTab] || [];
+  } catch (e) {
+    console.error("Error parsing localEntries:", e);
+    tbody.innerHTML = `<tr><td colspan="3">Error loading entries from storage.</td></tr>`;
+    return;
   }
 
   // Group entries by game name.
@@ -101,18 +103,18 @@ export function updateGameSelectionCard() {
 
       // Generate modal checkboxes
       if (group.availableModes.length > 0) {
-          group.availableModes.forEach((mode, i) => {
-              const checkboxId = `mode-${safeGameNameId}-${i}`;
-              // Ensure mode value is properly escaped for HTML attributes if needed
-              const escapedMode = mode.replace(/"/g, '&quot;');
-              modalHtml += `
+        group.availableModes.forEach((mode, i) => {
+          const checkboxId = `mode-${safeGameNameId}-${i}`;
+          // Ensure mode value is properly escaped for HTML attributes if needed
+          const escapedMode = mode.replace(/"/g, '&quot;');
+          modalHtml += `
                 <div class="form-check mb-2">
                   <input class="form-check-input" type="checkbox" name="allowed_modes_${gameName}[]" value="${escapedMode}" id="${checkboxId}">
                   <label class="form-check-label ml-1" for="${checkboxId}">${mode}</label>
                 </div>`;
-          });
+        });
       } else {
-          modalHtml = "<p>No specific modes found for this game.</p>";
+        modalHtml = "<p>No specific modes found for this game.</p>";
       }
 
       // Generate table row HTML
@@ -186,180 +188,105 @@ export function gatherSelectedModes() {
   return selectedModes;
 }
 
+
+function updatePlayerNameInputs() {
+  console.log("updatePlayerNameInputs called"); // Log function call
+  const numPlayersSelect = document.getElementById('numPlayers');
+  const container = document.getElementById('playerNamesContainer');
+
+  // Ensure elements exist before proceeding
+  if (!numPlayersSelect) {
+    console.error("#numPlayers select element not found!");
+    return;
+  }
+  if (!container) {
+    console.error("#playerNamesContainer div not found!");
+    return;
+  }
+
+  let numPlayers = 1; // Default to 1
+  try {
+    numPlayers = parseInt(numPlayersSelect.value, 10);
+    if (isNaN(numPlayers)) { // Handle case where value is not a number
+      console.warn("Could not parse number of players, defaulting to 1.");
+      numPlayers = 1;
+    }
+  } catch (e) {
+    console.error("Error parsing number of players:", e);
+    numPlayers = 1; // Default on error
+  }
+
+  console.log("Number of players selected:", numPlayers);
+
+  const body = container.querySelector('.card-body') || container; // Use container itself if no card-body found
+  const existingLabel = body.querySelector('label'); // Find label if exists
+
+  // Clear only existing player input groups (more specific than innerHTML='')
+  body.querySelectorAll('.player-name-input-group').forEach(group => group.remove());
+
+  if (numPlayers > 1) {
+    container.style.display = 'block'; // Show container
+    // Ensure label exists
+    if (!existingLabel) {
+      const newLabel = document.createElement('label');
+      newLabel.classList.add('font-weight-bold', 'd-block', 'mb-2'); // Make label block for spacing
+      newLabel.textContent = "Enter Player Names:";
+      body.insertBefore(newLabel, body.firstChild); // Add label at the start
+    }
+
+    // Add new input groups
+    for (let i = 1; i <= numPlayers; i++) {
+      const div = document.createElement('div');
+      // Add specific class for easy removal later
+      div.classList.add('form-group', 'form-group-sm', 'player-name-input-group');
+      div.innerHTML = `
+              <label for="playerName${i}" class="sr-only">Player ${i} Name</label> <input type="text" class="form-control form-control-sm" id="playerName${i}" name="player_names[]" placeholder="Player ${i} Name" required>
+           `;
+      body.appendChild(div);
+    }
+    console.log(`Showing ${numPlayers} player name inputs.`);
+  } else {
+    container.style.display = 'none'; // Hide container
+    console.log("Hiding player name inputs.");
+  }
+}
+
 // -------------------------
 // Attach Challenge Form Handler (Main Logic)
 // -------------------------
 export function attachChallengeFormHandler() {
-  const challengeForm = document.getElementById("challengeForm");
-  if (!challengeForm) {
-    console.error("Challenge form ('challengeForm') not found. Cannot attach submit handler.");
-    return;
-  }
+  // ... (Keep the version from the previous step that includes parsing all form data correctly) ...
+  const challengeForm = document.getElementById("challengeForm"); if (!challengeForm) { /*...*/ return; }
   challengeForm.addEventListener("submit", function (e) {
-    console.log("Challenge form submitted! Preventing default...");
-    e.preventDefault(); // Prevent standard form submission
-
-    const formData = new FormData(this); // Collects standard form fields (players, diff, b2b, checked games, weights)
-    const selectedTab = document.getElementById("gameSourceSelect")?.value; // Safely get value
-
-    if (!selectedTab) {
-        alert("Error: No game source tab selected.");
-        console.error("No value found for #gameSourceSelect");
-        return;
-    }
-
-    // --- Retrieve and prepare entries ---
-    let entries = [];
-    let convertedEntries = [];
-    try {
-        const allEntries = JSON.parse(localStorage.getItem("localEntries") || "{}");
-        entries = allEntries[selectedTab] || [];
-        console.log(`Entries retrieved for selected tab '${selectedTab}':`, entries.length);
-
-        if (entries.length === 0) {
-            alert("No game entries found in the selected source tab. Please add entries on the 'Games' page or select a different source.");
-            console.warn("JS Check: No entries found for tab", selectedTab);
-            return; // Stop submission if no entries
-        }
-
-        // Convert keys for the backend
-        convertedEntries = entries.map(entry => {
-            if (!entry || typeof entry.id === 'undefined' || typeof entry.game === 'undefined' || typeof entry.gameMode === 'undefined' || typeof entry.difficulty === 'undefined' || typeof entry.numberOfPlayers === 'undefined') {
-                console.warn("Skipping malformed entry during conversion:", entry);
-                return null; // Skip malformed entries
-            }
-            // Ensure types are somewhat reasonable for backend (backend does final conversion)
-            return {
-                id: entry.id,
-                Spiel: String(entry.game),
-                Spielmodus: String(entry.gameMode),
-                Schwierigkeit: parseFloat(entry.difficulty) || 0, // Default to 0 if conversion fails
-                Spieleranzahl: parseInt(entry.numberOfPlayers) || 0 // Default to 0 if conversion fails
-            };
-        }).filter(entry => entry !== null); // Remove skipped entries
-
-        console.log("Entries after key conversion:", convertedEntries.length);
-
-        if (convertedEntries.length === 0 && entries.length > 0) {
-             alert("Error processing entries. Check console for details about malformed entries.");
-             console.error("All entries were considered malformed during conversion.");
-             return; // Stop if conversion failed for all
-        }
-
-    } catch (error) {
-        console.error("Error reading or processing entries from localStorage:", error);
-        alert("Error reading game entries. Check console for details.");
-        return;
-    }
-
-    // --- Append additional data to FormData ---
-    const entriesJsonString = JSON.stringify(convertedEntries);
-    formData.append("entries", entriesJsonString);
-    console.log("Appended 'entries' JSON string:", entriesJsonString);
-
-    const selectedModes = gatherSelectedModes();
-    const selectedModesJsonString = JSON.stringify(selectedModes);
-    formData.append("selected_modes", selectedModesJsonString);
-    console.log("Appended 'selected_modes' JSON string:", selectedModesJsonString);
-
-    // Optional: Log FormData contents for debugging before fetch
-    // for (let [key, value] of formData.entries()) { console.log(`FormData Check: ${key}=${value}`); }
-
-    // --- Perform Fetch Request ---
-    const submitButton = challengeForm.querySelector('button[type="submit"]');
-    if(submitButton) submitButton.disabled = true; // Disable button during request
-
-    fetch(window.generateChallengeUrl, { // URL set in index.html
-      method: "POST",
-      body: formData
-      // No 'Content-Type' header needed for FormData; browser sets it with boundary
-      // CSRF token is sent as a hidden field in the form, collected by new FormData()
-    })
-    .then(response => {
-        if (!response.ok) {
-            // Try to get error message from JSON response body
-            return response.json().catch(() => {
-                 // If body isn't JSON or empty, use status text
-                 throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-            }).then(errData => {
-                 // Throw error with message from server JSON if available
-                 throw new Error(errData.error || `HTTP error ${response.status}`);
-            });
-        }
-        return response.json(); // Parse successful JSON response
-    })
-    .then(data => {
-      console.log("Received challenge generation response:", data);
-      if (data.error) {
-        // Display server-side error message
-        alert("Error generating challenge: " + data.error);
-      } else if (data.result) {
-        // Success! Display result.
-        const resultDiv = document.getElementById("challengeResult");
-        const acceptBtn = document.getElementById("acceptBtn");
-        if(resultDiv && acceptBtn) {
-            resultDiv.style.display = "block";
-            resultDiv.innerHTML = data.result; // Assumes data.result is safe HTML from server
-            window.currentChallengeData = data; // Store data for potential 'accept' action
-            acceptBtn.style.display = "inline-block";
-        } else {
-            console.error("Result display elements ('challengeResult' or 'acceptBtn') not found.");
-            alert("Challenge generated, but result area not found on page.");
-        }
-      } else {
-           console.error("Received unexpected success response structure:", data);
-           alert("Received an unexpected response from the server.");
-      }
-    })
-    .catch(error => {
-      console.error("Error during challenge generation fetch:", error);
-      alert("Failed to generate challenge: " + error.message);
-    })
-    .finally(() => {
-         if(submitButton) submitButton.disabled = false; // Re-enable button
-    });
+    console.log("Challenge form submit listener triggered.");
+    e.preventDefault();
+    const formData = new FormData(this);
+    const selectedGameTab = document.getElementById("gameSourceSelect")?.value;
+    if (!selectedGameTab) { /*...*/ return; }
+    let entries = []; let convertedEntries = [];
+    try { /*... get/parse/check/convert entries ...*/ const allEntries = JSON.parse(localStorage.getItem("localEntries") || "{}"); entries = allEntries[selectedGameTab] || []; if (entries.length === 0) { alert("No game entries in selected source."); return; } convertedEntries = entries.map(entry => { if (!entry || typeof entry.id === 'undefined' || typeof entry.game === 'undefined' || typeof entry.gameMode === 'undefined' || typeof entry.difficulty === 'undefined' || typeof entry.numberOfPlayers === 'undefined') { console.warn("Skipping malformed entry:", entry); return null; } return { id: entry.id, Spiel: String(entry.game), Spielmodus: String(entry.gameMode), Schwierigkeit: parseFloat(entry.difficulty) || 0, Spieleranzahl: parseInt(entry.numberOfPlayers) || 0 }; }).filter(entry => entry !== null); if (convertedEntries.length === 0 && entries.length > 0) { alert("Error processing entries."); return; } } catch (error) { console.error("Error processing game entries:", error); alert("Error reading game entries."); return; }
+    formData.append("entries", JSON.stringify(convertedEntries));
+    const selectedModes = gatherSelectedModes(); formData.append("selected_modes", JSON.stringify(selectedModes));
+    const usePenaltiesCheckbox = document.getElementById("usePenaltiesCheckbox"); if (usePenaltiesCheckbox?.checked) { const selectedPenaltyTab = document.getElementById("penaltySourceSelect")?.value; if (!selectedPenaltyTab) { alert("Penalties checked, but no penalty source selected."); return; } }
+    console.log("Submitting challenge generation request..."); const submitButton = challengeForm.querySelector('button[type="submit"]'); if (submitButton) submitButton.disabled = true;
+    fetch(window.generateChallengeUrl, { method: "POST", body: formData })
+      .then(response => { /*...*/ if (!response.ok) { return response.json().catch(() => ({})).then(err => { throw new Error(err.error || `HTTP ${response.status}`) }) } return response.json(); })
+      .then(data => { /*...*/ console.log("Challenge response:", data); if (data.error) { alert("Error: " + data.error); } else if (data.result) { const resultDiv = document.getElementById("challengeResult"); const acceptBtn = document.getElementById("acceptBtn"); if (resultDiv && acceptBtn) { resultDiv.style.display = "block"; resultDiv.innerHTML = data.result; window.currentChallengeData = data; acceptBtn.style.display = "inline-block"; } else { alert("Challenge generated, but result area not found."); } } else { alert("Unexpected response."); } })
+      .catch(error => { console.error("Fetch Error:", error); alert("Failed to generate challenge: " + error.message); })
+      .finally(() => { if (submitButton) submitButton.disabled = false; });
   });
   console.log("Challenge form submit handler attached.");
 }
 
 
-// -------------------------
-// DOMContentLoaded Listener (Initialization)
-// -------------------------
+// --- DOMContentLoaded Listener (Initialization) --- (No changes needed from previous version)
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("challenge.js: DOMContentLoaded");
-    // Ensure localStorage is initialized (safe to call multiple times)
-    try {
-      initLocalStorage();
-    } catch (e) { console.error("Error initializing local storage:", e); }
-
-
-    // Get references to elements needed for initialization
-    const challengeForm = document.getElementById("challengeForm");
-    const gameSourceSelect = document.getElementById("gameSourceSelect");
-    const gamesSelectionTbody = document.getElementById("gamesSelectionTbody");
-
-    // Populate dropdown and add listener for changes
-    if (gameSourceSelect) {
-        populateGameSourceDropdown();
-        gameSourceSelect.addEventListener('change', updateGameSelectionCard);
-        console.log("Game source dropdown populated and change listener added.");
-    } else {
-        console.error("Game source dropdown ('gameSourceSelect') not found.");
-    }
-
-    // Initial population of the game selection table
-    if (gamesSelectionTbody) {
-         updateGameSelectionCard();
-         console.log("Initial game selection card populated.");
-    } else {
-         console.error("Game selection table body ('gamesSelectionTbody') not found.");
-    }
-
-    // Attach the form submit handler
-    if (challengeForm) {
-        attachChallengeFormHandler(); // <-- Ensure this is called
-    } else {
-        console.error("Challenge form ('challengeForm') not found. Cannot attach submit handler.");
-    }
+  console.log("challenge.js: DOMContentLoaded");
+  try { initGameStorage(); initPenaltiesLocalStorage(); } catch (e) { console.error("Error initializing storage:", e); }
+  const challengeForm = document.getElementById("challengeForm"); const gameSourceSelect = document.getElementById("gameSourceSelect"); const penaltySourceSelect = document.getElementById("penaltySourceSelect"); const gamesSelectionTbody = document.getElementById("gamesSelectionTbody"); const numPlayersSelect = document.getElementById('numPlayers');
+  if (gameSourceSelect) { populateGameSourceDropdown(); gameSourceSelect.addEventListener('change', updateGameSelectionCard); } else { console.error("Game source dropdown not found."); }
+  if (penaltySourceSelect) { populatePenaltySourceDropdown(); } else { console.error("Penalty source dropdown not found."); }
+  if (gamesSelectionTbody) { updateGameSelectionCard(); } else { console.error("Game selection table body not found."); }
+  if (numPlayersSelect) { numPlayersSelect.addEventListener('change', updatePlayerNameInputs); updatePlayerNameInputs(); } else { console.error("Number of players select not found."); }
+  if (challengeForm) { attachChallengeFormHandler(); } else { console.error("Challenge form not found."); }
 });

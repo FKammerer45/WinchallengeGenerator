@@ -4,9 +4,6 @@ from flask import Blueprint, render_template, jsonify, request, current_app
 # Note: We don't need current_user or login_required for these specific routes yet
 # from flask_login import current_user, login_required
 
-# Import necessary logic or data loading functions
-# For strafen, we still load from CSV via the module
-from app.modules.strafen import load_strafen
 
 logger = logging.getLogger(__name__)
 
@@ -44,38 +41,38 @@ def games_config():
         game_vars={}             # Preferences handled by JS from localStorage
     )
 
-@main_bp.route("/strafen") # Assuming 'strafen' means 'penalties'
-def penalties_view():
-    """Renders the page displaying penalties from the CSV file."""
-    logger.debug("Rendering penalties page.")
-    try:
-        # Load penalties from the CSV file using the dedicated module.
-        penalty_entries = load_strafen()
-        return render_template("strafen.html", strafen=penalty_entries) # Pass as 'strafen' for template compatibility
-    except FileNotFoundError:
-        logger.error(f"Penalties CSV file not found at configured path.")
-        # Render the template with an empty list and potentially flash a message (requires flash import)
-        # from flask import flash
-        # flash("Penalty data file not found.", "warning")
-        return render_template("strafen.html", strafen=[])
-    except Exception as e:
-        logger.exception("Error loading penalties:")
-        # Render template with empty list and indicate error
-        return render_template("strafen.html", strafen=[], error="Could not load penalty data.")
+@main_bp.route("/penalties") # Route path remains /penalties
+def penalties_config(): # Function name updated
+    """Renders the penalties configuration page (data loaded client-side)."""
+    logger.debug("Rendering penalties config page shell.")
+    # Just render the template, JavaScript will fetch defaults or load from localStorage
+    return render_template("penalties.html")
 
 
 @main_bp.route("/accept_challenge", methods=["POST"])
 def accept_challenge():
-    """API endpoint to accept a generated challenge."""
-    # TODO: Persist accepted challenges in the database instead of memory.
+    """API endpoint to accept a generated challenge (potentially including penalty info)."""
     data = request.get_json()
-    if not data:
-        logger.warning("Received empty data for /accept_challenge.")
-        # Decide if empty data is acceptable or an error
-        # return jsonify({"error": "No challenge data provided"}), 400
-        pass # Allowing empty for now
+    # Basic validation: Check if it looks like challenge data
+    if not data or not isinstance(data, dict) or 'result' not in data:
+        logger.warning(f"Received invalid data structure for /accept_challenge: {type(data)}")
+        return jsonify({"error": "Invalid challenge data provided"}), 400
 
-    logger.info(f"Accepting challenge data: {data.get('result', 'No result data')[:100]}...") # Log snippet
+    # Log acceptance, including penalty status
+    p_info = data.get('penalty_info') # Will be dict or None
+    log_msg = "Accepting challenge."
+    if p_info and isinstance(p_info, dict): # Check if it's the expected dict
+        log_msg += f" Includes penalty info for tab '{p_info.get('tab_id')}' and players {p_info.get('player_names')}."
+    else:
+        log_msg += " No penalty info included."
+    logger.info(log_msg)
+    # Log challenge details snippet (optional)
+    # logger.debug(f"Accepted challenge details (start): {data.get('result', '')[:100]}...")
+
     accepted_challenges_list.append(data)
-    # Maybe limit the size of accepted_challenges_list?
+    # Optional: Limit the size of the list
+    MAX_ACCEPTED = 20 # Example limit
+    if len(accepted_challenges_list) > MAX_ACCEPTED:
+        accepted_challenges_list.pop(0) # Remove the oldest challenge
+
     return jsonify({"status": "ok"})

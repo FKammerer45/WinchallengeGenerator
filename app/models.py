@@ -8,6 +8,25 @@ from app.database import Base # Import Base from database module
 
 logger = logging.getLogger(__name__)
 
+
+class SavedPenaltyTab(Base):
+    __tablename__ = 'saved_penalty_tabs' # New table name
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    client_tab_id = Column(String(100), nullable=False, index=True) # ID used by client JS (e.g., 'penaltyPane-1')
+    tab_name = Column(String(100), nullable=False)
+    penalties_json = Column(Text, nullable=False) # Store penalties list as JSON string
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)) # Use timezone aware UTC time
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert SavedPenaltyTab instance to a dictionary for JSON serialization."""
+        return {
+            "client_tab_id": self.client_tab_id,
+            "tab_name": self.tab_name,
+            "penalties_json": self.penalties_json, # Client needs to parse this
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+        }
+    
 class SavedGameTab(Base):
     __tablename__ = 'saved_game_tabs'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -50,19 +69,21 @@ class GameEntry(Base):
         }
 
 class Penalty(Base):
-    # Consider renaming table to 'penalties' for convention
-    __tablename__ = 'penaltys' # Original name
+    __tablename__ = 'penalties' # Changed table name to plural convention
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # Using original German names
-    Strafe = Column(String(100), nullable=False) # Penalty name/description
-    Wahrscheinlichkeit = Column(Float, nullable=False) # Probability
+    name = Column(String(150), nullable=False, unique=True) # Use English 'name', ensure uniqueness
+    probability = Column(Float, nullable=False) # Use English 'probability'
+    description = Column(String(255), nullable=True) # Use English 'description'
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert Penalty instance to a dictionary."""
+        """Convert Penalty instance to a dictionary for API response."""
+        # Return dictionary with keys matching desired JS structure
         return {
+            # Including 'id' is useful for client-side updates/deletes later
             "id": self.id,
-            "Strafe": self.Strafe,
-            "Wahrscheinlichkeit": self.Wahrscheinlichkeit
+            "name": self.name,
+            "probability": self.probability,
+            "description": self.description
         }
 
 
@@ -99,7 +120,3 @@ class User(Base):
         """Check if the provided password matches the stored hash."""
         return check_password_hash(self.password_hash, password)
 
-    # Add a method to set password hash if not done elsewhere
-    # from werkzeug.security import generate_password_hash
-    # def set_password(self, password: str):
-    #    self.password_hash = generate_password_hash(password)
