@@ -1,14 +1,14 @@
-# app/modules/auth.py
 import re
 import logging
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-# --- Import current_user here ---
-from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash
-# Use absolute imports
+from flask import (Blueprint, render_template, request, redirect,
+                   url_for, flash, current_app, jsonify) # Added jsonify
+from flask_login import (login_user, logout_user, login_required,
+                         current_user, fresh_login_required, logout_user) # Added more imports
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from app.modules.recaptcha import verify_recaptcha
-from app.models import User
-from app.database import get_db_session # Use context manager
+from app.models import User, SavedGameTab, SavedPenaltyTab # Import models needed for deletion
+from app.database import get_db_session
 
 # Setup logger for this blueprint/module
 logger = logging.getLogger(__name__)
@@ -160,3 +160,139 @@ def register():
 
     # --- Handle GET Request ---
     return render_template('register.html') # Assumes template is in 'auth' folder
+
+@auth_bp.route('/change_password', methods=['GET', 'POST'])
+@login_required # User must be logged in
+def change_password():
+    """Handles password change for the logged-in user."""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_new_password = request.form.get('confirm_new_password')
+
+        # --- Validation ---
+        errors = False
+        # 1. Check current password
+        if not current_user.check_password(current_password):
+            flash("Your current password was incorrect.", "danger")
+            errors = True
+
+        # 2. Check new password complexity (reuse registration logic)
+        if len(new_password) < 6 or not re.search(r'\d', new_password):
+            flash("New password must be at least 6 characters and contain a number.", "danger")
+            errors = True
+
+        # 3. Check confirmation matches
+        if new_password != confirm_new_password:
+            flash("New passwords do not match.", "danger")
+            errors = True
+
+        # 4. Optional: Check if new password is same as old
+        if current_user.check_password(new_password):
+            flash("New password cannot be the same as the old password.", "warning")
+            errors = True
+
+        if errors:
+            # Re-render the form if any validation errors
+            return render_template('change_password.html')
+
+        # --- Update Password in DB ---
+        try:
+            with get_db_session() as db_session:
+                # Re-fetch the user within the session to ensure it's attached
+                user_to_update = db_session.query(User).get(current_user.id)
+                if not user_to_update:
+                     # Should not happen if logged in, but safety check
+                     flash("Could not find user to update.", "error")
+                     logger.error(f"User ID {current_user.id} not found during password change.")
+                     return redirect(url_for('main.index'))
+
+                user_to_update.password_hash = generate_password_hash(new_password)
+                logger.info(f"Password updated successfully for user '{current_user.username}'.")
+                # Commit happens automatically
+
+            flash("Your password has been updated successfully.", "success")
+            # Optional: Log the user out for security after password change
+            logout_user()
+            flash("Please log in again with your new password.", "info")
+            return redirect(url_for('auth.login'))
+            # Or redirect to profile page: return redirect(url_for('main.profile')) # If you have one
+
+        except Exception as e:
+            logger.exception(f"Error updating password for user '{current_user.username}'")
+            flash("An error occurred while updating your password. Please try again.", "danger")
+            # Render form again on DB error
+            return render_template('change_password.html')
+
+    # --- Handle GET Request ---
+    return render_template('change_password.html')
+
+# --- NEW: Delete Account Route ---
+@auth_bp.route('/delete_account', methods=['POST'])
+@login_required
+def delete_account():
+    """Handles the actual account deletion after confirmation."""
+    # Expect form data now, not JSON
+    password = request.form.get('password')
+
+    # CSRF protection is handled automatically by Flask-WTF if enabled globally,
+    # otherwise, you'd need manual validation:
+    # validate_csrf(request.form.get('csrf_token')) # Requires importing validate_csrf
+
+    if not password:
+        logger.warning(f"User {current_user.username}: Delete account POST failed - no password provided.")
+        flash("Password confirmation is required to delete your account.", "danger")
+        return redirect(url_for('auth.confirm_delete_account')) # Redirect back to confirm page
+
+    # --- Re-authenticate ---
+    if not current_user.check_password(password):
+        logger.warning(f"User {current_user.username}: Delete account attempt failed - incorrect password.")
+        flash("Incorrect password provided. Account not deleted.", "danger")
+        return redirect(url_for('auth.confirm_delete_account')) # Redirect back to confirm page
+
+    # --- Perform Deletion ---
+    user_id_to_delete = current_user.id
+    username_to_delete = current_user.username
+
+    logger.warning(f"Initiating account deletion for user '{username_to_delete}' (ID: {user_id_to_delete}).")
+
+    try:
+        with get_db_session() as db_session:
+            # Find the user object within this session
+            user = db_session.query(User).get(user_id_to_delete)
+            if not user:
+                logger.error(f"Cannot delete: User ID {user_id_to_delete} not found in DB.")
+                flash("User not found. Cannot delete account.", "error")
+                # Log user out just in case session is corrupt
+                logout_user()
+                return redirect(url_for('main.index'))
+
+            # Delete related data first (adjust based on your cascading needs/relationships)
+            logger.info(f"Deleting related data for user {user_id_to_delete}...")
+            # Use synchronize_session=False if experiencing issues, but 'fetch' is often safer
+            db_session.query(SavedGameTab).filter_by(user_id=user_id_to_delete).delete(synchronize_session='fetch')
+
+
+            # Delete the user
+            logger.info(f"Deleting user record for {username_to_delete}...")
+            db_session.delete(user)
+            # Commit happens automatically via context manager
+
+        # Log the user out *after* successful deletion & commit
+        logout_user()
+        logger.info(f"User '{username_to_delete}' (ID: {user_id_to_delete}) successfully deleted and logged out.")
+
+        # Flash message before redirecting
+        flash("Your account has been permanently deleted.", "success")
+        return redirect(url_for('main.index')) # Redirect to homepage
+
+    except Exception as e:
+        logger.exception(f"Error deleting account for user '{username_to_delete}'")
+        flash("An error occurred while deleting the account. Please try again later.", "danger")
+        return redirect(url_for('auth.confirm_delete_account')) # Redirect back to confirm page on error
+
+@auth_bp.route('/confirm_delete', methods=['GET'])
+@login_required
+def confirm_delete_account():
+    """Displays the confirmation page before account deletion."""
+    return render_template('confirm_delete.html')

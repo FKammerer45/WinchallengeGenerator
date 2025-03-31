@@ -6,6 +6,10 @@ from flask import Flask, jsonify, request # Added request for error handler pote
 from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager
 from sqlalchemy.exc import OperationalError
+from flask_migrate import Migrate
+from .database import engine, Base
+
+migrate = Migrate()
 
 # --- Configuration Import ---
 # Add project root to path to find config.py reliably
@@ -100,21 +104,9 @@ def create_app(config_object=config):
             db_session.close()
         return user
 
+    migrate.init_app(app, RENDER_AS_BATCH=True, compare_type=True, metadata=Base.metadata) # Use Base.metadata if no db object
     # --- Database Initialization (Run once at startup) ---
-    with app.app_context():
-        try:
-            # WARNING: Use Alembic or similar for migrations in production!
-            app.logger.info("Attempting to create database tables if they don't exist...")
-            Base.metadata.create_all(bind=engine)
-            app.logger.info("Database tables checked/created successfully.")
-        except OperationalError as e:
-            app.logger.error(f"DATABASE CONNECTION OR SETUP FAILED: {e}")
-            app.logger.error("Check DATABASE_URL, database server status, and permissions.")
-            # Optionally exit or raise a more specific error if DB is required at startup
-        except Exception as e:
-            app.logger.error(f"Unexpected error during initial DB setup: {e}", exc_info=True)
 
-    # --- Import and Register Blueprints (AFTER models/db/extensions) ---
     try:
         from .modules.auth import auth_bp
         from .routes.main import main_bp
