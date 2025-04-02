@@ -1,7 +1,7 @@
 # app/routes/main.py
 import logging
 from flask import Blueprint, render_template, jsonify, request, current_app, abort, flash, redirect, url_for
-from flask_login import current_user
+from flask_login import current_user, login_required
 # --- REMOVE THIS LINE ---
 # from app import db
 # --- ADD THIS LINE (adjust path if database.py is elsewhere) ---
@@ -10,6 +10,8 @@ from app.database import SessionLocal
 from app.models import SharedChallenge, ChallengeGroup
 # --- Keep SQLAlchemy Imports ---
 from sqlalchemy.orm import joinedload, selectinload
+
+from sqlalchemy import desc
 # --- Keep Logging ---
 logger = logging.getLogger(__name__)
 
@@ -126,3 +128,32 @@ def accept_challenge():
         accepted_challenges_list.pop(0) # Remove the oldest challenge
 
     return jsonify({"status": "ok"})
+
+
+
+@main_bp.route("/my_challenges")
+@login_required # Make sure only logged-in users can see this
+def my_challenges_view():
+    """Displays a list of challenges created by the current user."""
+    logger.debug(f"Request received for /my_challenges by user {current_user.username}")
+
+    user_challenges = []
+    try:
+        with SessionLocal() as session:
+            # Query challenges created by the current user, order by most recent
+            # Optionally load group count if needed: options(selectinload(SharedChallenge.groups))
+            # But for a simple list, maybe skip loading groups for performance
+            user_challenges = session.query(SharedChallenge)\
+                .filter(SharedChallenge.creator_id == current_user.id)\
+                .order_by(desc(SharedChallenge.created_at))\
+                .all()
+            logger.info(f"Found {len(user_challenges)} challenges for user {current_user.username}")
+
+    except Exception as e:
+        logger.exception(f"Error fetching challenges for user {current_user.username}")
+        flash("Could not load your challenges due to a server error.", "danger")
+        # Redirect home or render template with error? Redirect is simpler.
+        return redirect(url_for('main.index'))
+
+    # Pass the fetched challenges to the new template
+    return render_template("my_challenges.html", user_challenges=user_challenges)

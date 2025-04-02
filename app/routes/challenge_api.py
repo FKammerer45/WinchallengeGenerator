@@ -48,10 +48,8 @@ def generate_challenge():
             generation_data['selected_modes'] = json.loads(request.form.get("selected_modes", "{}"))
             generation_data['use_penalties'] = request.form.get('use_penalties') == 'on'
             generation_data['penalty_tab_id'] = request.form.get('penalty_tab_id', 'default')
-            generation_data['player_names'] = request.form.getlist('player_names[]')
             generation_data['challenge_name'] = request.form.get('challenge_name', None)
             generation_data['max_groups'] = int(request.form.get('max_groups', 10))
-            generation_data['auto_create_groups'] = request.form.get('auto_create_groups') == 'on'
             logger.debug("Parsing parameters from Form data.")
 
         elif request.is_json:
@@ -66,10 +64,8 @@ def generate_challenge():
             generation_data['selected_modes'] = data.get("selected_modes", {})
             generation_data['use_penalties'] = data.get('use_penalties', False)
             generation_data['penalty_tab_id'] = data.get('penalty_tab_id', 'default')
-            generation_data['player_names'] = data.get('player_names', [])
             generation_data['challenge_name'] = data.get('challenge_name', None)
             generation_data['max_groups'] = int(data.get('max_groups', 10))
-            generation_data['auto_create_groups'] = data.get('auto_create_groups', False)
             logger.debug("Parsing parameters from JSON data.")
         else:
             logger.warning("Received request with unexpected content type or missing form data.")
@@ -77,7 +73,6 @@ def generate_challenge():
 
         # (Keep existing logging)
         logger.debug(f"Received selected_games: {generation_data.get('selected_games')}")
-        logger.debug(f"Received player_names: {generation_data.get('player_names')}")
         # ... other logs ...
 
         # --- 2. Determine Game Variables ---
@@ -121,7 +116,6 @@ def generate_challenge():
         if generation_data.get('use_penalties'):
             penalty_info = {
                 'tab_id': generation_data.get('penalty_tab_id', 'default'),
-                'player_names': generation_data.get('player_names', [])
             }
             challenge_result_data['penalty_info'] = penalty_info
             logger.info(f"Challenge generated WITH penalty info for tab {penalty_info['tab_id']}")
@@ -133,8 +127,6 @@ def generate_challenge():
         challenge_result_data['share_options'] = {
             'challenge_name': generation_data.get('challenge_name'),
             'max_groups': generation_data.get('max_groups'),
-            'auto_create_groups': generation_data.get('auto_create_groups'),
-            'player_names': generation_data.get('player_names', [])
         }
 
         logger.info("Challenge generated successfully.")
@@ -156,37 +148,40 @@ def generate_challenge():
 @login_required
 def share_challenge():
     """
-    API endpoint to take generated challenge data and create a persistent,
-    shareable SharedChallenge record in the database. Requires login.
+    Creates a persistent SharedChallenge, now with a limit per user.
     """
     logger.info(f"'/api/challenge/share' endpoint called by user {current_user.username}")
+    # Define the limit
+    MAX_CHALLENGES_PER_USER = 10 # Or get from config: current_app.config.get('MAX_CHALLENGES', 10)
+
     data = request.get_json()
-
+    # ... (keep data validation as before) ...
     if not data or 'challenge_data' not in data or not isinstance(data['challenge_data'], dict):
-        logger.warning("Share request missing or invalid 'challenge_data'.")
-        return jsonify({"error": "Invalid request. JSON data with valid 'challenge_data' required."}), 400
+        return jsonify({"error": "Invalid request data."}), 400
 
-    # Extract data with defaults and basic validation
     challenge_data = data.get('challenge_data')
-    penalty_info = data.get('penalty_info') # Can be None
+    penalty_info = data.get('penalty_info')
     name = data.get('name', None)
-    try:
-        max_groups = int(data.get('max_groups', 10))
-        if max_groups < 1: max_groups = 1
-    except (ValueError, TypeError):
-        max_groups = 10
-        logger.warning(f"Invalid max_groups received, defaulting to {max_groups}.")
+    max_groups = int(data.get('max_groups', 10)) # Keep max_groups
 
-    auto_create_groups = data.get('auto_create_groups', False)
-    player_names = data.get('player_names', [])
-    if not isinstance(player_names, list): player_names = [] # Ensure it's a list
-
-    public_id = str(uuid.uuid4())
-    logger.debug(f"Generated public_id: {public_id}")
-
-    # --- Use SessionLocal context manager ---
+    # --- ADD Limit Check ---
     with SessionLocal() as session:
         try:
+            current_challenge_count = session.query(func.count(SharedChallenge.id))\
+                .filter(SharedChallenge.creator_id == current_user.id)\
+                .scalar()
+
+            if current_challenge_count >= MAX_CHALLENGES_PER_USER:
+                logger.warning(f"User {current_user.username} failed to share challenge: Limit ({MAX_CHALLENGES_PER_USER}) reached.")
+                return jsonify({
+                    "error": f"You have reached the maximum limit of {MAX_CHALLENGES_PER_USER} active challenges. Please delete an old one to create a new one."
+                }), 403 # Forbidden or 400 Bad Request
+
+            logger.debug(f"User {current_user.username} has {current_challenge_count} challenges. Limit is {MAX_CHALLENGES_PER_USER}. Proceeding.")
+            # --- END Limit Check ---
+
+            # --- Continue with challenge creation ---
+            public_id = str(uuid.uuid4())
             new_challenge = SharedChallenge(
                 public_id=public_id,
                 creator_id=current_user.id,
@@ -196,58 +191,22 @@ def share_challenge():
                 max_groups=max_groups
             )
             session.add(new_challenge)
-
-            created_groups = []
-            # Optionally create initial groups
-            if auto_create_groups and player_names:
-                logger.info(f"Auto-creating groups for challenge {public_id} from names: {player_names}")
-                names_to_create = player_names[:max_groups]
-                temp_group_names = set() # Track names within this transaction
-
-                for i, player_name in enumerate(names_to_create):
-                    group_name = player_name.strip() or f"Group {i+1}"
-
-                    # Ensure unique within this batch
-                    original_group_name = group_name
-                    suffix_counter = 1
-                    while group_name in temp_group_names:
-                         group_name = f"{original_group_name}_{suffix_counter}"
-                         suffix_counter += 1
-                    temp_group_names.add(group_name)
-
-                    new_group = ChallengeGroup(
-                        group_name=group_name,
-                        shared_challenge=new_challenge # Associate relationship
-                    )
-                    session.add(new_group)
-                    created_groups.append(new_group) # Add the object for the response if needed
-
             session.commit() # Commit transaction
-            logger.info(f"Successfully created SharedChallenge {public_id} ('{name}') by user {current_user.username}")
+            logger.info(f"Successfully created SharedChallenge {public_id} by user {current_user.username}")
 
             share_url = url_for('main.challenge_view', public_id=public_id, _external=True)
-
             return jsonify({
                 "status": "success",
                 "message": "Challenge shared successfully.",
                 "public_id": public_id,
-                "share_url": share_url,
-                "created_groups_count": len(created_groups)
+                "share_url": share_url
             }), 201
 
-        except IntegrityError as e:
-            session.rollback()
-            logger.exception(f"Database integrity error sharing challenge for user {current_user.username}: {e}")
-            return jsonify({"error": "Failed to share challenge due to a data conflict (e.g., duplicate ID - unlikely)."}), 409
-        except SQLAlchemyError as e:
-            session.rollback()
-            logger.exception(f"Database error sharing challenge for user {current_user.username}: {e}")
-            return jsonify({"error": "An unexpected database error occurred while sharing the challenge."}), 500
+        # Keep existing error handling (IntegrityError, SQLAlchemyError, Exception)...
+        except (IntegrityError, SQLAlchemyError) as e:
+            session.rollback(); logger.exception(...); return jsonify({...}), 500 # Simplified
         except Exception as e:
-            session.rollback()
-            logger.exception(f"Unexpected error sharing challenge for user {current_user.username}: {e}")
-            return jsonify({"error": "An unexpected server error occurred."}), 500
-        # No finally needed, 'with' handles session close
+            session.rollback(); logger.exception(...); return jsonify({...}), 500 # Simplified
 
 
 # --- /<public_id>/groups endpoint ---
@@ -515,4 +474,43 @@ def leave_group(group_id):
         except Exception as e:
              session.rollback()
              logger.exception(f"Unexpected error leaving group {group_id} for user {current_user.username}: {e}")
+             return jsonify({"error": "An unexpected server error occurred."}), 500
+
+@challenge_api_bp.route("/<public_id>", methods=["DELETE"])
+@login_required
+def delete_shared_challenge(public_id):
+    """Deletes a shared challenge if the current user is the creator."""
+    logger.info(f"User {current_user.username} attempting to delete challenge {public_id}")
+
+    with SessionLocal() as session:
+        try:
+            # Find the challenge by public ID
+            challenge = session.query(SharedChallenge).filter_by(public_id=public_id).first()
+
+            if not challenge:
+                logger.warning(f"Delete failed: Challenge {public_id} not found.")
+                return jsonify({"error": "Challenge not found."}), 404
+
+            # --- Authorization Check ---
+            if challenge.creator_id != current_user.id:
+                logger.warning(f"Forbidden: User {current_user.username} tried to delete challenge {public_id} created by user {challenge.creator_id}.")
+                return jsonify({"error": "You are not authorized to delete this challenge."}), 403 # Forbidden
+            # --- End Authorization Check ---
+
+            # Delete the challenge
+            # SQLAlchemy cascade should handle associated groups and memberships if configured
+            session.delete(challenge)
+            session.commit()
+
+            logger.info(f"User {current_user.username} successfully deleted challenge {public_id}")
+            # Return success - 204 No Content is common for DELETE success
+            return '', 204
+
+        except (SQLAlchemyError) as e:
+            session.rollback()
+            logger.exception(f"Database error deleting challenge {public_id} for user {current_user.username}: {e}")
+            return jsonify({"error": "Database error while deleting challenge."}), 500
+        except Exception as e:
+             session.rollback()
+             logger.exception(f"Unexpected error deleting challenge {public_id} for user {current_user.username}: {e}")
              return jsonify({"error": "An unexpected server error occurred."}), 500

@@ -52,7 +52,7 @@ function updateGameSelectionCard() {
     try {
         const allEntries = JSON.parse(localStorage.getItem("localEntries") || "{}");
         entries = allEntries[selectedTab] || [];
-    } catch(e) { console.error("Error parsing localEntries:", e); tbody.innerHTML = `<tr><td colspan="3" class="text-danger text-center">Error loading entries.</td></tr>`; return; }
+    } catch (e) { console.error("Error parsing localEntries:", e); tbody.innerHTML = `<tr><td colspan="3" class="text-danger text-center">Error loading entries.</td></tr>`; return; }
 
     // Group entries by game name
     const grouped = {};
@@ -60,7 +60,7 @@ function updateGameSelectionCard() {
         if (!entry?.game) return;
         const gameName = entry.game.trim(); if (!gameName) return;
         if (!grouped[gameName]) {
-             grouped[gameName] = { weight: Number(entry.weight) || 1.0, availableModes: new Set() };
+            grouped[gameName] = { weight: Number(entry.weight) || 1.0, availableModes: new Set() };
         }
         if (entry.gameMode?.trim()) grouped[gameName].availableModes.add(entry.gameMode.trim());
     });
@@ -70,17 +70,17 @@ function updateGameSelectionCard() {
     let html = ""; const gameNames = Object.keys(grouped).sort();
     if (gameNames.length > 0) {
         gameNames.forEach((gameName, index) => {
-             const group = grouped[gameName];
-             const weightVal = group.weight.toFixed(1);
-             const safeGameNameId = gameName.replace(/[^a-zA-Z0-9_-]/g, '-');
-             const gameCheckboxId = `game-${safeGameNameId}-${index}`;
-             const modalId = `modesModal-${safeGameNameId}-${index}`;
-             let modalHtml = "";
-             // Generate modal checkboxes
-             if (group.availableModes.length > 0) {
-                  group.availableModes.forEach((mode, i) => { const cbId = `mode-${safeGameNameId}-${index}-${i}`; modalHtml += `<div class="form-check mb-2"><input class="form-check-input allowed-mode-checkbox" type="checkbox" name="allowed_modes_${gameName}[]" value="${mode.replace(/"/g, '&quot;')}" id="${cbId}"><label class="form-check-label ml-1" for="${cbId}">${mode}</label></div>`; });
-             } else { modalHtml = "<p class='text-muted'>No specific modes found.</p>"; }
-             // Generate table row
+            const group = grouped[gameName];
+            const weightVal = group.weight.toFixed(1);
+            const safeGameNameId = gameName.replace(/[^a-zA-Z0-9_-]/g, '-');
+            const gameCheckboxId = `game-${safeGameNameId}-${index}`;
+            const modalId = `modesModal-${safeGameNameId}-${index}`;
+            let modalHtml = "";
+            // Generate modal checkboxes
+            if (group.availableModes.length > 0) {
+                group.availableModes.forEach((mode, i) => { const cbId = `mode-${safeGameNameId}-${index}-${i}`; modalHtml += `<div class="form-check mb-2"><input class="form-check-input allowed-mode-checkbox" type="checkbox" name="allowed_modes_${gameName}[]" value="${mode.replace(/"/g, '&quot;')}" id="${cbId}"><label class="form-check-label ml-1" for="${cbId}">${mode}</label></div>`; });
+            } else { modalHtml = "<p class='text-muted'>No specific modes found.</p>"; }
+            // Generate table row
             html += `<tr data-game="${gameName}"><td class="align-middle"><input class="form-check-input game-select-checkbox" type="checkbox" name="selected_games" value="${gameName}" id="${gameCheckboxId}"><label class="form-check-label ml-4 font-weight-bold" for="${gameCheckboxId}">${gameName}</label></td><td class="align-middle"><input type="number" name="weights" value="${weightVal}" min="0.1" step="0.1" class="form-control form-control-sm game-weight-input" style="width: 75px;"></td><td class="align-middle">${group.availableModes.length > 0 ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#${modalId}" title="Select modes for ${gameName}">Modes (${group.availableModes.length})</button><div class="modal fade" id="${modalId}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content text-dark"><div class="modal-header"><h5 class="modal-title">${gameName} Modes</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div><div class="modal-body">${modalHtml}</div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Done</button></div></div></div></div>` : '<span class="text-muted">N/A</span>'}</td></tr>`;
         });
     } else { html = `<tr><td colspan="3" class="text-center text-muted py-4">No game entries found in this tab.</td></tr>`; }
@@ -107,32 +107,6 @@ function gatherSelectedModes() {
     return selectedModes;
 }
 
-function updatePlayerNameInputs() {
-    const numPlayersSelect = document.getElementById('numPlayers');
-    const container = document.getElementById('playerNamesContainer');
-    if (!numPlayersSelect || !container) return;
-    const numPlayers = parseInt(numPlayersSelect.value, 10) || 1;
-    const body = container.querySelector('.card-body') || container;
-
-    // Clear previous inputs
-    body.querySelectorAll('.player-name-input-group').forEach(group => group.remove());
-    // Remove label if it exists
-    body.querySelector('label.player-names-label')?.remove();
-
-    if (numPlayers > 1) {
-        container.style.display = 'block';
-        const label = document.createElement('label');
-        label.className = 'font-weight-bold d-block mb-2 player-names-label';
-        label.textContent = "Enter Player Names:";
-        body.insertBefore(label, body.firstChild);
-        for (let i = 1; i <= numPlayers; i++) {
-            const div = document.createElement('div');
-            div.className = 'form-group form-group-sm player-name-input-group';
-            div.innerHTML = `<input type="text" class="form-control form-control-sm" id="playerName${i}" name="player_names[]" placeholder="Player ${i} Name" required>`;
-            body.appendChild(div);
-        }
-    } else { container.style.display = 'none'; }
-}
 
 function updateFormUI() {
     // --- Mode Selection Logic ---
@@ -170,8 +144,13 @@ function updateFormUI() {
 }
 
 // --- Main Form Submission Handler ---
+// In app/static/js/challenge/challenge_form.js
+
+// Ensure gatherSelectedModes is defined in this file or imported correctly
+
+// --- Main Form Submission Handler ---
 function handleChallengeFormSubmit(event) {
-    event.preventDefault();
+    event.preventDefault(); // Prevent default form submission
     const form = event.target;
     const formData = new FormData(form);
 
@@ -192,51 +171,71 @@ function handleChallengeFormSubmit(event) {
         convertedEntries = entries.map(entry => entry ? { id: entry.id, Spiel: String(entry.game || ''), Spielmodus: String(entry.gameMode || ''), Schwierigkeit: parseFloat(entry.difficulty) || 0, Spieleranzahl: parseInt(entry.numberOfPlayers) || 0 } : null).filter(Boolean);
         if (convertedEntries.length === 0) throw new Error("Entries invalid or empty after conversion.");
         formData.append("entries", JSON.stringify(convertedEntries));
-    } catch (error) { alert(`Error processing game entries: ${error.message}`); return; }
+    } catch (error) {
+        alert(`Error processing game entries: ${error.message}`);
+        console.error("Error processing game entries:", error); // Log error too
+        return;
+    }
 
-    // Append selected modes
+    // Append selected modes (ensure gatherSelectedModes function exists in this scope)
     formData.append("selected_modes", JSON.stringify(gatherSelectedModes()));
 
-    // UI Feedback
+    // UI Feedback before fetch
     const submitButton = form.querySelector('button[type="submit"]');
     const resultDiv = document.getElementById("challengeResult");
-    const shareResultDiv = document.getElementById('shareResult');
-    if(submitButton) { submitButton.disabled = true; submitButton.textContent = 'Generating...'; }
-    if(resultDiv) { resultDiv.style.display = "block"; resultDiv.innerHTML = '<p class="text-center text-info">Generating...</p>'; }
-    if(shareResultDiv) { shareResultDiv.style.display = 'none'; shareResultDiv.innerHTML = ''; }
+    const shareBtn = document.getElementById("shareChallengeBtn"); // Get share button ref
+    const shareResultDiv = document.getElementById('shareResult'); // Get share result ref
+
+    if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Generating...'; }
+    if (resultDiv) { resultDiv.style.display = "block"; resultDiv.innerHTML = '<p class="text-center text-info">Generating challenge, please wait...</p>'; }
+    // --- Hide share button and results initially for new generation ---
+    if (shareBtn) { shareBtn.style.display = 'none'; }
+    if (shareResultDiv) { shareResultDiv.style.display = 'none'; shareResultDiv.innerHTML = ''; }
+    // --- End Hide ---
 
     console.log("Submitting challenge generation request...");
 
     // Use standard Fetch for FormData
     fetch(window.generateChallengeUrl, { method: "POST", body: formData })
         .then(response => {
-            if (!response.ok) { return response.json().catch(()=>({})).then(err => { throw new Error(err.error || `HTTP ${response.status}`); }); }
-            return response.json();
+            // Try to parse JSON regardless of status for error messages
+            return response.json().then(data => ({ ok: response.ok, status: response.status, data }));
         })
-        .then(data => {
+        .then(({ ok, status, data }) => { // Destructure the response object
             console.log("Challenge response received:", data);
-            if (data.error) {
-                if(resultDiv) resultDiv.innerHTML = `<p class="text-danger text-center">Error: ${data.error}</p>`;
-                alert("Error generating challenge: " + data.error);
-            } else if (data.result) {
-                if(resultDiv) resultDiv.innerHTML = data.result;
+            if (!ok) { // Handle non-2xx responses
+                throw new Error(data?.error || `HTTP ${status}`);
+            }
+
+            // Handle potential success response structure variations
+            if (data.result) {
+                if (resultDiv) resultDiv.innerHTML = data.result; // Display the actual challenge HTML/Text
                 // Store FULL response globally for the share button module
                 window.currentChallengeData = data;
-                // Show the share button (if it exists - depends on login state in template)
-                const shareBtn = document.getElementById("shareChallengeBtn");
-                if(shareBtn) shareBtn.style.display = "inline-block";
-            } else {
-                if(resultDiv) resultDiv.innerHTML = '<p class="text-warning text-center">Unexpected server response.</p>';
+                // Show the share button again IF it exists (user is logged in)
+                if (shareBtn) {
+                    console.log("Generation success, showing Share button.");
+                    shareBtn.style.display = "inline-block";
+                }
+            } else if (data.error) { // Handle cases where API returns 2xx but with an error field
+                console.error("API returned success status but contained an error:", data.error);
+                if (resultDiv) resultDiv.innerHTML = `<p class="text-danger text-center">Error: ${data.error}</p>`;
+                alert("Error generating challenge: " + data.error);
+            }
+            else { // Handle unexpected success response format
+                console.warn("Unexpected success response format:", data);
+                if (resultDiv) resultDiv.innerHTML = '<p class="text-warning text-center">Received an unexpected response from server.</p>';
                 alert("Received an unexpected response from server.");
             }
         })
         .catch(error => {
-            console.error("Challenge Generation Fetch Error:", error);
-            if(resultDiv) resultDiv.innerHTML = `<p class="text-danger text-center">Failed to generate: ${error.message}</p>`;
+            console.error("Challenge Generation Fetch/Processing Error:", error);
+            if (resultDiv) resultDiv.innerHTML = `<p class="text-danger text-center">Failed to generate challenge: ${error.message}</p>`;
             alert("Failed to generate challenge: " + error.message);
         })
         .finally(() => {
-            if(submitButton) { submitButton.disabled = false; submitButton.textContent = 'Generate Challenge'; }
+            // Always re-enable submit button
+            if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Generate Challenge'; }
         });
 }
 
@@ -265,10 +264,7 @@ export function initializeChallengeForm() {
         populatePenaltySourceDropdown();
     } else { console.error("Penalty source dropdown not found."); }
 
-    if (numPlayersSelect) {
-        numPlayersSelect.addEventListener('change', updatePlayerNameInputs);
-        updatePlayerNameInputs(); // Initial setup
-    } else { console.error("Number of players select not found."); }
+
 
     if (challengeForm) {
         challengeForm.addEventListener('submit', handleChallengeFormSubmit);

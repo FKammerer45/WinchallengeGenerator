@@ -70,7 +70,7 @@
                     <input class="form-check-input mode-radio" type="radio" name="group_mode" id="modeMultiGroup" value="multi" {% if request.form.get('group_mode') == 'multi' %}checked{% endif %}>
                     <label class="form-check-label" for="modeMultiGroup">Multigroup (Shared)</label>
                 </div>
-                <small class="form-text text-muted d-block">Single: For solo play or local tracking. Multigroup: For sharing online.</small>
+                <small class="form-text text-muted d-block">Single: For solo or 1 Group. Multigroup: For sharing online.</small>
             </div>
         </div>
         {# --- END Mode Selection --- #}
@@ -100,15 +100,6 @@
             {# --- END Max Groups --- #}
         </div>
 
-        {# --- Player Names Container (dynamically populated by JS based on numPlayers) --- #}
-        {# This might need adjustment depending on single/multi mode interpretation #}
-        <div id="playerNamesContainer" class="mt-3" style="display: none;">
-             {# JS adds inputs here #}
-             {# Consider only showing this for penalty assignment? Or for auto-create (which was removed) #}
-             {# If single mode = 1 group, numPlayers is total players. #}
-             {# If multi mode, numPlayers is players PER group, maybe player names aren't needed here? #}
-             {# Keeping it simple for now, JS toggles based on numPlayers > 1 #}
-        </div>
 
          {# --- Difficulty & B2B (Keep as is) --- #}
          <div class="form-row mt-3">

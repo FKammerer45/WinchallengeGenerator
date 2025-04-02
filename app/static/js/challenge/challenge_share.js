@@ -74,6 +74,10 @@ function handleShareButtonClick() {
             console.log("Share response:", resData);
             const successMsg = `Challenge shared! <br>Link: <a href="${resData.share_url}" target="_blank" class="alert-link user-select-all">${resData.share_url}</a> <br><small class="text-muted">(ID: ${resData.public_id})</small>`;
             displayShareResult(successMsg, 'success');
+            if(shareBtn) {
+                shareBtn.style.display = 'none';
+                console.log("Share button hidden after successful share.");
+            }
         })
         .catch(err => {
             console.error("Share Fetch Error:", err);
