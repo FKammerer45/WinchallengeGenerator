@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}Shared Challenge{% if challenge.name %}: {{ challenge.name }}{% endif %}{% endblock %}
+
+{% block head %}
+<style>
+  /* Styles for progress display, penalty results etc */
+  .group-progress-card { margin-bottom: 1.5rem; }
+  .group-progress-card .card-body { padding-top: 0.5rem; }
+  .progress-table th, .progress-table td { font-size: 0.9rem; padding: 0.4rem; }
+  .progress-table .form-check-input { margin-top: 0.1rem; }
+  .penalty-result-display { /* Style defined before */ }
+  .wheel-container canvas { display: block; margin: 0 auto; }
+   .wheel-pointer { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 20px solid #FF0000; z-index: 10; }
+   .wheel-container { position: relative; padding-top: 30px; }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container mt-4">
+
+  {# --- Challenge Header --- #}
+  <h1 class="mb-1">Shared Challenge</h1>
+  {% if challenge.name %}<h2 class="h4 text-muted mb-3">{{ challenge.name | escape }}</h2>{% endif %}
+  <p class="text-muted small">Shareable ID: {{ challenge.public_id }} | Created by: {{ challenge.creator_username | escape }}</p>
+  <hr>
+
+  {# --- Group Management --- #}
+  <div class="row mb-4 align-items-end">
+      <div class="col-md-6">
+          <h4>Competing Groups ({{ groups|length }} / {{ challenge.max_groups }})</h4>
+          {% if groups|length >= challenge.max_groups %}
+              <p class="text-danger small">Maximum number of groups reached.</p>
+          {% endif %}
+      </div>
+      <div class="col-md-6">
+          {# Form to Create/Join Group #}
+          {% if groups|length < challenge.max_groups %}
+          <form id="joinGroupForm" class="form-inline float-md-right">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Include CSRF if endpoint needs it #}
+              <label for="newGroupName" class="sr-only">Group Name</label>
+              <input type="text" class="form-control form-control-sm mb-2 mr-sm-2" id="newGroupName" name="group_name" placeholder="Enter Group Name" required>
+              <button type="submit" class="btn btn-success btn-sm mb-2">Create / Join Group</button>
+          </form>
+          {% endif %}
+      </div>
+  </div>
+
+
+  {# --- Progress Display (Using Cards in a Row) --- #}
+  <div class="row">
+    {% if groups %}
+      {% for group in groups %}
+        <div class="col-lg-{{ (12 / groups|length)|round|int if groups|length <= 4 else 3 }} col-md-6 mb-4"> {# Adjust columns #}
+          <div class="card h-100 group-progress-card bg-dark text-light border-primary shadow-sm">
+            <div class="card-header h5">{{ group.name | escape }}</div>
+            <div class="card-body">
+              {# Store group ID and challenge public ID for JS #}
+              <div class="challenge-progress" data-group-id="{{ group.id }}" data-public-id="{{ challenge.public_id }}">
+
+                {% set c = challenge %} {# Alias challenge data #}
+                {% set group_progress = group.progress or {} %} {# Get group's progress dict #}
+
+                {# Normal Wins Progress #}
+                {% if c.challenge_data.normal %}
+                  <h6 class="card-subtitle mb-2 text-muted">Normal Wins</h6>
+                  <table class="table table-sm table-dark table-striped progress-table">
+                    <tbody>
+                    {% for key, info in c.challenge_data.normal.items()|sort %}
+                      <tr>
+                        <td>{{ key | escape }}</td>
+                        <td class="text-right">
+                          {# Checkboxes reflecting progress_data #}
+                          {% set item_progress = group_progress.get(key, []) %}
+                          {% for i in range(info.count|int) %}
+                            <input type="checkbox" class="form-check-input progress-checkbox"
+                                   data-item-type="normal"
+                                   data-item-key="{{ key }}"
+                                   data-item-index="{{ i }}"
+                                   {% if item_progress[i] %}checked{% endif %}>
+                          {% endfor %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                  </table>
+                {% endif %}
+
+                {# Back-to-Back Wins Progress #}
+                {% if c.challenge_data.b2b %}
+                   {% if c.challenge_data.normal %}<hr class="border-secondary my-2">{% endif %}
+                   <h6 class="card-subtitle mb-2 text-muted">B2B Segments</h6>
+                   <table class="table table-sm table-dark table-striped progress-table">
+                    <tbody>
+                    {% for seg in c.challenge_data.b2b %}
+                       {% set outer_loop_index = loop.index %}
+                       <tr><td colspan="2" class="pt-2 pb-1 bg-secondary"><strong>Segment {{ outer_loop_index }}</strong></td></tr>
+                       {% for key, count in seg.group.items()|sort %}
+                        <tr>
+                          <td class="pl-3">{{ key | escape }}</td>
+                          <td class="text-right">
+                            {% for i in range(count|int) %}
+                              {# Use flat key for progress lookup, e.g., b2b_Segment 1 - Game A (Mode X)_0 #}
+                              {% set flat_key = "b2b_" + key + "_" + i|string %}
+                              <input type="checkbox" class="form-check-input progress-checkbox"
+                                     data-item-type="b2b" {# Use simple b2b type #}
+                                     data-item-key="{{ flat_key }}" {# Pass flat key #}
+                                     data-item-index="0" {# Index within flat key is always 0 #}
+                                     {% if group_progress.get(flat_key) %}checked{% endif %}>
+                            {% endfor %}
+                          </td>
+                        </tr>
+                       {% endfor %}
+                    {% endfor %}
+                    </tbody>
+                  </table>
+                {% endif %}
+
+              </div> {# End .challenge-progress #}
+            </div>{# End card-body #}
+          </div>{# End card #}
+        </div>{# End col #}
+      {% endfor %} {# End group loop #}
+    {% else %}
+      <div class="col">
+        <p class="text-muted">No groups have joined this challenge yet. Create one above!</p>
+      </div>
+    {% endif %} {# End if groups #}
+  </div> {# End row #}
+
+
+   {# --- Penalty Assignment Section (if applicable) --- #}
+   {% if challenge.penalty_info %}
+       <hr>
+       <h3 class="text-center">Penalty Assignment</h3>
+        <div class="card mb-3 bg-dark text-light border-warning">
+           <div class="card-body text-center">
+               {# Note: Need to adjust JS to handle potentially multiple groups #}
+               {# Simple approach: Button applies to ANY player listed #}
+               {# Complex: Have separate buttons per group, or select group first #}
+               {# Let's keep it simple for now: one button, picks random player from ALL players #}
+               {% set all_players = challenge.penalty_info.get('player_names', []) %}
+               <button class="btn btn-warning lostGameBtn-Shared" {# New class/ID #}
+                       data-challenge-public-id="{{ challenge.public_id }}" {# Pass public ID #}
+                       data-penalty-tab-id="{{ challenge.penalty_info.tab_id }}"
+                       data-players="{{ all_players|tojson|safe }}"
+                       title="Click if a game was lost by ANY player">
+                       <svg ...></svg> Lost Game - Assign Penalty
+               </button>
+
+               <div class="row justify-content-center mt-3">
+                    <div class="col-md-5 text-center wheel-container" id="playerWheelContainer-shared" style="display: none;">
+                        <h6 class="text-muted">Selecting Player...</h6>
+                        <canvas id="playerWheelCanvas-shared" width="350" height="350">Canvas not supported</canvas>
+                        <div class="wheel-pointer"></div>
+                    </div>
+                    <div class="col-md-5 text-center wheel-container" id="penaltyWheelContainer-shared" style="display: none;">
+                         <h6 class="text-muted">Selecting Penalty...</h6>
+                         <canvas id="penaltyWheelCanvas-shared" width="350" height="350">Canvas not supported</canvas>
+                          <div class="wheel-pointer"></div>
+                    </div>
+               </div>
+               <div id="penaltyResult-shared" class="mt-3 penalty-result-display" style="display: none;"></div>
+           </div>
+        </div>
+   {% endif %}
+
+
+</div> {# End container #}
+{% endblock %}
+
+
+{% block scripts %}
+    {# Include Winwheel and dependencies #}
+    <script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
+    {# Include penalty utils #}
+    <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
+    {# NEW: Shared Challenge specific JS #}
+    <script type="module" id="shared-challenge-script">
+        import { getLocalPenalties } from "{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}";
+
+        // --- Elements ---
+        const joinGroupForm = document.getElementById('joinGroupForm');
+        const progressContainers = document.querySelectorAll('.challenge-progress');
+        const lostGameButtonShared = document.querySelector('.lostGameBtn-Shared'); // Single button for now
+
+        // --- API Helper (consider moving to shared utils.js) ---
+        async function apiFetch(url, options = {}) {
+            const method = options.method || 'GET'; options.headers = options.headers || {};
+            if (['POST', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
+                if (!options.headers['Content-Type']) { options.headers['Content-Type'] = 'application/json'; }
+                const csrfToken = document.querySelector('input[name="csrf_token"]')?.value; // Get CSRF if form has it
+                if (csrfToken) { options.headers['X-CSRFToken'] = csrfToken; }
+                if (options.body && typeof options.body === 'object' && options.headers['Content-Type'] === 'application/json') { options.body = JSON.stringify(options.body); }
+            }
+            const response = await fetch(url, options);
+            if (!response.ok) { const errData = await response.json().catch(() => null); const errMsg = errData?.error || errData?.message || response.statusText || `HTTP ${response.status}`; throw new Error(errMsg); }
+            if (response.status === 204) return { status: 'ok', message:'Success (no content)'};
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) return await response.json();
+            return { status: 'ok', message: 'Success (non-JSON response)' };
+        }
+
+        // --- Join/Create Group ---
+        if (joinGroupForm) {
+            joinGroupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const groupNameInput = joinGroupForm.elements.group_name;
+                const groupName = groupNameInput.value.trim();
+                const publicId = "{{ challenge.public_id }}"; // Get from template context
+                const submitButton = joinGroupForm.querySelector('button[type="submit"]');
+
+                if (!groupName || !publicId) return;
+                submitButton.disabled = true; submitButton.textContent = 'Joining...';
+
+                try {
+                    const data = await apiFetch(`/api/challenge/${publicId}/groups`, {
+                        method: 'POST',
+                        body: { group_name: groupName }
+                    });
+                    if (data.status === 'ok') {
+                         alert(`Group '${data.group_name}' created/joined successfully! Reloading...`);
+                         location.reload(); // Reload to show the new group card
+                    } else { throw new Error(data.error || "Failed to join group"); }
+                } catch (error) {
+                     console.error("Error joining/creating group:", error);
+                     alert("Error: " + error.message);
+                     submitButton.disabled = false; submitButton.textContent = 'Create / Join Group';
+                }
+            });
+        }
+
+        // --- Progress Update ---
+        progressContainers.forEach(container => {
+            container.addEventListener('change', async (e) => {
+                if (!e.target || !e.target.classList.contains('progress-checkbox')) return;
+
+                const checkbox = e.target;
+                const isComplete = checkbox.checked;
+                const itemType = checkbox.dataset.itemType;
+                const itemKey = checkbox.dataset.itemKey;
+                const itemIndex = parseInt(checkbox.dataset.itemIndex, 10); // Parse index
+
+                const groupId = container.dataset.groupId;
+                const publicId = container.dataset.publicId;
+
+                if (!groupId || !publicId || itemType === undefined || itemKey === undefined || isNaN(itemIndex)) {
+                    console.error("Missing data attributes for progress update:", checkbox.dataset);
+                    checkbox.checked = !isComplete; // Revert checkbox
+                    alert("Error saving progress: Missing data.");
+                    return;
+                }
+
+                console.log(`Updating progress: GID=<span class="math-inline">\{groupId\}, PID\=</span>{publicId}, Type=<span class="math-inline">\{itemType\}, Key\=</span>{itemKey}, Idx=<span class="math-inline">\{itemIndex\}, State\=</span>{isComplete}`);
+                checkbox.disabled = true; // Disable during update
+
+                try {
+                     const data = await apiFetch(`/api/challenge/<span class="math-inline">\{publicId\}/groups/</span>{groupId}/progress`, {
+                         method: 'POST',
+                         body: { item_type: itemType, item_key: itemKey, item_index: itemIndex, is_complete: isComplete }
+                     });
+                     if (data.status !== 'ok') { throw new Error(data.error || "Server failed to save progress."); }
+                     console.log("Progress saved successfully.");
+                     // Optionally add visual feedback like a subtle glow/fade
+                } catch (error) {
+                     console.error("Error updating progress:", error);
+                     alert("Error saving progress: " + error.message);
+                     checkbox.checked = !isComplete; // Revert checkbox on error
+                } finally {
+                    checkbox.disabled = false; // Re-enable checkbox
+                }
+            });
+        });
+
+
+         // --- Penalty Wheel Logic (Adapted for Shared Page) ---
+         // Wheel instances (use specific IDs for shared page)
+         let sharedPlayerWheel = null;
+         let sharedPenaltyWheel = null;
+
+         // Helper functions (createSegments, calculateStopAngle, selectWeightedPenalty, shuffleArray - Define these here or import)
+         // Assuming they are defined above or imported
+
+        /** Resets shared penalty UI */
+        function resetSharedPenaltyUI() {
+           const playerCont = document.getElementById(`playerWheelContainer-shared`);
+           const penaltyCont = document.getElementById(`penaltyWheelContainer-shared`);
+           const resultDisp = document.getElementById(`penaltyResult-shared`);
+           if(playerCont) playerCont.style.display = 'none';
+           if(penaltyCont) penaltyCont.style.display = 'none';
+           if(resultDisp) resultDisp.style.display = 'none';
+           sharedPlayerWheel = null; sharedPenaltyWheel = null; // Clear instances
+        }
+
+        /** Spins penalty wheel */
+        function spinSharedPenaltyWheel(penaltyTabId, chosenPlayer, button) {
+             console.log("Player selected, spinning for penalty...");
+             const resultDisplay = document.getElementById(`penaltyResult-shared`);
+             const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-shared`);
+             const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-shared`);
+             if (!resultDisplay || !penaltyWheelContainer || !penaltyCanvas) return;
+
+             resultDisplay.innerHTML = `<span class="text-warning">Player <strong>${chosenPlayer}</strong> selected... Spinning for penalty...</span>`;
+             penaltyWheelContainer.style.display = 'block';
+
+             let chosenPenalty = null; let penaltyWheelSegments = [];
+             const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf'];
+             const NUM_PENALTY_SEGMENTS = 5;
+
+             try {
+                 const allPenalties = getLocalPenalties();
+                 const penaltyList = allPenalties[penaltyTabId] || [];
+                 chosenPenalty = selectWeightedPenalty(penaltyList);
+
+                 if (!chosenPenalty || chosenPenalty.name === "No Penalty") {
+                      displaySharedFinalResult(chosenPlayer, chosenPenalty, button);
+                      penaltyWheelContainer.style.display = 'none'; return;
+                 }
+
+                 let wheelSegmentPenalties = [];
+                 let displayablePenalties = penaltyList.filter(p => p?.name);
+                 if (displayablePenalties.length > 0) { /* ... Logic to create 5 wheelSegmentPenalties including chosenPenalty ... */ if (!displayablePenalties.some(p=>p.id===chosenPenalty.id)){wheelSegmentPenalties.push(chosenPenalty)}else{wheelSegmentPenalties.push(chosenPenalty)} let otherPenalties = displayablePenalties.filter(p=>p.id!==chosenPenalty.id); shuffleArray(otherPenalties); let needed=NUM_PENALTY_SEGMENTS-wheelSegmentPenalties.length; wheelSegmentPenalties=wheelSegmentPenalties.concat(otherPenalties.slice(0,needed)); let validPoolForPadding = displayablePenalties.length > 0 ? displayablePenalties : [chosenPenalty]; let currentPadIndex=0; while(wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length>0){wheelSegmentPenalties.push(validPoolForPadding[currentPadIndex % validPoolForPadding.length]); currentPadIndex++;} if(wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS){wheelSegmentPenalties=wheelSegmentPenalties.slice(0,NUM_PENALTY_SEGMENTS); if(!wheelSegmentPenalties.some(p=>p.id===chosenPenalty.id)){wheelSegmentPenalties[0]=chosenPenalty;}} if(wheelSegmentPenalties.length > 1){shuffleArray(wheelSegmentPenalties);} } else { wheelSegmentPenalties.push(chosenPenalty); }
+                 penaltyWheelSegments = createSegments(wheelSegmentPenalties.map(p => p.name), penaltyColors);
+
+             } catch (e) { /* ... Error handling ... */ button.disabled = false; return; }
+
+             const penaltyWinningSegmentIndex = penaltyWheelSegments.findIndex(seg => seg.text === chosenPenalty.name) + 1;
+             if (penaltyWinningSegmentIndex <= 0) { /* ... Error handling ... */ displaySharedFinalResult(chosenPlayer, chosenPenalty, button); return; }
+
+             sharedPenaltyWheel = null; // Clear previous instance
+             sharedPenaltyWheel = new Winwheel({
+                 'canvasId': `penaltyWheelCanvas-shared`, 'numSegments': penaltyWheelSegments.length,
+                 'outerRadius': 150, 'innerRadius': 30, 'textFontSize': 14, 'textMargin': 8, 'textFillStyle': '#fff',
+                 'segments': penaltyWheelSegments, 'pointerGuide': { 'display': true, 'strokeStyle': '#ffc107', 'lineWidth': 3 },
+                 'animation': { 'type': 'spinToStop', 'duration': 7, 'spins': 8, 'stopAngle': calculateStopAngle(penaltyWheelSegments.length, penaltyWinningSegmentIndex), 'callbackFinished': () => displaySharedFinalResult(chosenPlayer, chosenPenalty, button) } ,'pins': { 'number': penaltyWheelSegments.length * 2, 'outerRadius': 4, 'fillStyle': 'silver' }
+             });
+             sharedPenaltyWheel.startAnimation();
+        }
+
+        /** Displays final penalty result */
+        function displaySharedFinalResult(chosenPlayer, chosenPenalty, button) {
+             const resultDisplay = document.getElementById(`penaltyResult-shared`);
+             if (!resultDisplay) return;
+             if (chosenPlayer && chosenPenalty && chosenPenalty.name) { resultDisplay.innerHTML = `Player <strong><span class="math-inline">\{chosenPlayer\}</strong\> receives penalty\: <br\><strong\></span>{chosenPenalty.name}</strong> ${chosenPenalty.description ? `<br><small class="text-muted">(${chosenPenalty.description})</small>` : ''}`; }
+             else { resultDisplay.textContent = `Could not assign penalty to ${chosenPlayer}.`; }
+             button.disabled = false;
+        }
+
+        // Attach listener for the shared "Lost Game" button
+        if(lostGameButtonShared) {
+             lostGameButtonShared.addEventListener('click', (event) => {
+                 const button = event.target.closest('.lostGameBtn-Shared');
+                 if(!button) return;
+
+                 const penaltyTabId = button.dataset.penaltyTabId;
+                 const playersJsonString = button.dataset.players || '[]';
+                 let players = [];
+                 try { players = JSON.parse(playersJsonString); if (!Array.isArray(players)) players = []; }
+                 catch(e) { players = []; }
+
+                 const resultDisplay = document.getElementById(`penaltyResult-shared`);
+                 const playerWheelContainer = document.getElementById(`playerWheelContainer-shared`);
+                 const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-shared`);
+                 const playerCanvas = document.getElementById(`playerWheelCanvas-shared`);
+                 const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-shared`);
+
+                 if (!resultDisplay || !playerWheelContainer || !penaltyWheelContainer || !playerCanvas || !penaltyCanvas) { console.error(`Missing shared penalty elements`); return; }
+
+                 resetSharedPenaltyUI(); // Reset shared UI
+                 resultDisplay.innerHTML = '<span class="text-warning">Spinning for player...</span>';
+                 resultDisplay.style.display = 'block';
+                 button.disabled = true;
+
+                 // Select Player & Setup Player Wheel (using shared elements)
+                 let chosenPlayer = "Player"; let playerSegments = [];
+                 const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
+                 if (players.length > 0) { chosenPlayer = players[Math.floor(Math.random() * players.length)]; playerSegments = createSegments(players, playerColors); }
+                 else { playerSegments = createSegments(['Player'], playerColors); }
+                 const playerWinningSegmentIndex = playerSegments.findIndex(seg => seg.text === chosenPlayer) + 1 || 1;
+
+                 sharedPlayerWheel = null; // Clear old instance
+                 sharedPlayerWheel = new Winwheel({ 'canvasId': `playerWheelCanvas-shared`, 'numSegments': playerSegments.length, 'outerRadius': 150, 'innerRadius': 30, 'textFontSize': 16, 'textMargin': 5, 'textFillStyle': '#333', 'segments': playerSegments, 'pointerGuide': { 'display': true, 'strokeStyle': '#dc3545', 'lineWidth': 3 }, 'animation': { 'type': 'spinToStop', 'duration': 4, 'spins': 5, 'stopAngle': calculateStopAngle(playerSegments.length, playerWinningSegmentIndex), 'callbackFinished': () => { console.log("Shared player wheel finished."); setTimeout(() => { spinSharedPenaltyWheel(penaltyTabId, chosenPlayer, button); }, 4000); } }, 'pins': { 'number': playerSegments.length * 2, 'outerRadius': 4, 'fillStyle': 'silver' } });
+                 playerWheelContainer.style.display = 'block';
+                 sharedPlayerWheel.startAnimation();
+             });
+             console.log("Shared Penalty assignment listener attached.");
+        }
+
+
+    </script>
+{% endblock %}

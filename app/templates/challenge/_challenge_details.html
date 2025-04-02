@@ -1,69 +1,50 @@
 {# templates/challenge/_challenge_details.html #}
-{# Displays the normal and b2b win requirements for a challenge #}
-{# Expects: c (challenge_data object) #}
+{# Displays the STATIC structure of normal and b2b win requirements #}
+{# Expects: c (challenge_data object, containing 'normal' and/or 'b2b') #}
 
-<div class="card bg-dark text-light border-secondary">
-  <div class="card-header"><strong>Challenge Details</strong></div>
-  <div class="card-body">
+{% if c %} {# Check if challenge data 'c' was passed #}
+<div class="challenge-details-static-container">
 
-    {# Normal Wins Section #}
+    {# Normal Wins Section - Displays List #}
     {% if c.normal %}
-      <h5 class="card-title">Normal Wins</h5>
-      <div class="table-responsive">
-          <table class="table table-sm table-dark table-striped table-hover">
-            <thead><tr><th style="width: 50%;">Game (Mode)</th><th style="width: 15%;">Wins</th><th>Progress</th></tr></thead>
-            <tbody>
-            {% for key, info in c.normal.items()|sort %} {# Sort by game name #}
-              <tr>
-                <td class="py-2">{{ key | escape }}<br><small class="text-muted">(Total Diff: {{ info.diff|round(2) }})</small></td>
-                <td class="py-2">{{ info.count }}</td>
-                <td class="py-2">
-                  {% for i in range(info.count|int) %}
-                    <input type="checkbox" class="form-check-input ml-1" aria-label="Win {{ i+1 }} for {{ key | escape }}">
-                  {% endfor %}
-                </td>
-              </tr>
-            {% endfor %}
-            </tbody>
-          </table>
-      </div>
+      <h6 class="card-subtitle mb-2 text-info">Normal Wins Required:</h6>
+      <ul class="list-unstyled">
+        {# Loop through normal wins and display count/name #}
+        {% for key, info in c.normal.items()|sort %}
+          <li>{{ info.count }} x {{ key | escape }} <small class="text-muted"> (Total Diff: {{ info.diff|round(2) }})</small></li>
+        {% endfor %}
+      </ul>
     {% endif %}
 
-    {# Back-to-Back Wins Section #}
+    {# Back-to-Back Wins Section - Displays List #}
     {% if c.b2b %}
-      {% if c.normal %}<hr class="border-secondary">{% endif %} {# Separator #}
-      <h5 class="mt-3 card-title">Back-to-Back Segments</h5>
-       <div class="table-responsive">
-          <table class="table table-sm table-dark table-striped table-hover">
-            <thead><tr><th style="width: 50%;">Game (Mode) / Segment</th><th style="width: 15%;">Wins</th><th>Progress</th></tr></thead>
-            <tbody>
-            {# Outer loop for segments #}
-            {% for seg in c.b2b %}
-              {% set outer_loop_index = loop.index %} {# Capture outer index #}
-              {# Segment Header Row #}
-              <tr><td colspan="3" class="pt-3 font-weight-bold bg-secondary text-light">Segment {{ outer_loop_index }} <small class="font-weight-normal">({{ seg.length }} wins, Diff: {{ seg.seg_diff|round(2) }})</small></td></tr>
-              {# Inner loop for wins within the segment #}
-              {% for key, count in seg.group.items()|sort %} {# Sort wins within segment #}
-                <tr>
-                  <td class="pl-3 py-2">{{ key | escape }}</td>
-                  <td class="py-2">{{ count }}</td>
-                  <td class="py-2">
-                    {% for i in range(count|int) %}
-                      {# Use captured outer index in label #}
-                      <input type="checkbox" class="form-check-input ml-1" aria-label="Segment {{ outer_loop_index }} Win {{ i+1 }} for {{ key | escape }}">
-                    {% endfor %}
-                  </td>
-                </tr>
-              {% endfor %} {# End inner loop (seg.group.items) #}
-            {% endfor %} {# End outer loop (c.b2b) #}
-            </tbody>
-          </table>
-        </div>
+      {# Add a separator if normal wins were also displayed #}
+      {% if c.normal %}<hr class="border-secondary my-2">{% endif %}
+      <h6 class="mt-2 card-subtitle mb-2 text-warning">Back-to-Back Segments Required:</h6>
+      <ul class="list-unstyled">
+        {# Loop through B2B segments #}
+        {% for seg in c.b2b %}
+          {% set outer_loop_index = loop.index %}
+          <li>
+              <strong>Segment {{ outer_loop_index }}</strong> <small class="text-muted">({{ seg.length }} wins, Diff: {{ seg.seg_diff|round(2) }})</small>:
+              {# List wins within the segment #}
+              <ul class="list-unstyled ml-3">
+                  {% for key, count in seg.group.items()|sort %}
+                      <li>{{ count }} x {{ key | escape }}</li>
+                  {% endfor %}
+              </ul>
+          </li>
+        {% endfor %}
+      </ul>
     {% endif %}
 
-    {# Fallback if no wins listed #}
+    {# Fallback if no win data is present in 'c' #}
     {% if not c.normal and not c.b2b %}
-        <p class="text-muted">Challenge details missing or empty.</p>
+        <p class="text-muted">Challenge structure details missing or empty.</p>
     {% endif %}
-  </div> {# End card-body #}
-</div> {# End Challenge Details Card #}
+
+</div> {# End challenge-details-static-container #}
+{% else %}
+    {# Error message if 'c' wasn't passed to the template at all #}
+    <p class="text-danger">Error: Challenge data ('c') not provided to _challenge_details.html partial.</p>
+{% endif %} {# End if c #}

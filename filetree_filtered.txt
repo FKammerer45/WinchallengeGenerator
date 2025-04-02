@@ -1,0 +1,95 @@
+Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codingprojects\winchallange generator
+======================================================================
+
+./
+  - config.py
+  - filetree.py
+  - run.py
+
+./app/
+  - __init__.py
+  - database.py
+  - models.py
+
+./app/modules/
+  - __init__.py
+  - auth.py
+  - challenge_generator.py
+  - game_management.py
+  - game_preferences.py
+  - image_utils.py
+  - recaptcha.py
+
+./app/routes/
+  - __init__.py
+  - challenge_api.py
+  - games_api.py
+  - main.py
+  - penalties_api.py
+  - shared_challenge_api.py
+  - tabs_api.py
+
+./app/static/js/
+  - app.js
+
+./app/static/js/challenge/
+  - challenge.js
+
+./app/static/js/games/
+  - entryManagement.js
+  - games.js
+  - gamesExtensions.js
+  - localStorageUtils.js
+  - tabManagement.js
+
+./app/static/js/libs/
+  - Winwheel.min.js
+
+./app/static/js/penalties/
+  - penalties.js
+  - penaltyEntryManagement.js
+  - penaltyExtensions.js
+  - penaltyLocalStorageUtils.js
+  - penaltyTabManagement.js
+
+./app/templates/
+  - base.html
+  - challenge.html
+  - index.html
+  - penalties.html
+  - shared_challenge.html
+
+./app/templates/auth/
+  - change_password.html
+  - confirm_delete.html
+  - login.html
+  - register.html
+
+./app/templates/challenge/
+  - _challenge_details.html
+  - _challenge_info_bar.html
+  - _challenge_penalty_section.html
+  - _challenge_timer.html
+
+./app/templates/games/
+  - games.html
+  - games_modals.html
+  - games_table.html
+
+./app/templates/penalties/
+  - penalties_modals.html
+  - penalties_table.html
+
+./static/js/
+  - app.js
+
+./static/js/challenge/
+  - challenge.js
+
+./static/js/games/
+  - entryManagement.js
+  - games.js
+  - gamesExtensions.js
+  - localStorageUtils.js
+  - tabManagement.js
+

@@ -1,594 +1,218 @@
 {% extends "base.html" %}
-{% block title %}Accepted Challenges{% endblock %}
+
+{# --- Corrected Title Block --- #}
+{% block title %}
+{% if shared_challenge %}
+Challenge: {{ shared_challenge.name or shared_challenge.public_id }}
+{% else %}
+Challenge Not Found
+{% endif %}
+{% endblock %}
 
 {% block head %}
-{# Page-specific styles #}
-<style>
-  .penalty-result-display {
-    background-color: #343a40;
-    border: 1px solid #ffc107;
-    border-radius: .25rem;
-    padding: 1rem;
-    margin-top: 1rem;
-    color: #f8f9fa;
-    min-height: 70px;
-    text-align: center;
-    font-size: 1.1em;
-    font-weight: bold;
-  }
-
-  .table th,
-  .table td {
-    vertical-align: middle;
-    padding: 0.5rem;
-  }
-
-  .table thead th {
-    border-bottom: 2px solid #454d55;
-  }
-
-  .table td .form-check-input {
-    margin-top: 0.2rem;
-    margin-right: 0.5rem;
-  }
-
-  .challenge-info-bar {
-    background-color: #e9ecef;
-    color: #495057;
-    border-radius: .25rem;
-  }
-
-  /* Style for the wheel pointer */
-  .wheel-pointer {
-    position: absolute;
-    top: 5px;
-    /* Adjust position slightly above center */
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 15px solid transparent;
-    /* Size of triangle */
-    border-right: 15px solid transparent;
-    border-top: 20px solid #FF0000;
-    /* Red pointer color */
-    z-index: 10;
-    /* Ensure pointer is above canvas */
-  }
-
-  .wheel-container {
-    /* Needed for absolute positioning of pointer */
-    position: relative;
-    padding-top: 30px;
-    /* Add space for pointer */
-  }
-</style>
+{# --- Link to External Stylesheet --- #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/challenge_view.css') }}">
 {% endblock %}
 
 
 {% block content %}
 <div class="container mt-4">
-  <h1 class="mb-4">Accepted Challenges</h1>
 
-  {% if challenges %}
-  {# --- Tab Navigation --- #}
-  {# Creates a tab link for each accepted challenge #}
-  <ul class="nav nav-tabs" id="challengeTabs" role="tablist">
-    {% for challenge_data in challenges %}
-    <li class="nav-item" role="presentation">
-      <a class="nav-link {% if loop.first %}active{% endif %}" id="challenge-tab-{{ loop.index }}" {# Unique ID for the
-        tab link #} data-toggle="tab" {# Bootstrap attribute to enable tab behavior #}
-        href="#challenge-{{ loop.index }}" {# Points to the corresponding tab pane ID #} role="tab"
-        aria-controls="challenge-{{ loop.index }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
-        Challenge #{{ loop.index }} {# Label for the tab #}
-      </a>
-    </li>
+  {# --- Main Content Area --- #}
+  {% if shared_challenge %}
+
+  {# Div to store JSON data for JS #}
+  <div id="challengeDataStore" style="display: none;" aria-hidden="true"
+    data-challenge='{{ shared_challenge.challenge_data | tojson }}'>
+  </div>
+
+  {# --- Challenge Header --- #}
+  <div class="mb-4 p-3 rounded challenge-header">
+    <h1 class="display-4">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h1>
+    <p class="lead">
+      Public ID: <code class="user-select-all">{{ shared_challenge.public_id }}</code>
+    </p>
+    <p><small class="text-muted">Created by: {{ shared_challenge.creator.username if shared_challenge.creator else
+        "Unknown" }} | Max Groups: <span id="maxGroupsInfo">{{ shared_challenge.max_groups }}</span></small></p>
+    <hr>
+    <p class="mb-0">Share this page's URL with others to join the challenge!</p>
+  </div>
+
+
+  {# --- Core Challenge Details (Static Display) --- #}
+  <div class="mb-4 card bg-dark text-light">
+    <div class="card-header">
+      <h3 class="mb-0">Challenge Rules</h3>
+    </div>
+    <div class="card-body">
+      {% set c = shared_challenge.challenge_data %}
+      {% include 'challenge/_challenge_details.html' ignore missing %}
+    </div>
+  </div>
+
+
+  {# --- Penalty Section (Conditional) --- #}
+  {% if shared_challenge.penalty_info %}
+  <div class="mb-4 card bg-secondary text-light">
+    <div class="card-header">
+      <h3 class="mb-0">Penalties</h3>
+    </div>
+    <div class="card-body">
+      {# These variables are already set correctly here #}
+      {% set p_info = shared_challenge.penalty_info %}
+      {% set players = p_info.get('player_names', []) %}
+      {% set penalty_tab_id = p_info.get('tab_id') %}
+      {% set challenge_index = 'shared' %}
+
+      {# Include without 'with' - it inherits players, penalty_tab_id, challenge_index from scope #}
+      {% include 'challenge/_challenge_penalty_section.html' ignore missing %}
+
+    </div>
+  </div>
+  {% endif %}
+
+
+  {# --- Group Management & Display --- #}
+  <hr class="my-4 border-secondary">
+  <h2 class="mb-3 text-light">Groups & Progress</h2>
+
+  {# --- Create New Group Form --- #}
+  <div class="mb-4 card bg-dark border-secondary text-light">
+    <div class="card-body">
+      <h4 class="card-title text-warning">Create a New Group</h4>
+      <form id="addGroupForm" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row align-items-center">
+          <div class="col-sm-8 col-md-9 mb-2 mb-sm-0">
+            <label for="groupNameInput" class="sr-only">Group Name</label>
+            <input type="text" class="form-control form-control-lg bg-secondary text-light border-secondary"
+              id="groupNameInput" name="group_name" placeholder="Enter new group name" required maxlength="80">
+          </div>
+          <div class="col-sm-4 col-md-3">
+            <button type="submit" id="addGroupBtn" class="btn btn-success btn-lg btn-block">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              <span>Create Group</span>
+            </button>
+          </div>
+        </div>
+        <small id="groupLimitInfo" class="form-text text-muted mt-2">
+          Groups: <span id="currentGroupCount">{{ shared_challenge.groups | length }}</span> / {{
+          shared_challenge.max_groups }}
+        </small>
+      </form>
+      <div id="addGroupError" class="text-danger mt-2 font-weight-bold" style="display: none;"></div>
+    </div>
+  </div>
+
+  {# --- Display Existing Groups --- #}
+  <div id="groupsContainer" class="row">
+    {# Loop through groups passed from backend #}
+    {% if shared_challenge.groups %}
+    {% for group in shared_challenge.groups %}
+    <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="{{ group.id }}">
+      <div class="card group-card">
+        <div class="card-body">
+          <h5 class="card-title">{{ group.group_name | escape }}</h5>
+          {# Set variables needed by the included partial #}
+          {% set challenge = shared_challenge %}
+          {% set is_member = current_user.is_authenticated and group.id == user_joined_group_id %}
+          {# Include partial to display progress checkboxes (inherits scope) #}
+          {% include 'challenge/_challenge_group_progress.html' ignore missing %}
+        </div>
+        <div class="card-footer text-muted text-center">
+          {# Join/Leave buttons rendered based on member status #}
+          {% if current_user.is_authenticated %}
+          {% if group.id == user_joined_group_id %}
+          <button class="btn btn-sm btn-danger leave-group-btn" data-group-id="{{ group.id }}">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Leave
+              Group</span>
+          </button>
+          {# Check group membership count (assuming 1 member max) #}
+          {% elif group.members | length >= 1 and group.id != user_joined_group_id %}
+          <button class="btn btn-sm btn-outline-secondary" disabled>
+            <span>{% if user_joined_group_id is not none %}Joined Other{% else %}Full{% endif %}</span>
+          </button>
+          {% elif user_joined_group_id is not none and group.id != user_joined_group_id %}
+          <button class="btn btn-sm btn-outline-secondary" disabled><span>Joined Other</span></button>
+          {% else %}
+          <button class="btn btn-sm btn-success join-group-btn" data-group-id="{{ group.id }}">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span><span>Join
+              Group</span>
+          </button>
+          {% endif %}
+          {% else %}
+          <a href="{{ url_for('auth.login', next=request.url) }}" class="btn btn-sm btn-outline-primary">Log in to
+            Join</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
     {% endfor %}
-  </ul>
-
-  {# --- Tab Content --- #}
-  {# Contains the content panes for each challenge tab #}
-  <div class="tab-content mt-3" id="challengeTabsContent">
-    {% for challenge_data in challenges %}
-    {# --- Individual Challenge Pane --- #}
-    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="challenge-{{ loop.index }}" {# Unique ID
-      for the content pane, matches link href #} role="tabpanel" aria-labelledby="challenge-tab-{{ loop.index }}">
-
-      {# Extract context variables for includes #}
-      {% set p_info = challenge_data.get('penalty_info') %}
-      {% set players = p_info.get('player_names', []) if p_info else [] %}
-      {% set penalty_tab_id = p_info.get('tab_id') if p_info else None %}
-      {% set current_loop_index = loop.index %} {# Capture index #}
-
-      {# --- Include Partials (Workaround using explicit set + with context) --- #}
-
-      {# Info Bar - implicitly gets 'players', 'penalty_tab_id' from context #}
-      {% include 'challenge/_challenge_info_bar.html' with context %}
-
-      {# Timer - implicitly gets 'current_loop_index' or outer 'loop' #}
-      {% include 'challenge/_challenge_timer.html' with context %}
-
-      {# Penalty Section (Conditional) - implicitly gets needed variables #}
-      {% if penalty_tab_id %}
-      {% include 'challenge/_challenge_penalty_section.html' with context %}
-      {% endif %}
-
-      {# Challenge Details #}
-      {# Explicitly set 'c' in the current context *before* including #}
-      {% set c = challenge_data %}
-      {# Now include using the general context, which includes 'c' #}
-      {% include 'challenge/_challenge_details.html' with context %}
-
-      {# --- End Include Partials --- #}
-
-
-    </div> {# End tab-pane #}
-    {% endfor %} {# End loop through challenges #}
-  </div> {# End tab-content #}
+    {% endif %}
+    <div id="noGroupsMessageContainer" class="col-12 {% if shared_challenge.groups %}d-none{% endif %}">
+      <p class="text-muted text-center py-5">No groups currently exist. Use the form above to create one!</p>
+    </div>
+  </div> {# End groupsContainer row #}
 
   {% else %}
-  {# Message if no challenges are accepted #}
-  <div class="alert alert-warning" role="alert">
-    No challenges have been accepted yet. Go to the <a href="{{ url_for('main.index') }}" class="alert-link">Home
-      page</a> to generate one!
-  </div>
-  {% endif %} {# End if challenges #}
+  {# Message if challenge not found #}
+  <div class="alert alert-danger" role="alert"> /* ... */ </div>
+  {% endif %} {# End if shared_challenge #}
+
 </div> {# End container #}
+
+{# Template for new group cards - Ensure footer exists #}
+<template id="groupCardTemplate">
+  <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="">
+    <div class="card group-card">
+      <div class="card-body">
+        <h5 class="card-title"></h5>
+        <div class="group-progress-container">
+          <p class="text-muted small">Loading progress...</p>
+        </div>
+      </div>
+      <div class="card-footer text-muted text-center">
+        {# Button added by JS #}
+      </div>
+    </div>
+  </div>
+</template>
+
 {% endblock %}
 
 
 {% block scripts %}
-{# --- Timer Initialization Script --- #}
-{# (Keep existing timer script - it uses loop.index correctly) #}
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const numChallenges = {{ challenges| length |default (0)
-  }};
-  if (numChallenges === 0) return;
+{# --- Include JS Libraries IF Penalty feature is used --- #}
+{# {% if shared_challenge and shared_challenge.penalty_info %} #}
+{# <script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script> #}
+{# <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script> #}
+{# {% endif %} #}
 
-  const intervals = {};
-  const elapsedTimes = {};
-
-  console.log(`Initializing ${numChallenges} timers.`);
-
-  for (let i = 1; i <= numChallenges; i++) {
-    elapsedTimes[i] = 0;
-
-    // Find the parent container for this challenge's elements
-    const challengePane = document.getElementById(`challenge-${i}`);
-    if (!challengePane) {
-      console.warn(`Challenge pane not found for index ${i}`);
-      continue; // Skip this timer if pane doesn't exist
-    }
-
-    // Find elements *within* the specific challengePane using class selectors
-    const timerDisplay = challengePane.querySelector(`.timer-display`);
-    const btnStart = challengePane.querySelector(`.timer-start`);
-    const btnStop = challengePane.querySelector(`.timer-stop`);
-    const btnReset = challengePane.querySelector(`.timer-reset`);
-
-    // Ensure all elements are found before attaching listeners
-    if (btnStart && btnStop && btnReset && timerDisplay) {
-      // Helper function to update the display format HH:MM:SS
-      const updateTimerDisplay = (seconds) => {
-        const hrs = String(Math.floor(seconds / 3600)).padStart(2, '0');
-        const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-        const secs = String(seconds % 60).padStart(2, '0');
-        timerDisplay.textContent = `${hrs}:${mins}:${secs}`;
-      };
-
-      // Attach listeners
-      btnStart.addEventListener("click", function () {
-        clearInterval(intervals[i]);
-        console.log(`Timer ${i} started.`);
-        intervals[i] = setInterval(() => { elapsedTimes[i]++; updateTimerDisplay(elapsedTimes[i]); }, 1000);
-      });
-      btnStop.addEventListener("click", function () {
-        clearInterval(intervals[i]);
-        console.log(`Timer ${i} stopped.`);
-      });
-      btnReset.addEventListener("click", function () {
-        clearInterval(intervals[i]);
-        elapsedTimes[i] = 0;
-        updateTimerDisplay(0);
-        console.log(`Timer ${i} reset.`);
-      });
-      console.log(`Timer ${i} initialized successfully.`); // Log success
-    } else {
-      // Log which specific elements are missing
-      console.warn(`Timer elements not fully found for challenge index ${i}: Display=${!!timerDisplay}, Start=${!!btnStart}, Stop=${!!btnStop}, Reset=${!!btnReset}`);
-    }
-  }
-  });
+{# --- Pass ALL Data via Data Attributes --- #}
+{% if shared_challenge %}
+{# Single element holding all server-rendered data for JS #}
+<div id="challengeData" style="display: none;" aria-hidden="true"
+    data-public-id="{{ shared_challenge.public_id }}"
+    data-max-groups="{{ shared_challenge.max_groups }}"
+    data-initial-group-count="{{ shared_challenge.groups | length }}"
+    data-user-joined-group-id="{{ user_joined_group_id | tojson }}"
+    data-csrf-token="{{ csrf_token() }}"
+    data-add-group-url="{{ url_for('challenge_api.add_group_to_challenge', public_id=shared_challenge.public_id) }}"
+    data-update-progress-url-base="{{ url_for('challenge_api.update_group_progress', public_id=shared_challenge.public_id, group_id=0) | replace('/0/progress', '') }}"
+    data-join-leave-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') }}"
+></div>
+<script id="challengeJsonData" type="application/json">
+  {{ shared_challenge.challenge_data | tojson | safe }} {# Use safe here for raw JSON content #}
 </script>
+{% endif %}
 
-{# --- Winwheel.js Library --- #}
-<script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
+{# --- Load JS Modules --- #}
+{# Load penalty JS IF Penalty feature is used #}
+{# {% if shared_challenge and shared_challenge.penalty_info %} #}
+{# <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_penalty.js') }}"></script> #}
+{# {% endif %} #}
 
-{# --- Penalty Assignment Script with Wheels --- #}
-<script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
-<script type="module">
-  // Import utility to get penalty data from local storage
-  import { getLocalPenalties } from "{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}";
+{# Load Main JS Module for this page #}
+<script type="module" src="{{ url_for('static', filename='js/challenge/challenge_view.js') }}"></script>
 
-  // Store references to active wheel instances to manage them
-  let playerWheels = {};
-  let penaltyWheels = {};
-
-  // --- Helper Functions ---
-
-  /**
-   * Creates segment objects for Winwheel.js.
-   * @param {Array<string>} items - Array of strings for segment text.
-   * @param {Array<string>} colors - Array of color hex codes.
-   * @returns {Array<Object>} Array of Winwheel segment objects.
-   */
-  function createSegments(items, colors) {
-    if (!items || items.length === 0) return [];
-    return items.map((item, index) => ({
-      'fillStyle': colors[index % colors.length], // Cycle through colors
-      'text': String(item) // Ensure text is a string
-    }));
-  }
-
-  /**
-   * Calculates a random stop angle within a target segment for Winwheel.js.
-   * @param {number} numSegments - Total number of segments on the wheel.
-   * @param {number} winningSegmentNumber - The target segment number (1-based index).
-   * @returns {number} The calculated stop angle in degrees.
-   */
-  function calculateStopAngle(numSegments, winningSegmentNumber) {
-    if (numSegments <= 0) return 0;
-    const segmentAngle = 360 / numSegments;
-    // Calculate a random point within the target segment for a more natural stop
-    const randomAngleInSegment = segmentAngle * (0.1 + Math.random() * 0.8); // Stop between 10% and 90% into segment
-    const stopAt = ((winningSegmentNumber - 1) * segmentAngle) + randomAngleInSegment;
-    return stopAt;
-  }
-
-  /**
-   * Selects a penalty from a list based on weighted probabilities.
-   * @param {Array<Object>} penalties - List of penalty objects { name, probability, description, ... }.
-   * @returns {Object|null} The selected penalty object or a default/null object.
-   */
-  function selectWeightedPenalty(penalties) {
-    if (!Array.isArray(penalties) || penalties.length === 0) {
-      console.warn("selectWeightedPenalty: No penalties provided.");
-      return null;
-    }
-    let totalWeight = 0;
-    // Filter out invalid penalties (no probability or prob <= 0) and sum valid probabilities
-    const validPenalties = penalties.filter(p => {
-      const prob = parseFloat(p?.probability);
-      if (!isNaN(prob) && prob > 0) {
-        totalWeight += prob;
-        return true;
-      }
-      return false;
-    });
-
-    if (totalWeight <= 0 || validPenalties.length === 0) {
-      console.warn("No valid penalties found for weighted selection.");
-      // Return a specific object indicating no penalty applicable
-      return { name: "No Penalty", description: "No applicable penalties found or probabilities too low." };
-    }
-
-    // Select a random threshold based on total weight
-    let randomThreshold = Math.random() * totalWeight;
-    // Iterate and subtract probabilities until the threshold is crossed
-    for (const penalty of validPenalties) {
-      randomThreshold -= parseFloat(penalty.probability);
-      if (randomThreshold <= 0) {
-        return penalty; // This is the chosen penalty
-      }
-    }
-
-    // Fallback (should rarely happen with correct logic)
-    console.warn("Weighted selection fallback strategy used.");
-    return validPenalties[validPenalties.length - 1]; // Return last valid penalty
-  }
-
-  /**
-   * Shuffles an array in place using Fisher-Yates algorithm.
-   * @param {Array} array - The array to shuffle.
-   * @returns {Array} The shuffled array.
-   */
-  function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]]; // Swap elements
-    }
-    return array;
-  }
-
-  /**
-   * Resets the UI elements (wheels, result display) for a specific challenge index.
-   * @param {number|string} index - The challenge index.
-   */
-  function resetPenaltyUI(index) {
-    const playerWheelContainer = document.getElementById(`playerWheelContainer-${index}`);
-    const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${index}`);
-    const resultDisplay = document.getElementById(`penaltyResult-${index}`);
-
-    // Hide containers and result
-    if (playerWheelContainer) playerWheelContainer.style.display = 'none';
-    if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
-    if (resultDisplay) resultDisplay.style.display = 'none';
-
-    // Nullify wheel instances to allow recreation
-    // Winwheel library might handle this, but explicit nullification is safer
-    if (playerWheels[index]) {
-      // Optional: Explicitly destroy Winwheel if method exists
-      // playerWheels[index].destroy();
-      playerWheels[index] = null;
-    }
-    if (penaltyWheels[index]) {
-      // penaltyWheels[index].destroy();
-      penaltyWheels[index] = null;
-    }
-  }
-
-  // --- Main Event Handler for "Lost Game" Button Clicks ---
-  /**
-   * Handles clicks on any '.lostGameBtn' using event delegation.
-   * @param {Event} event - The click event.
-   */
-  function handleLostGameClick(event) {
-    // Ensure the click originated from the button we care about
-    const button = event.target.closest('.lostGameBtn');
-    if (!button) return;
-
-    // Extract necessary data stored on the button
-    const challengeIndex = button.dataset.challengeIndex;
-    const penaltyTabId = button.dataset.penaltyTabId;
-    const playersJsonString = button.dataset.players || '[]';
-    let players = [];
-
-    // Safely parse player list
-    try {
-      players = JSON.parse(playersJsonString);
-      if (!Array.isArray(players)) throw new Error("Parsed data is not an array");
-    } catch (e) {
-      console.error(`Error parsing player data for challenge ${challengeIndex}:`, e);
-      players = []; // Default to empty on error
-    }
-
-    // Get references to UI elements for this specific challenge
-    const resultDisplay = document.getElementById(`penaltyResult-${challengeIndex}`);
-    const playerWheelContainer = document.getElementById(`playerWheelContainer-${challengeIndex}`);
-    const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${challengeIndex}`);
-    const playerCanvas = document.getElementById(`playerWheelCanvas-${challengeIndex}`);
-    const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-${challengeIndex}`);
-
-    // Check if all required elements exist
-    if (!resultDisplay || !playerWheelContainer || !penaltyWheelContainer || !playerCanvas || !penaltyCanvas) {
-      console.error(`Missing required HTML elements (wheels, result area) for challenge index ${challengeIndex}`);
-      alert("Error: UI elements for penalty wheels are missing.");
-      return;
-    }
-
-    console.log(`Lost Game button clicked: ChallengeIdx=${challengeIndex}, PenaltyTab='${penaltyTabId}', Players=${players.length}`);
-
-    // Reset UI elements and disable button to prevent multiple clicks
-    resetPenaltyUI(challengeIndex);
-    resultDisplay.innerHTML = '<span class="text-warning">Spinning for player...</span>';
-    resultDisplay.style.display = 'block';
-    button.disabled = true;
-
-    // --- Step 1: Select Player & Setup/Spin Player Wheel ---
-    let chosenPlayer = "Player"; // Default text
-    let playerSegments = [];
-    // Define colors for player wheel segments
-    const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
-
-    if (players.length > 0) {
-      // Select player randomly
-      chosenPlayer = players[Math.floor(Math.random() * players.length)];
-      // Create segments using player names
-      playerSegments = createSegments(players, playerColors);
-    } else {
-      console.warn("No player names provided for challenge, using default 'Player'.");
-      playerSegments = createSegments(['Player'], playerColors); // Wheel with one segment
-    }
-    console.log("Randomly selected player:", chosenPlayer);
-    // Find the segment index (1-based) corresponding to the chosen player
-    const playerWinningSegmentIndex = playerSegments.findIndex(seg => seg.text === chosenPlayer) + 1 || 1;
-
-    // Clear previous wheel instance if any
-    if (playerWheels[challengeIndex]) playerWheels[challengeIndex] = null;
-
-    // Create the Winwheel instance for players
-    playerWheels[challengeIndex] = new Winwheel({
-      'canvasId': `playerWheelCanvas-${challengeIndex}`, // Target the specific canvas
-      'numSegments': playerSegments.length,
-      'outerRadius': 100,        // Adjust size as needed
-      'innerRadius': 20,         // Creates a donut effect
-      'textFontSize': 12,
-      'segments': playerSegments,
-      'animation': {
-        'type': 'spinToStop',  // Spin and stop randomly
-        'duration': 4,         // Duration in seconds
-        'spins': 5,          // Number of full spins
-        'stopAngle': calculateStopAngle(playerSegments.length, playerWinningSegmentIndex), // Where to stop
-        'callbackFinished': () => spinPenaltyWheel(challengeIndex, penaltyTabId, chosenPlayer, button), // Function to call after spinning stops
-        'callbackSound': null,   // Optional: Add tick sound function
-        'soundTrigger': 'pin'  // Sound trigger option
-      },
-      'pins': {                 // Draw visual pins
-        'number': playerSegments.length * 2, // Number of pins
-        'outerRadius': 4,
-        'fillStyle': 'silver',
-      }
-    });
-
-    // Show the player wheel container and start the animation
-    playerWheelContainer.style.display = 'block';
-    playerWheels[challengeIndex].startAnimation();
-  }
-
-  /**
-   * Step 2: Loads penalties, sets up and spins the penalty wheel.
-   * Called after the player wheel finishes spinning.
-   */
-   function spinPenaltyWheel(challengeIndex, penaltyTabId, chosenPlayer, button) {
-    console.log("Player wheel finished. Loading penalties and spinning penalty wheel...");
-    const resultDisplay = document.getElementById(`penaltyResult-${challengeIndex}`);
-    const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${challengeIndex}`);
-    const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-${challengeIndex}`);
-
-    // Double check elements exist
-    if (!resultDisplay || !penaltyWheelContainer || !penaltyCanvas) return;
-
-    // Update status message
-    resultDisplay.innerHTML = `<span class="text-warning">Player <strong>${chosenPlayer}</strong> selected... Spinning for penalty...</span>`;
-    penaltyWheelContainer.style.display = 'block'; // Show penalty wheel container
-
-    let chosenPenalty = null;       // The penalty selected based on weight
-    let penaltyList = [];         // Full list of penalties from source
-    let penaltyWheelSegments = []; // Segments to display on the wheel (subset/shuffled)
-    // Define colors for penalty wheel segments
-    const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf'];
-    const NUM_PENALTY_SEGMENTS = 5;
-    try {
-      // Load all penalty sets from localStorage
-      const allPenalties = getLocalPenalties();
-      // Get the specific list for the relevant penalty tab ID
-      penaltyList = allPenalties[penaltyTabId] || [];
-      // Perform weighted random selection to determine the ACTUAL outcome
-      chosenPenalty = selectWeightedPenalty(penaltyList);
-      console.log("Chosen Penalty (Weighted Selection):", chosenPenalty);
-
-      // Handle if no penalty could be selected (e.g., all probabilities zero)
-      if (!chosenPenalty || chosenPenalty.name === "No Penalty") {
-        resultDisplay.innerHTML = `Player <strong>${chosenPlayer}</strong>... <br><strong>${chosenPenalty.name}</strong> <small class="text-muted">(${chosenPenalty.description || ''})</small>`;
-        button.disabled = false; // Re-enable button
-        penaltyWheelContainer.style.display = 'none'; // Hide wheel
-        return; // Stop processing
-      }
-
-      // --- Prepare Segments for the Visual Wheel ---
-      // Get valid penalties (positive probability) to potentially display
-      let displayablePenalties = penaltyList.filter(p => p?.name && parseFloat(p.probability) > 0);
-      let wheelSegmentPenalties = []; // Penalties to actually put on the wheel segments
-
-      if (displayablePenalties.length > 0) {
-        // Ensure chosen penalty is included
-        if (!displayablePenalties.some(p => p.id === chosenPenalty.id)) {
-          // This should only happen if chosenPenalty was 'No Penalty' (already handled)
-          // or if the chosen one somehow wasn't in the original list (error)
-          console.warn("Chosen penalty not found in displayable list, adding it.");
-          wheelSegmentPenalties.push(chosenPenalty);
-        } else {
-          wheelSegmentPenalties.push(chosenPenalty);
-        }
-
-        // Get other distinct penalties for variety
-        let otherPenalties = displayablePenalties.filter(p => p.id !== chosenPenalty.id);
-        shuffleArray(otherPenalties);
-
-        // Add others until we reach NUM_PENALTY_SEGMENTS
-        let needed = NUM_PENALTY_SEGMENTS - wheelSegmentPenalties.length;
-        wheelSegmentPenalties = wheelSegmentPenalties.concat(otherPenalties.slice(0, needed));
-
-        // If still not enough segments (fewer than 5 unique valid penalties)
-        // pad with duplicates from the valid list (or the chosen one)
-        let validPoolForPadding = displayablePenalties.length > 0 ? displayablePenalties : [chosenPenalty];
-        let currentPadIndex = 0;
-        while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
-          wheelSegmentPenalties.push(validPoolForPadding[currentPadIndex % validPoolForPadding.length]);
-          currentPadIndex++;
-        }
-
-        // Shuffle the final 5 segments IF the chosen penalty isn't the only option
-        if (wheelSegmentPenalties.length > 1) {
-          shuffleArray(wheelSegmentPenalties);
-        }
-
-      } else {
-        // Only the chosen (potentially "No Penalty") exists
-        wheelSegmentPenalties.push(chosenPenalty);
-      }
-      // Create Winwheel segments using only the names
-      penaltyWheelSegments = createSegments(wheelSegmentPenalties.map(p => p.name), penaltyColors);
-
-    } catch (e) {
-      // Handle errors during penalty loading or segment prep
-      console.error("Error loading penalties or preparing wheel segments:", e);
-      resultDisplay.innerHTML = '<span class="text-danger">Error loading penalties! Check console.</span>';
-      button.disabled = false; // Re-enable button
-      return;
-    }
-
-    // Find the index (1-based) of the *actual* chosen penalty on the visual wheel
-    const penaltyWinningSegmentIndex = penaltyWheelSegments.findIndex(seg => seg.text === chosenPenalty.name) + 1;
-
-    // Check if the chosen penalty is actually represented on the wheel (should always be true now)
-    if (penaltyWinningSegmentIndex <= 0) {
-      console.error("FATAL: Chosen penalty name not found among visual wheel segments!", chosenPenalty.name, penaltyWheelSegments);
-      // Fallback: Display result directly without spinning penalty wheel
-      displayFinalResult(challengeIndex, chosenPlayer, chosenPenalty, button);
-      return;
-    }
-
-    // Clear previous wheel instance if any
-    if (penaltyWheels[challengeIndex]) penaltyWheels[challengeIndex] = null;
-
-    // Create the Winwheel instance for penalties
-    penaltyWheels[challengeIndex] = new Winwheel({
-      'canvasId': `penaltyWheelCanvas-${challengeIndex}`,
-      'numSegments': penaltyWheelSegments.length, // Should be 5 ideally
-      'outerRadius': 150, // *** INCREASED SIZE ***
-      'innerRadius': 30,  // *** INCREASED SIZE (Optional) ***
-      'textFontSize': 14, // *** INCREASED FONT SIZE (adjust as needed) ***
-      'textMargin': 8,    // *** ADDED/ADJUSTED MARGIN ***
-      'textFillStyle': '#fff', // White text for dark segments
-      'segments': penaltyWheelSegments,
-      // *** ADD POINTER GUIDE ***
-      'pointerGuide': { 'display': true, 'strokeStyle': '#ffc107', 'lineWidth': 3 }, // Yellow pointer
-      'animation': {
-        'type': 'spinToStop',
-        'duration': 7, // *** INCREASED DURATION ***
-        'spins': 8,    // More spins
-        'stopAngle': calculateStopAngle(penaltyWheelSegments.length, penaltyWinningSegmentIndex),
-        'callbackFinished': () => displayFinalResult(challengeIndex, chosenPlayer, chosenPenalty, button),
-        'callbackSound': null,
-        'soundTrigger': 'pin'
-      },
-      'pins': { 'number': penaltyWheelSegments.length * 2, 'outerRadius': 4, 'fillStyle': 'silver' }
-    });
-
-    // Start the penalty wheel animation
-    penaltyWheels[challengeIndex].startAnimation();
-  }
-
-  /**
-   * Step 3: Displays the final result after the penalty wheel stops.
-   */
-  function displayFinalResult(challengeIndex, chosenPlayer, chosenPenalty, button) {
-    console.log(`Penalty wheel finished. Final Result: Player=${chosenPlayer}, Penalty=${chosenPenalty?.name}`);
-    const resultDisplay = document.getElementById(`penaltyResult-${challengeIndex}`);
-    if (!resultDisplay) return; // Should not happen if called correctly
-
-    // Ensure we have valid data to display
-    if (chosenPlayer && chosenPenalty && chosenPenalty.name) {
-      // Format the final output string
-      resultDisplay.innerHTML = `
-                Player <strong>${chosenPlayer}</strong> receives penalty: <br>
-                <strong>${chosenPenalty.name}</strong>
-                ${chosenPenalty.description ? `<br><small class="text-muted">(${chosenPenalty.description})</small>` : ''}
-            `;
-    } else {
-      // Handle cases like "No Penalty" or other errors during selection
-      resultDisplay.textContent = `Could not assign penalty to ${chosenPlayer}. ${chosenPenalty?.name || ''}`;
-      console.warn("Final penalty assignment failed or resulted in No Penalty. Player:", chosenPlayer, "Penalty:", chosenPenalty);
-    }
-    button.disabled = false; // Re-enable the 'Lost Game' button
-  }
-
-  // Attach the main event listener to the document using delegation
-  document.addEventListener('click', handleLostGameClick);
-  console.log("Penalty assignment listener attached.");
-
-</script>
 {% endblock %}
