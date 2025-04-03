@@ -3,62 +3,36 @@
 {% block title %}My Challenges{% endblock %}
 
 {% block head %}
-{{ super() }} {# Include styles from base.html #}
-<style>
-    /* Add specific styles for this page if needed */
-    .challenge-card {
-        border: 1px solid #495057;
-        transition: all 0.2s ease-in-out;
-        background-color: #343a40; /* Match other cards */
-        color: #f8f9fa;
-        display: block; /* Make the whole card act like a link */
-        text-decoration: none; /* Remove underline from link */
-    }
-    .challenge-card:hover {
-        text-decoration: none;
-        border-color: #ffc107;
-        box-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
-        transform: translateY(-2px);
-    }
-    .challenge-card .card-body {
-        padding: 1rem;
-    }
-     .challenge-card .card-title {
-        color: #ffc107; /* Highlight name */
-        margin-bottom: 0.5rem;
-     }
-     .challenge-card .card-subtitle {
-        font-size: 0.8em;
-        color: #adb5bd;
-     }
-     .challenge-card .card-text {
-        font-size: 0.9em;
-        color: #ced4da;
-        margin-top: 0.75rem;
-     }
-</style>
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/challenge_view.css') }}">
+    <style>
+        /* Styles remain the same */
+    </style>
 {% endblock %}
 
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">My Shared Challenges</h1>
-    <div id="myChallengesContainer"> {# Added container ID for JS #}
-        {% if user_challenges %}
-            <p class="text-muted mb-3">You have created {{ user_challenges | length }} challenge(s).</p>
-            {# Add area for status messages #}
-            <div id="deleteStatus" class="mb-3"></div>
+    <h1 class="mb-4">My Challenges</h1>
+
+    {# Container for status messages (like delete success/error) #}
+    <div id="deleteStatus" class="mb-3"></div>
+
+    {# --- Section for Challenges Saved to Account (Rendered by Server) --- #}
+    <h3 class="text-light mb-3">Saved to Account</h3>
+    <div id="myChallengesContainer">
+        {# Only loop if authenticated AND challenges exist #}
+        {% if current_user.is_authenticated and user_challenges %}
             <div class="row">
                 {% for challenge in user_challenges %}
-                    {# --- MODIFIED: Added outer div for easier removal --- #}
                     <div class="col-md-6 col-lg-4 mb-4 challenge-list-item">
+                        {# Card structure with DB delete button - remains the same #}
                         <div class="card challenge-card h-100">
-                             {# Make card body act like primary link, but button separate #}
                              <a href="{{ url_for('main.challenge_view', public_id=challenge.public_id) }}" class="card-body-link">
                                 <div class="card-body">
                                     <h5 class="card-title">{{ challenge.name or "Unnamed Challenge" }}</h5>
                                     <h6 class="card-subtitle mb-2 text-muted">
-                                        ID: <code style="font-size: 0.9em;">{{ challenge.public_id[:8] }}...</code>
+                                        ID: <code style="font-size: 0.9em;">{{ challenge.public_id[:8] }}...</code> (Shared)
                                     </h6>
                                     <p class="card-text">
                                         Created: {{ challenge.created_at.strftime('%Y-%m-%d %H:%M') if challenge.created_at else 'N/A' }}<br>
@@ -66,34 +40,65 @@
                                     </p>
                                 </div>
                              </a>
-                             {# --- ADDED: Card Footer with Delete Button --- #}
-                             <div class="card-footer text-right"> {# Align button right #}
+                             <div class="card-footer text-right">
                                  <button class="btn btn-sm btn-outline-danger delete-challenge-btn"
                                          data-public-id="{{ challenge.public_id }}"
                                          data-challenge-name="{{ (challenge.name or 'Unnamed Challenge') | escape }}">
-                                     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display: none;"></span>
+                                     <span class="spinner-border spinner-border-sm" style="display: none;"></span>
                                      <span>Delete</span>
                                  </button>
                              </div>
-                             {# --- END ADDED --- #}
                         </div>
                     </div>
-                    {# --- END MODIFIED --- #}
                 {% endfor %}
             </div>
-        {% else %}
-            <div class="alert alert-info">
-                You haven't created any challenges yet...
-            </div>
+        {# Message shown by JS if no challenges found #}
+        {% elif current_user.is_authenticated and not user_challenges %}
+             {# This specific message area might be removed if JS handles the combined empty state #}
+             {# <p class="text-muted">No challenges saved to your account yet.</p> #}
         {% endif %}
-    </div> {# End container ID #}
+    </div>
+    {# --- End Account Challenges Section --- #}
+
+
+    {# --- Section for Locally Saved Challenges (Populated by JS) --- #}
+    <hr class="my-4 border-secondary"> {# Separator #}
+    <h3 class="text-light mb-3">Saved Locally (This Browser Only)</h3>
+    {# Container where JS will add local challenge cards #}
+    <div id="localChallengesContainer" class="row">
+        {# Initial placeholder maybe #}
+        <div class="col-12"><p class="text-muted">Loading local challenges...</p></div>
+    </div>
+     {# --- End Local Challenges Section --- #}
+
+
+    {# Message shown only if BOTH DB and Local lists end up empty #}
+     <div id="noChallengesMessageContainer" class="col-12 d-none"> {# Initially hidden #}
+          <p class="text-muted text-center py-5">You have no challenges saved either to your account or locally in this browser.</p>
+     </div>
+
+
 </div> {# End container #}
+
+<div id="myData" style="display: none;" aria-hidden="true"
+    data-is-authenticated="{{ current_user.is_authenticated | lower }}" {# Pass boolean as string 'true'/'false' #}
+    data-csrf-token="{{ csrf_token() }}"
+    data-view-local-url="{{ url_for('main.view_local_challenge_viewer', _external=False) }}"
+></div>
 {% endblock %}
 
 {% block scripts %}
-{{ super() }}
-{# Add CSRF token needed by delete JS #}
-<script> window.csrfToken = "{{ csrf_token() }}"; </script>
-{# --- ADD Link to new JS file --- #}
-<script type="module" src="{{ url_for('static', filename='js/challenge/my_challenges.js') }}"></script>
+    {{ super() }}
+    {# Pass Auth Status and Base URL for Local View #}
+    <script>
+        window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }};
+        window.viewLocalChallengeBaseUrl = "{{ url_for('main.view_local_challenge_viewer', _external=False) }}";
+        window.csrfToken = "{{ csrf_token() }}";
+        console.log("[my_challenges.html] Auth status set for JS:", window.IS_AUTHENTICATED);
+    </script>
+    {# Load JS files #}
+    <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/challenge/local_challenge_storage.js') }}"></script> {# Ensure this is loaded #}
+    <script type="module" src="{{ url_for('static', filename='js/challenge/my_challenges.js') }}"></script>
 {% endblock %}

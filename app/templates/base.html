@@ -41,11 +41,10 @@
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.index') }}">Home</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.games_config') }}">Games</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.penalties_config') }}">Penalties</a></li>
-        {% if current_user.is_authenticated %}
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('main.my_challenges_view') }}">My Challenges</a>
         </li>
-        {% endif %}
+
       </ul>
 
       <ul class="navbar-nav">

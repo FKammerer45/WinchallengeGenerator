@@ -132,28 +132,51 @@ def accept_challenge():
 
 
 @main_bp.route("/my_challenges")
-@login_required # Make sure only logged-in users can see this
+# --- DELETE THIS LINE ---
+# @login_required
+# --- END DELETE ---
 def my_challenges_view():
-    """Displays a list of challenges created by the current user."""
-    logger.debug(f"Request received for /my_challenges by user {current_user.username}")
+    """Displays database challenges for logged-in users OR loads JS
+       to display local challenges for anonymous users."""
+    logger.debug(f"Request received for /my_challenges...") # Updated log message
 
     user_challenges = []
-    try:
-        with SessionLocal() as session:
-            # Query challenges created by the current user, order by most recent
-            # Optionally load group count if needed: options(selectinload(SharedChallenge.groups))
-            # But for a simple list, maybe skip loading groups for performance
-            user_challenges = session.query(SharedChallenge)\
-                .filter(SharedChallenge.creator_id == current_user.id)\
-                .order_by(desc(SharedChallenge.created_at))\
-                .all()
-            logger.info(f"Found {len(user_challenges)} challenges for user {current_user.username}")
+    # Check authentication status *inside* the function now
+    is_authenticated = current_user.is_authenticated
 
-    except Exception as e:
-        logger.exception(f"Error fetching challenges for user {current_user.username}")
-        flash("Could not load your challenges due to a server error.", "danger")
-        # Redirect home or render template with error? Redirect is simpler.
-        return redirect(url_for('main.index'))
+    if is_authenticated:
+        logger.debug(f"... by authenticated user {current_user.username}")
+        try:
+            with SessionLocal() as session:
+                # Query challenges created by the current user
+                user_challenges = session.query(SharedChallenge)\
+                    .filter(SharedChallenge.creator_id == current_user.id)\
+                    .order_by(desc(SharedChallenge.created_at))\
+                    .all()
+                logger.info(f"Found {len(user_challenges)} DB challenges for user {current_user.username}")
+        except Exception as e:
+            logger.exception(f"Error fetching DB challenges for user {current_user.username}")
+            flash("Could not load your saved challenges due to a server error.", "danger")
+            # Return template but with empty list on error
+            user_challenges = []
+    else:
+        logger.debug("... by anonymous user. Will rely on JS for local challenges.")
+        # No need to query DB for anonymous user
 
-    # Pass the fetched challenges to the new template
-    return render_template("my_challenges.html", user_challenges=user_challenges)
+    # Render the template, passing authentication status and DB challenges (if any)
+    # The template's JS ('my_challenges.js') will handle loading local challenges if needed
+    return render_template(
+        "my_challenges.html",
+        user_challenges=user_challenges, # Will be empty list for anonymous users
+        is_authenticated=is_authenticated # Pass status to template for JS/Jinja logic
+        )
+
+@main_bp.route("/view_local")
+def view_local_challenge_viewer():
+    """Renders the HTML shell page for viewing a locally stored challenge.
+    The actual challenge data is loaded via JavaScript.
+    """
+    # No database interaction needed here.
+    # We don't need to check for login, anonymous users use this.
+    logger.debug("Rendering local challenge viewer shell.")
+    return render_template("view_local_challenge.html")

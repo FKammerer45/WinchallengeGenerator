@@ -3,7 +3,7 @@
 
 // Import API utility and UI/Helper functions
 import { apiFetch } from '../utils/api.js';
-import { setLoading, showError } from '../utils/helpers.js';
+import { setLoading, showError, escapeHtml } from '../utils/helpers.js';
 import { updateGroupCountDisplay, renderProgressItems, addGroupToDOM, updateUIAfterMembershipChange } from './challenge_ui.js';
 
 // --- Module-level state ---
@@ -32,33 +32,33 @@ async function handleCreateGroupSubmit(event) {
     const submitButton = form.querySelector('#addGroupBtn');
     const errorDiv = document.getElementById('addGroupError');
 
-    showError(errorDiv, null);
+    showError(errorDiv, null); // Use imported helper
     if (!groupName) { showError(errorDiv, "Group name required."); return; }
     if (groupName.length > 80) { showError(errorDiv, "Group name max 80 chars."); return; }
+    // Access count/max from config object
     if (challengeConfig.initialGroupCount >= challengeConfig.maxGroups) {
         showError(errorDiv, `Max groups (${challengeConfig.maxGroups}) reached.`); return;
     }
 
-    setLoading(submitButton, true, 'Creating...');
+    setLoading(submitButton, true, 'Creating...'); // Use imported helper
 
     try {
+        // Use config URL and token
         const data = await apiFetch(challengeConfig.urls.addGroup, {
             method: 'POST', body: { group_name: groupName }
         }, challengeConfig.csrfToken);
 
         if (data.status === 'success' && data.group) {
-            // Add card first
             addGroupToDOM(data.group, challengeConfig); // Pass config
-            // Update count state and display
             challengeConfig.initialGroupCount++; // Update state variable FIRST
             updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); // Update display
             groupNameInput.value = '';
         } else { throw new Error(data.error || "Failed to add group."); }
     } catch (error) {
         console.error("Create group failed:", error);
-        showError(errorDiv, "Error: " + error.message);
+        showError(errorDiv, "Error: " + error.message); // Use showError
     } finally {
-        setLoading(submitButton, false);
+        setLoading(submitButton, false); // Use imported helper
     }
 }
 
@@ -66,21 +66,24 @@ async function handleJoinGroupClick(event) {
     const joinButton = event.target.closest('.join-group-btn');
     if (!joinButton) return;
     const groupId = joinButton.dataset.groupId;
-    if (!groupId) { showError(joinButton.closest('.card-footer'), "Missing group ID."); return; } // Show error near button
+    const buttonContainer = joinButton.closest('.card-footer'); // For error display
+
+    if (!groupId) { showError(buttonContainer, "Missing group ID."); return; }
 
     console.log(`handleJoinGroupClick: Joining group ${groupId}`);
     setLoading(joinButton, true, 'Joining...');
+    // Use config URL base and token
     const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`;
 
     try {
         const data = await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
         console.log("Join successful:", data.message);
-        challengeConfig.userJoinedGroupId = parseInt(groupId, 10); // Update state
-        updateUIAfterMembershipChange(challengeConfig); // Update UI
+        challengeConfig.userJoinedGroupId = parseInt(groupId, 10); // Update state IN CONFIG
+        updateUIAfterMembershipChange(challengeConfig); // Update UI based on config
     } catch (error) {
         console.error("Failed to join group:", error);
-        showError(joinButton.closest('.card-footer'), `Error: ${error.message}`); // Show error near button
-        setLoading(joinButton, false); // Reset button on error
+        showError(buttonContainer, `Error: ${error.message}`); // Show error near button
+        setLoading(joinButton, false); // Reset only this button on error
     }
 }
 
@@ -88,21 +91,24 @@ async function handleLeaveGroupClick(event) {
     const leaveButton = event.target.closest('.leave-group-btn');
     if (!leaveButton) return;
     const groupId = leaveButton.dataset.groupId;
-    if (!groupId) { showError(leaveButton.closest('.card-footer'), "Missing group ID."); return; }
+    const buttonContainer = leaveButton.closest('.card-footer'); // For error display
+
+    if (!groupId) { showError(buttonContainer, "Missing group ID."); return; }
 
     console.log(`handleLeaveGroupClick: Leaving group ${groupId}`);
     setLoading(leaveButton, true, 'Leaving...');
+    // Use config URL base and token
     const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/leave`;
 
     try {
         const data = await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
         console.log("Leave successful:", data.message);
-        challengeConfig.userJoinedGroupId = null; // Update state
-        updateUIAfterMembershipChange(challengeConfig); // Update UI
+        challengeConfig.userJoinedGroupId = null; // Update state IN CONFIG
+        updateUIAfterMembershipChange(challengeConfig); // Update UI based on config
     } catch (error) {
         console.error("Failed to leave group:", error);
-         showError(leaveButton.closest('.card-footer'), `Error: ${error.message}`); // Show error near button
-        setLoading(leaveButton, false); // Reset button on error
+        showError(buttonContainer, `Error: ${error.message}`); // Show error near button
+        setLoading(leaveButton, false); // Reset only this button on error
     }
 }
 
@@ -111,19 +117,15 @@ async function handleProgressChange(event) {
     const checkbox = event.target;
     const itemData = checkbox.dataset;
     const isComplete = checkbox.checked;
-    const groupId = itemData.groupId; // Read from checkbox data attribute
-
-    // Find the parent item div for visual feedback
-    const itemDiv = checkbox.closest('.progress-item');
+    const groupId = itemData.groupId;
+    const itemDiv = checkbox.closest('.progress-item'); // For error/visuals
 
     if (!groupId || !itemData.itemType || !itemData.itemKey || typeof itemData.itemIndex === 'undefined') {
-         console.error("Checkbox missing data attributes", itemData);
-         showError(itemDiv, "Data missing"); // Show small error near item
-         checkbox.checked = !isComplete; return;
+        showError(itemDiv, "Data missing!"); checkbox.checked = !isComplete; return;
     }
 
-    if(itemDiv) itemDiv.classList.toggle('completed', isComplete);
-    checkbox.disabled = true; // Disable during update
+    if(itemDiv) itemDiv.classList.toggle('completed', isComplete); // Optimistic UI
+    checkbox.disabled = true;
 
     const payload = {
         item_type: itemData.itemType, item_key: itemData.itemKey,
@@ -132,21 +134,22 @@ async function handleProgressChange(event) {
     if (itemData.segmentIndex) payload.segment_index = parseInt(itemData.segmentIndex, 10);
 
     try {
+        // Use config URL base and token
         const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
         const responseData = await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
         console.log("Progress update successful:", responseData.message);
     } catch (error) {
         console.error("Failed to update progress:", error);
         if(itemDiv) {
-             itemDiv.classList.toggle('completed', !isComplete); // Revert visual
-             showError(itemDiv, `Save failed: ${error.message}`); // Show error near item
-             setTimeout(() => showError(itemDiv, null), 3000); // Clear error after delay
+            itemDiv.classList.toggle('completed', !isComplete); // Revert visual
+            showError(itemDiv, `Save failed!`); // Show small error near item
+            setTimeout(() => showError(itemDiv, null), 3000); // Clear error
         } else {
             alert(`Error saving progress: ${error.message}`); // Fallback alert
         }
         checkbox.checked = !isComplete; // Revert state
     } finally {
-        checkbox.disabled = false; // Re-enable checkbox
+        checkbox.disabled = false;
     }
 }
 
@@ -156,11 +159,19 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("challenge_view.js: Initializing...");
 
     const dataEl = document.getElementById('challengeData');
-    if (!dataEl) { console.error("CRITICAL: #challengeData element not found."); return; }
+    const jsonScriptEl = document.getElementById('challengeJsonData'); // Get script tag
 
-    // Read ALL data into the config object
+    if (!dataEl || !jsonScriptEl) { // Check both
+        console.error("CRITICAL: #challengeData or #challengeJsonData element not found.");
+        // Optionally display error in a known element if possible
+        const body = document.querySelector('body');
+        if(body) body.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger m-3">Page initialization error: Data missing.</div>');
+        return;
+    }
+
+    // --- Read ALL data into the config object ---
     try {
-         const structure = JSON.parse(dataEl.dataset.challengeJson || '{}');
+         const structure = JSON.parse(jsonScriptEl.textContent || '{}'); // Parse from script tag
          const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
          challengeConfig = {
              publicId: dataEl.dataset.publicId,
@@ -180,31 +191,28 @@ document.addEventListener('DOMContentLoaded', () => {
          }
          console.log("challenge_view.js: Parsed challengeConfig:", challengeConfig);
     } catch(e) { console.error("challenge_view.js: Failed to parse initial data:", e); return; }
+    // --- End reading data ---
 
-    // Find interactive element containers
+    // --- Find other elements & Attach listeners ---
     const addGroupForm = document.getElementById('addGroupForm');
     const groupsContainer = document.getElementById('groupsContainer');
 
-    // Attach listener for creating groups
     if(addGroupForm) {
         addGroupForm.addEventListener('submit', handleCreateGroupSubmit);
         console.log("challenge_view.js: Create Group listener attached.");
     } else { console.warn("challenge_view.js: Create group form not found."); }
 
-    // Attach listeners via delegation for dynamic content in groups container
     if (groupsContainer) {
-        // Listener for Join/Leave buttons
         groupsContainer.addEventListener('click', (event) => {
             if (event.target.closest('.join-group-btn')) handleJoinGroupClick(event);
             else if (event.target.closest('.leave-group-btn')) handleLeaveGroupClick(event);
         });
-        // Listener for progress checkboxes
         groupsContainer.addEventListener('change', handleProgressChange);
         console.log("challenge_view.js: Join/Leave/Progress listeners attached to #groupsContainer.");
     } else { console.error("challenge_view.js: Group display area (#groupsContainer) NOT FOUND!"); }
 
-    // --- Initialize UI state from parsed config ---
-    updateUIAfterMembershipChange(challengeConfig);
+    // --- Initialize UI ---
+    updateUIAfterMembershipChange(challengeConfig); // Pass config object
     updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
 
 }); // End DOMContentLoaded

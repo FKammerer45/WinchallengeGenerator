@@ -24,33 +24,29 @@
             </div>
 
             {# --- MODIFIED: Penalty Source (Conditional Container) --- #}
-            {# This container will be hidden/shown by JS based on the checkbox below #}
-            {# Initially hidden if checkbox is off #}
             <div class="form-group col-md-6 {% if not request.form.get('use_penalties') %}d-none{% endif %}" id="penaltySourceContainer">
                 <label for="penaltySourceSelect">Penalty Source Tab:</label>
                 <select id="penaltySourceSelect" name="penalty_tab_id" class="form-control custom-select">
                   {# Options populated by JS #}
                 </select>
-               <small class="form-text text-muted">Select the tab containing the penalties</small>
+               <small class="form-text text-muted">Select the tab containing the penalties.</small>
            </div>
            {# --- END MODIFICATION --- #}
         </div>
 
         {# Enable Penalties Checkbox #}
         <div class="form-group form-check mt-2">
-            {# Use this ID in JS to control the container above #}
             <input type="checkbox" class="form-check-input" id="enablePenalties" name="use_penalties" {% if request.form.get('use_penalties') %}checked{% endif %}>
             <label class="form-check-label" for="enablePenalties">Enable Penalties on Game Loss?</label>
         </div>
 
-        {# Challenge Name (Optional) - Kept #}
+        {# Challenge Name (Optional) #}
         <div class="form-row mt-3">
             <div class="form-group col-md-12">
                 <label for="challengeName">Challenge Name (Optional):</label>
                 <input type="text" id="challengeName" name="challenge_name" class="form-control" placeholder="My Awesome Challenge" value="{{ request.form.get('challenge_name', '') }}">
-                <small class="form-text text-muted">Give your challenge a name.</small>
+                <small class="form-text text-muted">Give your challenge a name (used when sharing).</small>
             </div>
-             {# Max Groups and Auto-Create are moved/removed #}
         </div>
     </fieldset>
 
@@ -64,21 +60,21 @@
             <div class="col-sm-8 col-lg-9">
                 <div class="form-check form-check-inline">
                     <input class="form-check-input mode-radio" type="radio" name="group_mode" id="modeSingleGroup" value="single" {% if request.form.get('group_mode', 'single') == 'single' %}checked{% endif %}>
-                    <label class="form-check-label" for="modeSingleGroup">Single Group</label>
+                    <label class="form-check-label" for="modeSingleGroup">Single Group (Local)</label>
                 </div>
                 <div class="form-check form-check-inline">
                     <input class="form-check-input mode-radio" type="radio" name="group_mode" id="modeMultiGroup" value="multi" {% if request.form.get('group_mode') == 'multi' %}checked{% endif %}>
                     <label class="form-check-label" for="modeMultiGroup">Multigroup (Shared)</label>
+                    <small class="text-warning login-required-msg ms-2 d-none">(Login required)</small>
                 </div>
-                <small class="form-text text-muted d-block">Single: For solo or 1 Group. Multigroup: For sharing online.</small>
+                <small class="form-text text-muted d-block">Single group saves locally. Multigroup requires login to share.</small>
             </div>
         </div>
         {# --- END Mode Selection --- #}
 
-         {# --- Number of Players (Label changes based on mode) --- #}
+        {# --- Number of Players (Label changes) & Conditional Max Groups --- #}
         <div class="form-row">
             <div class="form-group col-md-6 col-lg-4">
-                {# Added ID to label for JS manipulation #}
                 <label for="numPlayers" class="font-weight-bold" id="numPlayersLabel">Number of Players:</label>
                 <select id="numPlayers" name="num_players" class="form-control custom-select">
                     <option value="1" {% if request.form.get('num_players', '1') == '1' %}selected{% endif %}>1</option>
@@ -87,22 +83,20 @@
                     <option value="4" {% if request.form.get('num_players') == '4' %}selected{% endif %}>4</option>
                     <option value="5" {% if request.form.get('num_players') == '5' %}selected{% endif %}>5</option>
                 </select>
-                 <small class="form-text text-muted">Total players (Single) or players per group (Multigroup).</small>
+                <small class="form-text text-muted">Relevant for difficulty scaling.</small>
             </div>
 
-            {# --- MODIFIED: Max Groups (Now Conditional) --- #}
-            {# Hidden by default if single mode is default, shown by JS if multi selected #}
             <div class="form-group col-md-6 col-lg-4 {% if request.form.get('group_mode', 'single') != 'multi' %}d-none{% endif %}" id="maxGroupsContainer">
                 <label for="maxGroups">Max Groups (Multigroup):</label>
                 <input type="number" id="maxGroups" name="max_groups" class="form-control" value="{{ request.form.get('max_groups', 10) }}" min="1">
                 <small class="form-text text-muted">Max groups allowed when shared.</small>
             </div>
-            {# --- END Max Groups --- #}
         </div>
 
+        {# --- REMOVED Player Names Container --- #}
 
-         {# --- Difficulty & B2B (Keep as is) --- #}
-         <div class="form-row mt-3">
+        {# --- Difficulty & B2B --- #}
+        <div class="form-row mt-3">
              <div class="form-group col-md-6 col-lg-4">
                  <label for="desiredDiff" class="font-weight-bold">Target Difficulty:</label>
                  <input type="number" step="0.1" id="desiredDiff" name="desired_diff" class="form-control" placeholder="e.g., 60.0" required value="{{ request.form.get('desired_diff', 60) }}">
@@ -115,23 +109,29 @@
                  <output class="badge badge-secondary ml-2">{{ request.form.get('raw_b2b', 1) }}</output>
              </div>
          </div>
-         {# --- REMOVED Auto-create checkbox/label --- #}
-
     </fieldset>
 
-    {# --- FIELDSET 3: Select Games & Modes (Keep As Is) --- #}
+    {# --- FIELDSET 3: Select Games & Modes --- #}
     <fieldset class="form-group border rounded p-3 mb-4 shadow-sm">
         <legend class="w-auto px-2 h5 font-weight-bold">3. Select Games & Modes</legend>
-        {# ... Table structure remains the same ... #}
+        {# --- ADDED BACK TABLE STRUCTURE --- #}
         <div class="p-0 table-responsive">
              <table class="table table-dark table-striped table-hover table-sm mb-0">
-                <thead><tr><th style="width:45%;">Game</th><th style="width:15%;">Weight</th><th style="width:40%;">Allowed Modes</th></tr></thead>
-                <tbody id="gamesSelectionTbody">
+                <thead>
+                    <tr>
+                        <th style="width:45%;">Game</th>
+                        <th style="width:15%;">Weight</th>
+                        <th style="width:40%;">Allowed Modes</th>
+                    </tr>
+                </thead>
+                <tbody id="gamesSelectionTbody"> {# Ensure this ID exists #}
+                    {# Initial placeholder, JS will replace this #}
                     <tr><td colspan="3" class="text-center text-muted py-4">Select Game Source Tab above...</td></tr>
                 </tbody>
              </table>
         </div>
         <small class="form-text text-muted mt-2">Check games to include. Adjust weights. Click 'Modes' to filter.</small>
+         {# --- END ADDED BACK TABLE STRUCTURE --- #}
     </fieldset>
 
     <button type="submit" class="btn btn-primary btn-lg btn-block mt-4 mb-4">Generate Challenge</button>
@@ -144,11 +144,12 @@
         <p class="text-center text-muted">Loading result...</p>
       </div>
       <div class="text-center">
+          {# Share button shown only if logged in #}
           {% if current_user.is_authenticated %}
             <button id="shareChallengeBtn" class="btn btn-info mt-2" style="display:none;">Share Challenge</button>
-          {% else %}
-            <p class="text-muted mt-2"><a href="{{ url_for('auth.login') }}">Log in</a> to share challenges.</p>
           {% endif %}
+          {# View Local button shown only if NOT logged in (handled by JS) #}
+          <a href="#" id="viewLocalChallengeBtn" class="btn btn-secondary mt-2" style="display:none;" role="button" target="_blank">View Locally Saved Challenge</a>
       </div>
       <div id="shareResult" class="mt-3" style="display:none;">
           {# Share link appears here via JS #}
@@ -159,14 +160,16 @@
 {% endblock %}
 
 {% block scripts %}
-{# Minimal script block for passing data #}
+{# Pass data needed by JS #}
 <script>
-  // Make URLs and CSRF available globally
-  window.csrfToken = "{{ csrf_token() }}"; // Needed by apiFetch for POSTs
-  window.generateChallengeUrl = "{{ url_for('challenge_api.generate_challenge') }}"; // Needed by challenge_form.js
-  window.shareChallengeUrl = "{{ url_for('challenge_api.share_challenge') }}"; // Needed by challenge_share.js
+  window.csrfToken = "{{ csrf_token() }}";
+  window.generateChallengeUrl = "{{ url_for('challenge_api.generate_challenge') }}";
+  window.shareChallengeUrl = "{{ url_for('challenge_api.share_challenge') }}";
+  window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }}; // Pass boolean
+  // Assume view_local_challenge_viewer is the endpoint for the local viewer page
+  window.viewLocalChallengeBaseUrl = "{{ url_for('main.view_local_challenge_viewer', _external=False) }}";
 
-  console.log("[index.html] URLs & CSRF Token set for JS.");
+  console.log("[index.html] URLs, CSRF Token, Auth Status set for JS.");
 </script>
 {# Load main JS module entry point #}
 <script type="module" src="{{ url_for('static', filename='js/challenge/challenge.js') }}"></script>
