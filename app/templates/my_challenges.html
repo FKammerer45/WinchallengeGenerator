@@ -28,7 +28,7 @@
                     <div class="col-md-6 col-lg-4 mb-4 challenge-list-item">
                         {# Card structure with DB delete button - remains the same #}
                         <div class="card challenge-card h-100">
-                             <a href="{{ url_for('main.challenge_view', public_id=challenge.public_id) }}" class="card-body-link">
+                            <a href="{{ url_for('main.challenge_view', challenge_id=challenge.public_id) }}" class="card-body-link">
                                 <div class="card-body">
                                     <h5 class="card-title">{{ challenge.name or "Unnamed Challenge" }}</h5>
                                     <h6 class="card-subtitle mb-2 text-muted">
@@ -83,19 +83,14 @@
 <div id="myData" style="display: none;" aria-hidden="true"
     data-is-authenticated="{{ current_user.is_authenticated | lower }}" {# Pass boolean as string 'true'/'false' #}
     data-csrf-token="{{ csrf_token() }}"
-    data-view-local-url="{{ url_for('main.view_local_challenge_viewer', _external=False) }}"
+    data-view-local-url="/challenge/"
 ></div>
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
     {# Pass Auth Status and Base URL for Local View #}
-    <script>
-        window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }};
-        window.viewLocalChallengeBaseUrl = "{{ url_for('main.view_local_challenge_viewer', _external=False) }}";
-        window.csrfToken = "{{ csrf_token() }}";
-        console.log("[my_challenges.html] Auth status set for JS:", window.IS_AUTHENTICATED);
-    </script>
+
     {# Load JS files #}
     <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>

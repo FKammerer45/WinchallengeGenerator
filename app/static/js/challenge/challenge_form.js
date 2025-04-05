@@ -5,7 +5,7 @@ import { getLocalTabs as getGameTabs, getLocalEntries, initLocalStorage as initG
 import { getLocalPenaltyTabs, initPenaltiesLocalStorage } from "../penalties/penaltyLocalStorageUtils.js";
 // Import the local storage saver function
 import { saveChallengeToLocalStorage } from './local_challenge_storage.js';
-
+import { showError } from '../utils/helpers.js'; 
 // --- Helper: Update Form UI based on Mode/Penalty selection ---
 // Flag to prevent recursion during mode change for anonymous users
 let isForcingMode = false;
@@ -137,96 +137,130 @@ function gatherSelectedModes() {
 
 // --- Main Form Submission Handler ---
 function handleChallengeFormSubmit(event) {
-    event.preventDefault();
+    event.preventDefault(); // Prevent default form submission
     const form = event.target;
     const formData = new FormData(form);
     const selectedMode = formData.get("group_mode") || 'single';
-    const isAuthenticated = window.IS_AUTHENTICATED === true;
+    const isAuthenticated = window.IS_AUTHENTICATED === true; // Read global flag
+    const errorDisplay = document.getElementById('formErrorDisplay'); // Target for showing errors
+    const resultDiv = document.getElementById("challengeResult"); // Target for challenge result display
+
+    showError(errorDisplay, null); // Clear previous errors
 
     // Prevent submission if anonymous user selected multi (safeguard)
     if (selectedMode === 'multi' && !isAuthenticated) {
-        alert("Login is required for Multigroup/Shared challenges.");
-        // Force UI back just in case
+        showError(errorDisplay, "Login is required for Multigroup/Shared challenges.");
         const singleRadio = document.getElementById('modeSingleGroup');
-        if(singleRadio) singleRadio.checked = true;
-        updateIndexFormUI();
+        if (singleRadio) singleRadio.checked = true;
+        updateIndexFormUI(); // Reset UI to single mode appearance
         return;
     }
 
-    // Basic form validation
-    if (!form.querySelector('input[name="selected_games"]:checked')) { alert("Please select game(s)."); return; }
+    // --- Basic form validation ---
+    if (!form.querySelector('input[name="selected_games"]:checked')) {
+        showError(errorDisplay, "Please select at least one game.");
+        return;
+    }
     const selectedGameTab = formData.get("game_tab_id");
-    if (!selectedGameTab) { alert("No game source selected."); return; }
+    if (!selectedGameTab) {
+        showError(errorDisplay, "Please select a game source tab.");
+        return;
+    }
 
-    // Process entries
+    // --- Process entries from LocalStorage ---
     let convertedEntries = [];
     try {
         const allEntries = JSON.parse(localStorage.getItem("localEntries") || "{}");
         const entries = allEntries[selectedGameTab] || [];
-        if (entries.length === 0) { alert("No game entries in source tab."); return; }
+        if (entries.length === 0) {
+             throw new Error("No game entries found in the selected source tab.");
+        }
+        // Convert keys for backend compatibility
         convertedEntries = entries.map(entry => entry ? { id: entry.id, Spiel: String(entry.game || ''), Spielmodus: String(entry.gameMode || ''), Schwierigkeit: parseFloat(entry.difficulty) || 0, Spieleranzahl: parseInt(entry.numberOfPlayers) || 0 } : null).filter(Boolean);
-        if (convertedEntries.length === 0) throw new Error("Entries invalid.");
+        if (convertedEntries.length === 0) throw new Error("Selected game entries are invalid or empty after processing.");
         formData.append("entries", JSON.stringify(convertedEntries));
-    } catch (error) { alert(`Error processing entries: ${error.message}`); return; }
+    } catch (error) {
+        showError(errorDisplay, `Error processing game entries: ${error.message}`);
+        return;
+    }
 
     // Append selected modes
-    formData.append("selected_modes", JSON.stringify(gatherSelectedModes()));
+    formData.append("selected_modes", JSON.stringify(gatherSelectedModes())); // Assumes function exists
 
-    // UI Feedback
+    // --- UI Feedback before sending request ---
     const submitButton = form.querySelector('button[type="submit"]');
-    const resultDiv = document.getElementById("challengeResult");
     const shareBtn = document.getElementById("shareChallengeBtn");
     const shareResultDiv = document.getElementById('shareResult');
     const viewLocalBtn = document.getElementById('viewLocalChallengeBtn');
+
     if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Generating...'; }
-    if (resultDiv) { resultDiv.style.display = "block"; resultDiv.innerHTML = '<p class="text-info text-center">Generating...</p>'; }
+    if (resultDiv) { resultDiv.style.display = "block"; resultDiv.innerHTML = '<p class="text-info text-center">Generating challenge, please wait...</p>'; }
+    // Ensure buttons/results from previous generation are hidden
     if (shareBtn) shareBtn.style.display = 'none';
     if (shareResultDiv) { shareResultDiv.style.display = 'none'; shareResultDiv.innerHTML = ''; }
     if (viewLocalBtn) viewLocalBtn.style.display = 'none';
 
-    console.log("Submitting generation request...");
+    console.log("Submitting challenge generation request...");
 
+    // --- Call /generate API ---
     fetch(window.generateChallengeUrl, { method: "POST", body: formData })
-        .then(response => response.json().then(data => ({ ok: response.ok, status: response.status, data })))
+        .then(response => response.json().then(data => ({ ok: response.ok, status: response.status, data }))) // Parse JSON and keep status
         .then(({ ok, status, data }) => {
-            if (!ok) throw new Error(data?.error || `HTTP ${status}`);
-            if (!data.result || (!data.normal && !data.b2b)) throw new Error(data?.error || "Invalid response format.");
+            if (!ok) { // Handle HTTP errors (4xx, 5xx)
+                throw new Error(data?.error || `Server responded with status ${status}`);
+            }
+            // Check if essential data parts are present in successful response
+            if (!data.result || (!data.normal && !data.b2b)) {
+                 throw new Error(data?.error || "Received an invalid response format from server.");
+            }
 
+            // Display the generated challenge HTML
             if (resultDiv) resultDiv.innerHTML = data.result;
 
+            // --- Branch logic based on Authentication Status ---
             if (isAuthenticated) {
-                console.log("User logged in. Enabling Share button.");
-                window.currentChallengeData = data; // Store data for share module
-                if (shareBtn) shareBtn.style.display = "inline-block";
-                if (viewLocalBtn) viewLocalBtn.style.display = 'none';
+                // LOGGED IN USER -> Show Share Button
+                console.log("User is logged in. Enabling Share button.");
+                window.currentChallengeData = data; // Make data available for challenge_share.js
+                if (shareBtn) shareBtn.style.display = "inline-block"; // Show the actual share button
+                if (viewLocalBtn) viewLocalBtn.style.display = 'none'; // Ensure local button remains hidden
+
             } else {
-                console.log("User anonymous. Saving locally.");
-                const localId = `local_${crypto.randomUUID()}`;
+                // ANONYMOUS USER -> Save Locally & Show Local View Button
+                console.log("User is anonymous. Saving challenge locally.");
+                const localId = `local_${crypto.randomUUID()}`; // Use built-in UUID generator
+
                 const challengeToStore = {
                     localId: localId,
                     name: formData.get('challenge_name') || `Local Challenge ${new Date().toLocaleDateString()}`,
                     createdAt: new Date().toISOString(),
                     challengeData: { normal: data.normal, b2b: data.b2b },
-                    penalty_info: data.penalty_info
+                    penalty_info: data.penalty_info // Save penalty info if generated
                 };
-                const saved = saveChallengeToLocalStorage(challengeToStore);
+
+                const saved = saveChallengeToLocalStorage(challengeToStore); // Call the imported util
+
                 if (saved && viewLocalBtn) {
-                     const viewUrl = new URL(window.viewLocalChallengeBaseUrl, window.location.origin);
-                     viewUrl.searchParams.set('id', localId);
-                     viewLocalBtn.href = viewUrl.pathname + viewUrl.search;
-                     viewLocalBtn.style.display = 'inline-block';
-                } else if (!saved && resultDiv) {
-                    resultDiv.innerHTML += '<p class="text-danger mt-2">Warning: Could not save challenge locally.</p>';
+                    // *** CORRECTED: Construct URL directly to the unified challenge view route ***
+                    viewLocalBtn.href = `/challenge/${localId}`;
+                    viewLocalBtn.style.display = 'inline-block'; // Show the view local button
+                } else if (!saved) {
+                    console.error("Failed to save challenge to local storage.");
+                    showError(errorDisplay,"Warning: Could not save challenge locally (storage might be full)."); // Use showError
                 }
-                if (shareBtn) shareBtn.style.display = 'none';
+                 if (shareBtn) shareBtn.style.display = 'none'; // Ensure share button hidden
             }
+            // --- End Branch ---
+
         })
         .catch(error => {
+            // Handle fetch errors or errors thrown from .then()
             console.error("Challenge Generation Error:", error);
-            if (resultDiv) resultDiv.innerHTML = `<p class="text-danger text-center">Failed: ${error.message}</p>`;
-            alert("Failed to generate challenge: " + error.message);
+            if (resultDiv) resultDiv.innerHTML = `<p class="text-danger text-center">Failed to generate challenge: ${error.message}</p>`;
+            showError(errorDisplay, "Failed to generate challenge: " + error.message); // Use showError
         })
         .finally(() => {
+            // Always re-enable the generate button
             if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Generate Challenge'; }
         });
 }

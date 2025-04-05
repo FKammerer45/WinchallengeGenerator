@@ -194,7 +194,7 @@ def share_challenge():
             session.commit() # Commit transaction
             logger.info(f"Successfully created SharedChallenge {public_id} by user {current_user.username}")
 
-            share_url = url_for('main.challenge_view', public_id=public_id, _external=True)
+            share_url = url_for('main.challenge_view', challenge_id=public_id, _external=True)
             return jsonify({
                 "status": "success",
                 "message": "Challenge shared successfully.",

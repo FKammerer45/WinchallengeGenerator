@@ -8,7 +8,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager
 from sqlalchemy.exc import OperationalError
 from flask_migrate import Migrate # Keep Flask-Migrate import
-
+from .database import engine, Base, SessionLocal
 # --- Configuration Import ---
 # Add project root to path to find config.py reliably
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -122,7 +122,7 @@ def create_app(config_object=config):
         from .routes.tabs_api import tabs_api_bp
         from .routes.challenge_api import challenge_api_bp # Contains generate, share, group, progress APIs
         from .routes.penalties_api import penalties_api_bp
-        # Removed import for shared_challenge_api if routes were added to challenge_api_bp
+ 
 
         # Register blueprints
         app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -189,7 +189,7 @@ def create_app(config_object=config):
     @app.errorhandler(Exception)
     def handle_unhandled_exception(e):
         # Avoid double-logging if it's an HTTPException already handled (like 500)
-        if not isinstance(e, (jsonify.HTTPException, OperationalError)): # Add OperationalError if db connection fails
+        if not isinstance(e, (HTTPException, OperationalError)): # Add OperationalError if db connection fails
              app.logger.error(f"Unhandled Exception: {e}", exc_info=True)
         # Try rollback for safety
         try:

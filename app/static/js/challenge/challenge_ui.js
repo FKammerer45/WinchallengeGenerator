@@ -136,15 +136,22 @@ export function addGroupToDOM(group, challengeConfig) {
     buttonContainer.innerHTML = ''; // Clear template footer
     const initialButton = document.createElement('button');
     initialButton.dataset.groupId = group.id;
-    if (challengeConfig.userJoinedGroupId === null) {
-         initialButton.className = 'btn btn-sm btn-success join-group-btn';
-         initialButton.innerHTML = '<span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Join Group</span>';
+    if (challengeConfig.isMultigroup) {
+        buttonContainer.innerHTML = ''; // Clear footer
+        const initialButton = document.createElement('button');
+        initialButton.dataset.groupId = group.id;
+        if (challengeConfig.userJoinedGroupId === null) {
+            initialButton.className = 'btn btn-sm btn-success join-group-btn';
+            initialButton.innerHTML = '<span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Join Group</span>';
+        } else {
+            initialButton.className = 'btn btn-sm btn-outline-secondary';
+            initialButton.disabled = true;
+            initialButton.innerHTML = '<span>Joined Other</span>';
+        }
+        buttonContainer.appendChild(initialButton);
     } else {
-         initialButton.className = 'btn btn-sm btn-outline-secondary';
-         initialButton.disabled = true;
-         initialButton.innerHTML = '<span>Joined Other</span>';
+         buttonContainer.remove(); // Remove footer entirely for single group mode
     }
-    buttonContainer.appendChild(initialButton);
 
     groupsContainer.appendChild(clone);
     console.log(`Group card added for ${group.name}`);
@@ -157,47 +164,46 @@ export function addGroupToDOM(group, challengeConfig) {
  * @param {object} challengeConfig - The main configuration object containing userJoinedGroupId.
  */
 export function updateUIAfterMembershipChange(challengeConfig) {
-    console.log(`UI: Updating based on userJoinedGroupId: ${challengeConfig.userJoinedGroupId}`);
+    console.log(`UI: Updating based on userJoinedGroupId: ${challengeConfig.userJoinedGroupId}, isMultigroup: ${challengeConfig.isMultigroup}`);
     const groupsContainer = document.getElementById('groupsContainer');
     if (!groupsContainer) return;
 
     groupsContainer.querySelectorAll('.group-card-wrapper').forEach(card => {
         const cardGroupId = parseInt(card.dataset.groupId, 10);
-        const buttonContainer = card.querySelector('.card-footer');
+        const buttonContainer = card.querySelector('.card-footer'); // Should have .join-leave-footer class?
         const checkBoxes = card.querySelectorAll('.progress-checkbox');
-        if (!buttonContainer || isNaN(cardGroupId)) { console.warn(`Skipping card update`, card); return; }
+        if (isNaN(cardGroupId)) return; // Skip if ID invalid
 
-        let currentButton = buttonContainer.querySelector('button');
-        if (!currentButton) { /* Create placeholder if needed */
-             currentButton = document.createElement('button'); currentButton.dataset.groupId = cardGroupId;
-             currentButton.innerHTML = '<span class="spinner-border spinner-border-sm" style="display: none;"></span><span></span>';
-             buttonContainer.innerHTML = ''; buttonContainer.appendChild(currentButton);
+        let isMember = (challengeConfig.userJoinedGroupId === cardGroupId);
+
+        // --- Checkbox Enable/Disable ---
+        // For multigroup, disable if not member. For single group, always enable.
+        const disableCheckboxes = challengeConfig.isMultigroup && !isMember;
+        checkBoxes.forEach(cb => cb.disabled = disableCheckboxes);
+
+        // --- Button Update (Only for Multigroup) ---
+        if (challengeConfig.isMultigroup) {
+            if (!buttonContainer) { console.warn(`Button container missing for group ${cardGroupId}`); return; }
+            let currentButton = buttonContainer.querySelector('button');
+            if (!currentButton) { /* Create placeholder */ /* ... */ }
+            const buttonTextSpan = currentButton.querySelector('span:not(.spinner-border-sm)');
+
+            let btnClass = 'btn btn-sm'; let btnText = ''; let btnDisabled = false;
+
+            if (challengeConfig.userJoinedGroupId === null) { // Can join any group
+                btnClass += ' btn-success join-group-btn'; btnText = 'Join Group';
+            } else if (isMember) { // Joined this group
+                btnClass += ' btn-danger leave-group-btn'; btnText = 'Leave Group';
+            } else { // Joined another group
+                btnClass += ' btn-outline-secondary'; btnText = 'Joined Other'; btnDisabled = true;
+            }
+            currentButton.className = btnClass; currentButton.disabled = btnDisabled;
+            if (buttonTextSpan) buttonTextSpan.textContent = btnText;
+            currentButton.dataset.groupId = cardGroupId;
+            setLoading(currentButton, false);
+        } else {
+            // If single group mode, ensure no button container exists or is empty/hidden
+            if(buttonContainer) buttonContainer.style.display = 'none';
         }
-        const buttonTextSpan = currentButton.querySelector('span:not(.spinner-border-sm)');
-        const isMember = (challengeConfig.userJoinedGroupId === cardGroupId);
-
-        let btnClass = 'btn btn-sm';
-        let btnText = '';
-        let btnDisabled = false;
-        let checkDisabled = true; // Checkboxes disabled by default
-
-        if (challengeConfig.userJoinedGroupId === null) { // Can join any group
-            btnClass += ' btn-success join-group-btn'; btnText = 'Join Group';
-        } else if (isMember) { // Joined this group
-            btnClass += ' btn-danger leave-group-btn'; btnText = 'Leave Group'; checkDisabled = false; // Enable checkboxes
-        } else { // Joined another group
-            btnClass += ' btn-outline-secondary'; btnText = 'Joined Other'; btnDisabled = true;
-        }
-
-        // Update Button
-        currentButton.className = btnClass;
-        currentButton.disabled = btnDisabled;
-        if (buttonTextSpan) buttonTextSpan.textContent = btnText;
-        currentButton.dataset.groupId = cardGroupId; // Ensure group ID is correct
-
-        // Update Checkboxes
-        checkBoxes.forEach(cb => cb.disabled = checkDisabled);
-
-        setLoading(currentButton, false); // Reset loading state
     });
 }

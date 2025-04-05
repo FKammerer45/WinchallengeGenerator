@@ -165,10 +165,7 @@
   window.csrfToken = "{{ csrf_token() }}";
   window.generateChallengeUrl = "{{ url_for('challenge_api.generate_challenge') }}";
   window.shareChallengeUrl = "{{ url_for('challenge_api.share_challenge') }}";
-  window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }}; // Pass boolean
-  // Assume view_local_challenge_viewer is the endpoint for the local viewer page
-  window.viewLocalChallengeBaseUrl = "{{ url_for('main.view_local_challenge_viewer', _external=False) }}";
-
+  window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }}; 
   console.log("[index.html] URLs, CSRF Token, Auth Status set for JS.");
 </script>
 {# Load main JS module entry point #}

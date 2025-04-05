@@ -13,13 +13,13 @@ let myChallengesContainer = null;
 let localChallengesContainer = null;
 let noChallengesMessageContainer = null;
 let pageContainer = null;
-let statusDiv = null;
+let statusDiv = null; // For displaying delete status messages
 
 // --- State ---
 let pageConfig = {
     isAuthenticated: false,
     csrfToken: null,
-    viewLocalUrl: '/view_local' // Default fallback
+    viewLocalUrl: '/challenge/' // Default fallback, overridden by data attribute
 };
 
 /**
@@ -32,10 +32,10 @@ function createLocalChallengeCard(challenge) {
     colDiv.className = 'col-md-6 col-lg-4 mb-4 local-challenge-item';
     colDiv.dataset.localId = challenge.localId;
 
-    // Construct link to the local viewer page using configured base URL
-    const viewUrl = new URL(pageConfig.viewLocalUrl, window.location.origin);
-    viewUrl.searchParams.set('id', challenge.localId);
-    const href = viewUrl.pathname + viewUrl.search;
+    // --- CORRECTED: Define baseUrl and construct href ---
+    const baseUrl = pageConfig.viewLocalUrl || '/challenge/'; // Read from config
+    const href = `${baseUrl}${challenge.localId}`; // Construct path: /challenge/local_...
+    // --- END CORRECTION ---
 
     colDiv.innerHTML = `
         <div class="card challenge-card h-100">
@@ -69,7 +69,6 @@ function createLocalChallengeCard(challenge) {
  */
 function renderLocalChallenges() {
     if (!localChallengesContainer) { console.error("Local challenge container not found."); return; }
-
     console.log("Rendering local challenges...");
     const challenges = getLocalChallenges();
     localChallengesContainer.innerHTML = ''; // Clear placeholder/previous content
@@ -83,16 +82,14 @@ function renderLocalChallenges() {
         });
     } else {
         console.log("No local challenges found in storage.");
-        // Display message only within the local section if desired
         localChallengesContainer.innerHTML = '<div class="col-12"><p class="text-muted fst-italic small text-center">No challenges saved locally in this browser.</p></div>';
     }
-    // Update the visibility of the main "no challenges" message
-    updateNoChallengesMessageVisibility();
+    updateNoChallengesMessageVisibility(); // Update overall message visibility
 }
 
 /**
  * Checks if any challenges (DB or Local) are visible and updates the
- * visibility of the main 'no challenges' message container.
+ * visibility and text of the 'no challenges' message container.
  */
 function updateNoChallengesMessageVisibility() {
     const dbItemsVisible = myChallengesContainer?.querySelector('.challenge-list-item');
@@ -101,14 +98,13 @@ function updateNoChallengesMessageVisibility() {
         const showMessage = !dbItemsVisible && !localItemsVisible;
         console.log(`Updating 'No Challenges' message visibility: ${showMessage}`);
         noChallengesMessageContainer.classList.toggle('d-none', !showMessage);
-        // Set appropriate text if message is shown
         if (showMessage) {
-             const pTag = noChallengesMessageContainer.querySelector('p');
-             if (pTag) {
-                  pTag.textContent = pageConfig.isAuthenticated
-                    ? 'You haven\'t created and shared any challenges yet. Go to the generator!'
-                    : 'You have no locally saved challenges. Generate one on the home page!';
-             }
+            const pTag = noChallengesMessageContainer.querySelector('p');
+            if (pTag) {
+                 pTag.textContent = pageConfig.isAuthenticated
+                   ? 'You haven\'t created and shared any challenges yet. Go to the generator!'
+                   : 'You have no locally saved challenges. Generate one on the home page!';
+            }
         }
     }
 }
@@ -121,69 +117,54 @@ function updateNoChallengesMessageVisibility() {
 async function handleDeleteClick(event) {
     const deleteDbButton = event.target.closest('.delete-challenge-btn');
     const deleteLocalButton = event.target.closest('.delete-local-challenge-btn');
-
-    // Determine target based on which button was clicked
     const targetButton = deleteDbButton || deleteLocalButton;
-    if (!targetButton) return; // Click wasn't on a delete button
+    if (!targetButton) return;
 
-    const isLocalDelete = !!deleteLocalButton; // True if local, false if DB
+    const isLocalDelete = !!deleteLocalButton;
     const id = isLocalDelete ? deleteLocalButton.dataset.localId : deleteDbButton.dataset.publicId;
-    const challengeName = targetButton.dataset.challengeName || (isLocalDelete ? 'this local challenge' : 'this challenge');
-    const csrfToken = pageConfig.csrfToken; // Use token from config
+    const challengeName = targetButton.dataset.challengeName || 'this challenge';
+    const csrfToken = pageConfig.csrfToken;
 
-    if (!id) {
-        showError(statusDiv, `Cannot delete challenge: Missing ${isLocalDelete ? 'local' : 'public'} ID.`, 'danger');
-        return;
-    }
-    // CSRF only needed for DB deletes (API call)
-    if (!isLocalDelete && !csrfToken) {
-        showError(statusDiv, "Cannot delete challenge: Security token missing.", "danger");
-        return;
-    }
+    // Use statusDiv defined globally in module scope
+    if (!id) { showError(statusDiv, `Cannot delete: Missing ID.`, 'danger'); return; }
+    if (!isLocalDelete && !csrfToken) { showError(statusDiv, "Cannot delete: Token missing.", "danger"); return; }
 
-    // Confirmation
-    const confirmMsg = `Are you sure you want to delete "${challengeName}" (${isLocalDelete ? 'Local' : 'Shared'})?\n\nThis ${isLocalDelete ? 'removes it only from this browser' : 'is permanent and removes all group progress'}.`;
-    if (!confirm(confirmMsg)) {
-        console.log("Delete cancelled by user.");
-        return;
-    }
+    const confirmMsg = `Delete "${challengeName}" (${isLocalDelete ? 'Local' : 'Shared'})? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
 
-    console.log(`Attempting to delete ${isLocalDelete ? 'local' : 'DB'} challenge ${id}`);
-    setLoading(targetButton, true, 'Deleting...'); // Show loading state on the correct button
+    setLoading(targetButton, true, 'Deleting...');
     showError(statusDiv, null); // Clear previous status messages
 
     try {
         if (isLocalDelete) {
-            // --- Handle Local Delete ---
-             // Use setTimeout to ensure spinner shows before potential sync storage access
-            await new Promise(resolve => setTimeout(resolve, 10));
-            const deleted = deleteLocalChallenge(localId);
-            if (!deleted) throw new Error("Challenge not found in local storage or delete failed.");
-            console.log(`Successfully deleted local challenge ${id}`);
-            // displayStatus(`Local challenge "${escapeHtml(challengeName)}" deleted.`, 'success'); // Optional
+            await new Promise(resolve => setTimeout(resolve, 10)); // UI tick
+            const deleted = deleteLocalChallenge(id);
+            if (!deleted) throw new Error("Not found or delete failed.");
+            console.log(`Deleted local challenge ${id}`);
+            // Optional success message via showError
+            // showError(statusDiv, `Local challenge deleted.`, 'success');
 
-        } else {
-            // --- Handle DB Delete ---
-            const url = `/api/challenge/${id}`; // publicId is used in URL
-            await apiFetch(url, { method: 'DELETE' }, csrfToken); // Call API
-            console.log(`Successfully deleted DB challenge ${id}`);
-            displayStatus(`Challenge "${escapeHtml(challengeName)}" deleted.`, 'success');
+        } else { // DB Delete
+            const url = `/api/challenge/${id}`;
+            await apiFetch(url, { method: 'DELETE' }, csrfToken);
+            console.log(`Deleted DB challenge ${id}`);
+            showError(statusDiv, `Challenge "${escapeHtml(challengeName)}" deleted.`, 'success');
         }
 
-        // --- Common Success UI Update ---
+        // Common UI removal
         const challengeItem = targetButton.closest('.challenge-list-item, .local-challenge-item');
         if (challengeItem) {
             challengeItem.style.transition = 'opacity 0.4s ease';
             challengeItem.style.opacity = '0';
             setTimeout(() => {
                 challengeItem.remove();
-                updateNoChallengesMessageVisibility(); // Update overall empty message visibility
+                updateNoChallengesMessageVisibility();
             }, 400);
         }
 
     } catch (error) {
         console.error(`Failed to delete ${isLocalDelete ? 'local' : 'DB'} challenge:`, error);
-        showError(statusDiv, `Error deleting challenge: ${error.message}`, 'danger');
+        showError(statusDiv, `Error deleting: ${error.message}`, 'danger');
         setLoading(targetButton, false); // Reset button only on error
     }
 }
@@ -193,49 +174,34 @@ async function handleDeleteClick(event) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log("my_challenges.js: Initializing...");
 
-    // Find main containers
+    // Assign DOM elements to module variables
     myChallengesContainer = document.getElementById('myChallengesContainer');
     localChallengesContainer = document.getElementById('localChallengesContainer');
     noChallengesMessageContainer = document.getElementById('noChallengesMessageContainer');
-    pageContainer = document.querySelector('.container.mt-4'); // For delegated listener
-    statusDiv = document.getElementById('deleteStatus'); // For messages
+    pageContainer = document.querySelector('.container.mt-4');
+    statusDiv = document.getElementById('deleteStatus'); // Element for showError messages
 
     // Read initial data from the dedicated data div
-    const dataEl = document.getElementById('myData'); // Assumes this ID exists in my_challenges.html
+    const dataEl = document.getElementById('myData');
     if (dataEl?.dataset) {
         try {
-            pageConfig.isAuthenticated = dataEl.dataset.isAuthenticated === 'true';
-            pageConfig.csrfToken = dataEl.dataset.csrfToken;
-            pageConfig.viewLocalUrl = dataEl.dataset.viewLocalUrl || '/view_local';
-            console.log("my_challenges.js: Page config read:", pageConfig);
-        } catch (e) {
-            console.error("my_challenges.js: Failed to read page config from data attributes:", e);
-            showError(statusDiv, "Error reading page configuration.", "danger");
-            // Potentially stop further execution if config is critical
-            // return;
-        }
-    } else {
-        console.error("CRITICAL: #myData element not found. Cannot initialize page properly.");
-        // Display error to user?
-        if (statusDiv) showError(statusDiv, "Error initializing page: Cannot find data element.", "danger");
-        return; // Stop if essential data container is missing
-    }
+             pageConfig = {
+                 isAuthenticated: dataEl.dataset.isAuthenticated === 'true',
+                 csrfToken: dataEl.dataset.csrfToken,
+                 viewLocalUrl: dataEl.dataset.viewLocalUrl || '/challenge/' // Use correct fallback
+             };
+             console.log("my_challenges.js: Page config read:", pageConfig);
+        } catch (e) { console.error("my_challenges.js: Failed to read page config:", e); showError(statusDiv, "Error reading config."); return; }
+    } else { console.error("CRITICAL: #myData element missing."); showError(statusDiv, "Init Error: Data missing."); return; }
 
+    // Render local challenges (handles empty case internally)
+    renderLocalChallenges();
 
-    renderLocalChallenges(); // Handles empty case internally
-
-
-    // Update the 'no challenges' message based on initial render state
-    updateNoChallengesMessageVisibility();
+    // Initial check for the 'no challenges' message is done by renderLocalChallenges
 
     // Attach single delegated listener for delete clicks
     if (pageContainer) {
         pageContainer.addEventListener('click', handleDeleteClick);
         console.log("Delete listener attached via delegation.");
-    } else {
-        console.warn("Could not find main page container for delete listener delegation.");
-        // Add specific listeners as fallback (less efficient)
-        myChallengesContainer?.addEventListener('click', handleDeleteClick);
-        localChallengesContainer?.addEventListener('click', handleDeleteClick);
-    }
+    } else { console.warn("Could not find main page container for delete listener."); }
 });

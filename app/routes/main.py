@@ -1,147 +1,45 @@
 # app/routes/main.py
 import logging
-from flask import Blueprint, render_template, jsonify, request, current_app, abort, flash, redirect, url_for
-from flask_login import current_user, login_required
-# --- REMOVE THIS LINE ---
-# from app import db
-# --- ADD THIS LINE (adjust path if database.py is elsewhere) ---
+import uuid
+from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app # Added current_app for potential config access
+from flask_login import current_user # Removed unnecessary login_required here
 from app.database import SessionLocal
-# --- Keep Model Imports ---
-from app.models import SharedChallenge, ChallengeGroup
-# --- Keep SQLAlchemy Imports ---
+from app.models import SharedChallenge, ChallengeGroup, User
 from sqlalchemy.orm import joinedload, selectinload
-
 from sqlalchemy import desc
-# --- Keep Logging ---
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
 
-# In-memory storage for accepted challenges (Not persistent!)
-# This list is no longer used by the /challenge/<public_id> route.
-# Consider if it's needed elsewhere or should be removed/replaced with DB logic.
-accepted_challenges_list = []
 
 @main_bp.route("/")
 def index():
     """Renders the main page (challenge generation form)."""
     logger.debug("Rendering index page.")
-    # Game preferences are handled client-side via localStorage.
-    # Pass an empty dict to avoid template errors if game_vars is expected.
     return render_template("index.html", game_vars={})
-
-# <<< MODIFIED ROUTE AND FUNCTION >>>
-# The original route @main_bp.route("/challenge") is replaced by this parameterized route.
-@main_bp.route("/challenge/<public_id>")
-def challenge_view(public_id):
-    """
-    Renders the page displaying a specific shared challenge, its groups,
-    and determines which group the current user has joined for this challenge.
-    """
-    logger.debug(f"Request received for shared challenge with public_id: {public_id}")
-
-    with SessionLocal() as session:
-        try:
-            # Eagerly load groups AND members for checks and display
-            shared_challenge = session.query(SharedChallenge).options(
-                selectinload(SharedChallenge.groups) # Use selectinload for groups...
-                    .selectinload(ChallengeGroup.members) # ...and members within each group
-            ).filter_by(public_id=public_id).first()
-
-            if shared_challenge is None:
-                logger.warning(f"Shared challenge with public_id '{public_id}' not found.")
-                abort(404)
-
-            # --- Find which group the current user joined (if any) ---
-            user_joined_group_id = None
-            if current_user.is_authenticated:
-                logger.debug(f"Checking group membership for user {current_user.id} and challenge {shared_challenge.id}")
-                # Iterate through the already loaded groups and their members
-                for group in shared_challenge.groups:
-                    # Efficient check using the loaded members list
-                    if any(member.id == current_user.id for member in group.members):
-                        user_joined_group_id = group.id
-                        logger.debug(f"User {current_user.id} found in group {group.id}")
-                        break # User can only be in one group per challenge
-            # --- End membership check ---
-
-            logger.debug(f"Found challenge '{shared_challenge.name or public_id}'. User joined group ID: {user_joined_group_id}. Rendering view.")
-            # Pass the challenge object AND the user's joined group ID to the template
-            return render_template(
-                "challenge.html",
-                shared_challenge=shared_challenge,
-                user_joined_group_id=user_joined_group_id # Pass the ID (or None)
-            )
-
-        except Exception as e:
-             logger.exception(f"Error loading shared challenge {public_id} in main.py")
-             flash("Could not load the requested challenge due to a server error.", "danger")
-             return "<h1>Error</h1><p>Could not load challenge.</p>", 500
 
 @main_bp.route("/games")
 def games_config():
     """Renders the games configuration page."""
     logger.debug("Rendering games config page.")
-    # Data for this page (tabs, entries) is primarily managed client-side.
-    # Pass empty structures to avoid template errors if variables are expected.
-    return render_template(
-        "games/games.html",
-        games=[],              # Entries rendered by JS from localStorage
-        existing_games=[],     # Datalist populated by JS from localStorage
-        game_vars={}           # Preferences handled by JS from localStorage
-    )
+    return render_template("games/games.html", games=[], existing_games=[], game_vars={})
 
-@main_bp.route("/penalties") # Route path remains /penalties
-def penalties_config(): # Function name updated
-    """Renders the penalties configuration page (data loaded client-side)."""
+@main_bp.route("/penalties")
+def penalties_config():
+    """Renders the penalties configuration page."""
     logger.debug("Rendering penalties config page shell.")
-    # Just render the template, JavaScript will fetch defaults or load from localStorage
     return render_template("penalties.html")
 
 
-@main_bp.route("/accept_challenge", methods=["POST"])
-def accept_challenge():
-    """API endpoint to accept a generated challenge (potentially including penalty info)."""
-    # NOTE: This still uses the in-memory accepted_challenges_list.
-    # Consider if this logic needs to change (e.g., relate to user accounts or groups).
-    data = request.get_json()
-    # Basic validation: Check if it looks like challenge data
-    if not data or not isinstance(data, dict) or 'result' not in data:
-        logger.warning(f"Received invalid data structure for /accept_challenge: {type(data)}")
-        return jsonify({"error": "Invalid challenge data provided"}), 400
 
-    # Log acceptance, including penalty status
-    p_info = data.get('penalty_info') # Will be dict or None
-    log_msg = "Accepting challenge (in-memory)."
-    if p_info and isinstance(p_info, dict): # Check if it's the expected dict
-        log_msg += f" Includes penalty info for tab '{p_info.get('tab_id')}' and players {p_info.get('player_names')}."
-    else:
-        log_msg += " No penalty info included."
-    logger.info(log_msg)
-    # Log challenge details snippet (optional)
-    # logger.debug(f"Accepted challenge details (start): {data.get('result', '')[:100]}...")
-
-    accepted_challenges_list.append(data)
-    # Optional: Limit the size of the list
-    MAX_ACCEPTED = 20 # Example limit
-    if len(accepted_challenges_list) > MAX_ACCEPTED:
-        accepted_challenges_list.pop(0) # Remove the oldest challenge
-
-    return jsonify({"status": "ok"})
-
-
-
+# --- My Challenges Page ---
 @main_bp.route("/my_challenges")
-# --- DELETE THIS LINE ---
-# @login_required
-# --- END DELETE ---
 def my_challenges_view():
-    """Displays database challenges for logged-in users OR loads JS
+    """Displays DB challenges for logged-in users OR loads JS
        to display local challenges for anonymous users."""
-    logger.debug(f"Request received for /my_challenges...") # Updated log message
+    logger.debug(f"Request received for /my_challenges...")
 
     user_challenges = []
-    # Check authentication status *inside* the function now
     is_authenticated = current_user.is_authenticated
 
     if is_authenticated:
@@ -152,31 +50,102 @@ def my_challenges_view():
                 user_challenges = session.query(SharedChallenge)\
                     .filter(SharedChallenge.creator_id == current_user.id)\
                     .order_by(desc(SharedChallenge.created_at))\
-                    .all()
+                    .options(selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members))\
+                    .all() # <--- Line ~57 in your file?
+
+                # --- CHECK INDENTATION HERE ---
+                # This logger line (and subsequent lines) should be aligned
+                # with the 'user_challenges = session.query...' line above,
+                # NOT indented further than '.all()'.
                 logger.info(f"Found {len(user_challenges)} DB challenges for user {current_user.username}")
+        # --- Ensure except block is aligned with try ---
         except Exception as e:
             logger.exception(f"Error fetching DB challenges for user {current_user.username}")
             flash("Could not load your saved challenges due to a server error.", "danger")
-            # Return template but with empty list on error
             user_challenges = []
     else:
         logger.debug("... by anonymous user. Will rely on JS for local challenges.")
-        # No need to query DB for anonymous user
 
-    # Render the template, passing authentication status and DB challenges (if any)
-    # The template's JS ('my_challenges.js') will handle loading local challenges if needed
+    # --- Ensure this return is aligned with the outer 'def' or 'if/else' block ---
     return render_template(
         "my_challenges.html",
-        user_challenges=user_challenges, # Will be empty list for anonymous users
-        is_authenticated=is_authenticated # Pass status to template for JS/Jinja logic
+        user_challenges=user_challenges,
+        is_authenticated=is_authenticated
         )
 
-@main_bp.route("/view_local")
-def view_local_challenge_viewer():
-    """Renders the HTML shell page for viewing a locally stored challenge.
-    The actual challenge data is loaded via JavaScript.
-    """
-    # No database interaction needed here.
-    # We don't need to check for login, anonymous users use this.
-    logger.debug("Rendering local challenge viewer shell.")
-    return render_template("view_local_challenge.html")
+# --- Unified Challenge View Route ---
+@main_bp.route("/challenge/<string:challenge_id>")
+def challenge_view(challenge_id):
+    """Renders the view for DB or Local challenges."""
+    logger.debug(f"Request received for /challenge/{challenge_id}")
+
+    is_local = False
+    is_multigroup = False
+    shared_challenge = None
+    user_joined_group_id = None
+    initial_groups_data = None
+
+    if challenge_id.startswith("local_"):
+        is_local = True
+        logger.debug(f"Identified as local challenge ID: {challenge_id}")
+        # JS handles loading, is_multigroup=False, user_joined_group_id=None
+    else:
+        # Assume database public_id (UUID)
+        is_local = False
+        try:
+            uuid.UUID(challenge_id, version=4) # Validate format
+        except ValueError:
+            logger.warning(f"Invalid public_id format provided: {challenge_id}")
+            abort(404) # Invalid format -> Not Found
+
+        logger.debug(f"Attempting to load DB challenge: {challenge_id}")
+        # --- Remove outer try/except Exception block ---
+        # Now, only specific DB errors or template errors will cause 500
+        with SessionLocal() as session:
+            # Query DB challenge with eager loading
+            shared_challenge = session.query(SharedChallenge).options(
+                selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members),
+                joinedload(SharedChallenge.creator)
+            ).filter(SharedChallenge.public_id == challenge_id).first()
+
+            # --- This check now correctly triggers Flask's 404 handler ---
+            if not shared_challenge:
+                logger.warning(f"DB Challenge {challenge_id} not found in database.")
+                abort(404)
+            # --- End 404 check ---
+
+            is_multigroup = shared_challenge.max_groups > 1
+
+            # Determine user membership
+            if current_user.is_authenticated:
+                logger.debug(f"Checking membership for user {current_user.id}...")
+                for group in shared_challenge.groups:
+                    if any(member.id == current_user.id for member in group.members):
+                        user_joined_group_id = group.id; break
+
+            # Prepare initial group data
+            initial_groups_data = [
+                 {"id": g.id, "name": g.group_name, "progress": g.progress_data or {}, "member_count": len(g.members)}
+                 for g in shared_challenge.groups
+            ]
+            logger.debug(f"Found DB challenge '{shared_challenge.name}'. Mode: {'Multi' if is_multigroup else 'Single'}. User joined: {user_joined_group_id}.")
+        # --- End SessionLocal block ---
+        # Note: A database connection/query error within the 'with' block would now
+        # likely result in a 500 error handled by the global Flask error handler.
+
+    # --- Render the template ---
+    # A TemplateSyntaxError here would also result in a 500 error
+    try:
+        return render_template(
+            "challenge.html",
+            shared_challenge=shared_challenge,
+            challenge_id=challenge_id,
+            is_local=is_local,
+            is_multigroup=is_multigroup,
+            user_joined_group_id=user_joined_group_id,
+            initial_groups=initial_groups_data
+        )
+    except Exception as render_error:
+        # Log template rendering errors specifically
+        logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")
+        abort(500) # Abort with 500 if template rendering fails
