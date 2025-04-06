@@ -200,7 +200,6 @@ function handleChallengeFormSubmit(event) {
     if (shareResultDiv) { shareResultDiv.style.display = 'none'; shareResultDiv.innerHTML = ''; }
     if (viewLocalBtn) viewLocalBtn.style.display = 'none';
 
-    console.log("Submitting challenge generation request...");
 
     // --- Call /generate API ---
     fetch(window.generateChallengeUrl, { method: "POST", body: formData })

@@ -21,12 +21,10 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - recaptcha.py
 
 ./app/routes/
-  - __init__.py
   - challenge_api.py
   - games_api.py
   - main.py
   - penalties_api.py
-  - shared_challenge_api.py
   - tabs_api.py
 
 ./app/static/js/
@@ -34,6 +32,13 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
 
 ./app/static/js/challenge/
   - challenge.js
+  - challenge_form.js
+  - challenge_penalty.js
+  - challenge_share.js
+  - challenge_ui.js
+  - challenge_view.js
+  - local_challenge_storage.js
+  - my_challenges.js
 
 ./app/static/js/games/
   - entryManagement.js
@@ -52,12 +57,16 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - penaltyLocalStorageUtils.js
   - penaltyTabManagement.js
 
+./app/static/js/utils/
+  - api.js
+  - helpers.js
+
 ./app/templates/
   - base.html
   - challenge.html
   - index.html
+  - my_challenges.html
   - penalties.html
-  - shared_challenge.html
 
 ./app/templates/auth/
   - change_password.html
@@ -67,6 +76,7 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
 
 ./app/templates/challenge/
   - _challenge_details.html
+  - _challenge_group_progress.html
   - _challenge_info_bar.html
   - _challenge_penalty_section.html
   - _challenge_timer.html
@@ -79,17 +89,4 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
 ./app/templates/penalties/
   - penalties_modals.html
   - penalties_table.html
-
-./static/js/
-  - app.js
-
-./static/js/challenge/
-  - challenge.js
-
-./static/js/games/
-  - entryManagement.js
-  - games.js
-  - gamesExtensions.js
-  - localStorageUtils.js
-  - tabManagement.js
 

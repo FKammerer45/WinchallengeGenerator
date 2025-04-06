@@ -2,154 +2,167 @@
 
 /* Styles relevant for challenge view layout and components */
 
-/* Penalty Section (if using penalty wheel) */
-.penalty-result-display {
-    background-color: #343a40;
-    border: 1px solid #ffc107;
-    border-radius: .25rem;
-    padding: 1rem;
-    margin-top: 1rem;
-    color: #f8f9fa;
-    min-height: 70px;
-    text-align: center;
-    font-size: 1.1em;
-    font-weight: bold;
-  }
-  
-  /* Style for the wheel pointer (if using penalty wheel) */
-  .wheel-pointer {
-    position: absolute;
-    top: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 15px solid transparent;
-    border-right: 15px solid transparent;
-    border-top: 20px solid #FF0000; /* Red pointer color */
-    z-index: 10;
-  }
-  
-  /* Container style (if using penalty wheel) */
-  .wheel-container {
-    position: relative;
-    padding-top: 30px; /* Space for pointer */
-    text-align: center; /* Center canvas */
+/* Style for table elements (if used by included partials like _challenge_details) */
+.table th,
+.table td {
+  vertical-align: middle;
+  padding: 0.5rem;
+}
+.table thead th {
+  border-bottom: 2px solid #454d55; /* Assuming dark theme */
+}
+
+/* Style for progress items (checkboxes and labels) */
+.progress-item .form-check-input {
+  cursor: pointer;
+  transform: scale(1.2);
+  margin-right: 0.5rem;
+}
+.progress-item label {
+   cursor: pointer;
+   margin-left: 0.3rem;
+   display: inline-block;
+   vertical-align: middle;
+}
+.progress-item.completed label {
+    text-decoration: line-through;
+    opacity: 0.6;
+    font-style: italic;
+}
+.progress-item {
+    margin-bottom: 0.5rem;
+}
+
+/* Styling for group cards (Base) */
+.group-card {
+    background-color: #343a40; /* Dark background */
+    border: 1px solid #495057;
+    color: #f8f9fa; /* Light text */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease-in-out;
+}
+.group-card:hover:not(.joined-group-active .card.group-card) { /* Hover only if not the active joined card */
+    box-shadow: 0 0 15px rgba(255, 193, 7, 0.5);
+}
+.group-card .card-body {
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: 400px; /* Adjust as needed */
+}
+.group-card .card-title {
+    color: #ffc107; /* Highlight name */
+    border-bottom: 1px solid #495057;
+    padding-bottom: 0.5rem;
     margin-bottom: 1rem;
-  }
-  .wheel-container canvas {
-      display: inline-block; /* Allow centering */
-  }
-  
-  
-  /* Style for table elements (if used by included partials) */
-  .table th,
-  .table td {
-    vertical-align: middle;
-    padding: 0.5rem;
-  }
-  
-  .table thead th {
-    border-bottom: 2px solid #454d55; /* Assuming dark theme context */
-  }
-  
-  /* Style for progress items */
-  .progress-item .form-check-input {
-    cursor: pointer;
-    transform: scale(1.2);
-    margin-right: 0.5rem;
-  }
-  
-  .progress-item label {
-     cursor: pointer;
-     margin-left: 0.3rem;
-     display: inline-block;
-     vertical-align: middle;
-  }
-  
-  .progress-item.completed label {
-      text-decoration: line-through;
-      opacity: 0.6;
-      font-style: italic;
-  }
-  
-  .progress-item {
-      margin-bottom: 0.5rem;
-  }
-  
-  /* Styling for group cards */
-  .group-card {
-      background-color: #343a40;
-      border: 1px solid #495057;
-      color: #f8f9fa;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      transition: box-shadow 0.2s ease-in-out;
-  }
-   .group-card:hover {
-       box-shadow: 0 0 15px rgba(255, 193, 7, 0.5);
-   }
-  
-  .group-card .card-body {
-      flex-grow: 1;
-      overflow-y: auto;
-      max-height: 400px;
-  }
-  
-  .group-card .card-title {
-      color: #ffc107;
-      border-bottom: 1px solid #495057;
-      padding-bottom: 0.5rem;
-      margin-bottom: 1rem;
-  }
-   .group-card .card-footer {
-        background-color: #212529;
-        border-top: 1px solid #495057;
-        min-height: 58px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.75rem;
-   }
-  
-  /* Styling for buttons with loading state */
-  .btn.loading .spinner-border-sm {
-      display: inline-block;
-  }
-  .btn .spinner-border-sm { /* Hide spinner by default */
-      display: none;
-  }
-  .btn.loading span:not(.spinner-border-sm) {
-       margin-left: 0.5em; /* Add space only when loading */
-       /* display: none; */ /* Uncomment to hide text */
-   }
-  
-  
-  /* Styling for challenge header */
-   .challenge-header {
-       background-color: #f8f9fa;
-       color: #212529;
-       border: 1px solid #dee2e6;
-   }
-   .challenge-header code {
-        background-color: #e9ecef;
-        padding: 0.2em 0.4em;
-        border-radius: 3px;
-   }
-  
-  /* Styles for Add Group form elements */
-  #addGroupForm input {
-      background-color: #495057;
-      border-color: #6c757d;
-      color: #f8f9fa;
-  }
-  #addGroupForm input::placeholder {
-      color: #adb5bd;
-  }
-  #addGroupForm input:focus {
-      background-color: #495057;
-      border-color: #ffc107;
-      color: #f8f9fa;
-      box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
-  }
+}
+.group-card .card-footer {
+     background-color: #212529; /* Darker footer */
+     border-top: 1px solid #495057;
+     min-height: 58px;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     padding: 0.75rem;
+}
+
+/* Styling for cards in the "Other Groups" list */
+#otherGroupsContainer .group-card-wrapper {
+    transition: transform 0.2s ease-out, opacity 0.3s ease-in-out;
+    transform: scale(1);
+}
+#otherGroupsContainer .card.group-card {
+    border: 1px solid #495057; /* Default border */
+    box-shadow: none; /* No default glow */
+}
+
+/* Styling for the single card when it's in the "Your Group" container */
+#myGroupContainer .group-card-wrapper {
+    width: 100%;
+    max-width: 700px; /* Make it wider */
+    margin-left: auto;
+    margin-right: auto;
+    transition: transform 0.2s ease-out, opacity 0.3s ease-in-out;
+    /* transform: scale(1.02); */ /* Optional scale */
+}
+#myGroupContainer .card.group-card {
+    border: 2px solid #ffc107; /* Prominent border */
+    box-shadow: 0 0 15px rgba(255, 193, 7, 0.5); /* Glow */
+}
+
+/* Styling for Player Name Input Section */
+.player-names-section {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    border-radius: 0.25rem;
+}
+.player-names-section h6 {
+    font-weight: bold;
+    color: #ffc107 !important; /* Accent color */
+}
+.player-name-input {
+     background-color: #495057 !important;
+     color: #f8f9fa !important;
+     border-color: #6c757d !important;
+}
+.player-name-input::placeholder {
+     color: #adb5bd;
+     font-style: italic;
+}
+.player-name-error {
+     min-height: 1.2em; /* Reserve space */
+}
+
+/* Styling for buttons with loading state */
+.btn.loading .spinner-border-sm { display: inline-block; }
+.btn .spinner-border-sm { display: none; }
+.btn.loading span:not(.spinner-border-sm) { margin-left: 0.5em; }
+
+/* Styling for challenge header (info/rules cards) */
+.challenge-header { /* Used in template for initial DB header */
+     background-color: #f8f9fa;
+     color: #212529;
+     border: 1px solid #dee2e6;
+}
+.challenge-header code {
+     background-color: #e9ecef;
+     padding: 0.2em 0.4em;
+     border-radius: 3px;
+}
+/* Styling for rules list */
+.challenge-rules-list ul {
+    padding-left: 1.2rem;
+}
+.challenge-rules-list li {
+    margin-bottom: 0.3rem;
+}
+
+
+/* Styles for Add Group form elements */
+#addGroupForm input {
+    background-color: #495057;
+    border-color: #6c757d;
+    color: #f8f9fa;
+}
+#addGroupForm input::placeholder { color: #adb5bd; }
+#addGroupForm input:focus {
+    background-color: #495057;
+    border-color: #ffc107;
+    color: #f8f9fa;
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+/* Progress Bar Styling */
+.progress {
+    background-color: #495057;
+    border-radius: .25rem;
+}
+.progress-bar {
+    background-color: #ffc107; /* Yellow accent */
+    color: #212529; /* Dark text */
+    font-weight: bold;
+    transition: width 0.6s ease;
+}
+.progress-bar:not(.progress-bar-animated) { animation: none !important; }
+.progress-bar span { /* If adding text inside bar */ }

@@ -5,46 +5,47 @@
 {% if c %} {# Check if challenge data 'c' was passed #}
 <div class="challenge-details-static-container">
 
-    {# Normal Wins Section - Displays List #}
-    {% if c.normal %}
-      <h6 class="card-subtitle mb-2 text-info">Normal Wins Required:</h6>
-      <ul class="list-unstyled">
-        {# Loop through normal wins and display count/name #}
-        {% for key, info in c.normal.items()|sort %}
-          <li>{{ info.count }} x {{ key | escape }} <small class="text-muted"> (Total Diff: {{ info.diff|round(2) }})</small></li>
+  {# Normal Wins Section - Displays List #}
+  {% if c.normal %}
+  <h6 class="card-subtitle mb-2 text-info">Normal Wins Required:</h6>
+  <ul class="list-unstyled">
+    {# Loop through normal wins and display count/name #}
+    {% for key, info in c.normal.items()|sort %}
+    <li>{{ info.count }} x {{ key | escape }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {# Back-to-Back Wins Section - Displays List #}
+  {% if c.b2b %}
+  {# Add a separator if normal wins were also displayed #}
+  {% if c.normal %}
+  <hr class="border-secondary my-2">{% endif %}
+  <h6 class="mt-2 card-subtitle mb-2 text-warning">Back-to-Back Segments Required:</h6>
+  <ul class="list-unstyled">
+    {# Loop through B2B segments #}
+    {% for seg in c.b2b %}
+    {% set outer_loop_index = loop.index %}
+    <li>
+      <strong>Segment {{ outer_loop_index }}</strong> <small class="text-muted">({{ seg.length }} wins)</small>:
+      {# List wins within the segment #}
+      <ul class="list-unstyled ml-3">
+        {% for key, count in seg.group.items()|sort %}
+        <li>{{ count }} x {{ key | escape }}</li>
         {% endfor %}
       </ul>
-    {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
 
-    {# Back-to-Back Wins Section - Displays List #}
-    {% if c.b2b %}
-      {# Add a separator if normal wins were also displayed #}
-      {% if c.normal %}<hr class="border-secondary my-2">{% endif %}
-      <h6 class="mt-2 card-subtitle mb-2 text-warning">Back-to-Back Segments Required:</h6>
-      <ul class="list-unstyled">
-        {# Loop through B2B segments #}
-        {% for seg in c.b2b %}
-          {% set outer_loop_index = loop.index %}
-          <li>
-              <strong>Segment {{ outer_loop_index }}</strong> <small class="text-muted">({{ seg.length }} wins, Diff: {{ seg.seg_diff|round(2) }})</small>:
-              {# List wins within the segment #}
-              <ul class="list-unstyled ml-3">
-                  {% for key, count in seg.group.items()|sort %}
-                      <li>{{ count }} x {{ key | escape }}</li>
-                  {% endfor %}
-              </ul>
-          </li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-
-    {# Fallback if no win data is present in 'c' #}
-    {% if not c.normal and not c.b2b %}
-        <p class="text-muted">Challenge structure details missing or empty.</p>
-    {% endif %}
+  {# Fallback if no win data is present in 'c' #}
+  {% if not c.normal and not c.b2b %}
+  <p class="text-muted">Challenge structure details missing or empty.</p>
+  {% endif %}
 
 </div> {# End challenge-details-static-container #}
 {% else %}
-    {# Error message if 'c' wasn't passed to the template at all #}
-    <p class="text-danger">Error: Challenge data ('c') not provided to _challenge_details.html partial.</p>
+{# Error message if 'c' wasn't passed to the template at all #}
+<p class="text-danger">Error: Challenge data ('c') not provided to _challenge_details.html partial.</p>
 {% endif %} {# End if c #}

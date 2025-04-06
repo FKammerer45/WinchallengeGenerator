@@ -1,97 +1,102 @@
 # app/routes/challenge_api.py
 import logging
 import json
-import uuid # For generating public_id
+import uuid
 from flask import Blueprint, request, jsonify, current_app, url_for
-from flask_login import login_required, current_user # For authentication
+from flask_login import login_required, current_user
 
-# Import logic functions (existing)
+# Import logic functions
 from app.modules.challenge_generator import generate_challenge_logic
 from app.modules.game_preferences import initialize_game_vars
 
-# --- CORRECTED DB IMPORTS ---
-# Remove incorrect Flask-SQLAlchemy style import:
-# from app import db
-# Import the session factory from your database setup:
+# Import DB session and models
 from app.database import SessionLocal
-# --- END CORRECTED DB IMPORTS ---
+from app.models import SharedChallenge, ChallengeGroup, User
 
-# Import Models (Keep these)
-from app.models import SharedChallenge, ChallengeGroup, User # Assuming User model for current_user.id
-
-# Import SQLAlchemy components (Keep these)
+# Import SQLAlchemy components
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy import func # To count groups efficiently
-from sqlalchemy.orm.attributes import flag_modified # For mutable JSON updates
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import func
+from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm import joinedload, selectinload, Session # Ensure Session is imported if type hinting
+
 logger = logging.getLogger(__name__)
 
-# Keep existing blueprint, URL prefix is '/api/challenge'
 challenge_api_bp = Blueprint('challenge_api', __name__, url_prefix='/api/challenge')
+
 
 # --- /generate endpoint ---
 @challenge_api_bp.route("/generate", methods=["POST"])
 def generate_challenge():
-    """API endpoint to generate a new challenge, optionally including penalty info."""
+    """API endpoint to generate a new challenge."""
     logger.debug("Request received for /api/challenge/generate")
     generation_data = {}
     try:
         # --- 1. Parse Input Parameters ---
-        # (Keep existing parsing logic for form/JSON - assumes no direct DB access here)
         if request.form and 'selected_games' in request.form:
+            logger.debug("Parsing parameters from Form data.")
             generation_data['selected_games'] = request.form.getlist("selected_games")
-            generation_data['weights_str'] = request.form.getlist("weights")
+            generation_data['weights_str'] = request.form.getlist("weights") # Get weights list
             generation_data['num_players'] = int(request.form.get("num_players", 1))
             generation_data['desired_diff'] = float(request.form.get("desired_diff", 10.0))
             generation_data['raw_b2b'] = int(request.form.get("raw_b2b", 1))
+            # Parse JSON strings from form data
             generation_data['generation_pool_entries'] = json.loads(request.form.get("entries", "[]"))
             generation_data['selected_modes'] = json.loads(request.form.get("selected_modes", "{}"))
             generation_data['use_penalties'] = request.form.get('use_penalties') == 'on'
             generation_data['penalty_tab_id'] = request.form.get('penalty_tab_id', 'default')
             generation_data['challenge_name'] = request.form.get('challenge_name', None)
-            generation_data['max_groups'] = int(request.form.get('max_groups', 10))
-            logger.debug("Parsing parameters from Form data.")
+            generation_data['group_mode'] = request.form.get('group_mode', 'single')
+            if generation_data['group_mode'] == 'multi':
+                generation_data['max_groups'] = int(request.form.get('max_groups', 10))
+            else:
+                generation_data['max_groups'] = 1
 
         elif request.is_json:
-            data = request.get_json()
-            if not data: return jsonify({"error": "Invalid JSON data received."}), 400
-            generation_data['selected_games'] = data.get("selected_games", [])
-            generation_data['weights_str'] = data.get("weights", [])
-            generation_data['num_players'] = int(data.get("num_players", 1))
-            generation_data['desired_diff'] = float(data.get("desired_diff", 10.0))
-            generation_data['raw_b2b'] = int(data.get("raw_b2b", 1))
-            generation_data['generation_pool_entries'] = data.get("entries", [])
-            generation_data['selected_modes'] = data.get("selected_modes", {})
-            generation_data['use_penalties'] = data.get('use_penalties', False)
-            generation_data['penalty_tab_id'] = data.get('penalty_tab_id', 'default')
-            generation_data['challenge_name'] = data.get('challenge_name', None)
-            generation_data['max_groups'] = int(data.get('max_groups', 10))
-            logger.debug("Parsing parameters from JSON data.")
+             logger.debug("Parsing parameters from JSON data.")
+             data = request.get_json()
+             if not data: return jsonify({"error": "Invalid JSON data received."}), 400
+             # Parse fields from JSON payload
+             generation_data['selected_games'] = data.get("selected_games", [])
+             # Assume weights correspond to selected_games if sent via JSON
+             generation_data['weights_str'] = data.get("weights", []) # Expect list of numbers/strings
+             generation_data['num_players'] = int(data.get("num_players", 1))
+             generation_data['desired_diff'] = float(data.get("desired_diff", 10.0))
+             generation_data['raw_b2b'] = int(data.get("raw_b2b", 1))
+             generation_data['generation_pool_entries'] = data.get("entries", []) # Expect list of objects
+             generation_data['selected_modes'] = data.get("selected_modes", {}) # Expect object
+             generation_data['use_penalties'] = data.get('use_penalties', False)
+             generation_data['penalty_tab_id'] = data.get('penalty_tab_id', 'default')
+             generation_data['challenge_name'] = data.get('challenge_name', None)
+             generation_data['group_mode'] = data.get('group_mode', 'single')
+             if generation_data['group_mode'] == 'multi':
+                generation_data['max_groups'] = int(data.get('max_groups', 10))
+             else:
+                generation_data['max_groups'] = 1
         else:
-            logger.warning("Received request with unexpected content type or missing form data.")
-            return jsonify({"error": "Unsupported request format. Use form data or JSON."}), 415
+            return jsonify({"error": "Unsupported request format."}), 415
 
-        # (Keep existing logging)
-        logger.debug(f"Received selected_games: {generation_data.get('selected_games')}")
-        # ... other logs ...
+        # Determine num_players_per_group (used in share options)
+        num_players_per_group = generation_data.get('num_players', 1) if generation_data['group_mode'] == 'multi' else 1
 
         # --- 2. Determine Game Variables ---
         game_vars_for_logic = initialize_game_vars(generation_data.get('generation_pool_entries', []))
-        # ... checks for empty game_vars ...
+        if not game_vars_for_logic:
+             logger.warning("No valid game variables initialized from entries.")
+             # Decide if this is an error or just means no challenge possible
+             # return jsonify({"error": "No valid game data found in the provided entries."}), 400
 
         # --- 3. Process Weights ---
         selected_games = generation_data.get('selected_games', [])
-        weights_str = generation_data.get('weights_str', [])
-        # Basic weight processing
-        try:
-             processed_weights = [float(w) for w in weights_str] if len(selected_games) == len(weights_str) else [1.0] * len(selected_games)
-        except ValueError:
-             processed_weights = [1.0] * len(selected_games)
-             logger.warning("Invalid weights received, using 1.0.")
-        # ... more robust weight processing if needed ...
+        weights_str_list = generation_data.get('weights_str', []) # Get list of strings/numbers
+        processed_weights = []
+        if len(selected_games) == len(weights_str_list):
+             try: processed_weights = [float(w) for w in weights_str_list]
+             except ValueError: logger.warning("Invalid weights received, using 1.0."); processed_weights = [1.0] * len(selected_games)
+        else: processed_weights = [1.0] * len(selected_games)
+        # Filter weights to only include those for selected games? Assumes order matches.
 
         # --- 4. Prepare Final Parameters ---
-        selected_games_lower = [g.lower() for g in selected_games]
+        selected_games_lower = [str(g).lower() for g in selected_games if g] # Ensure strings and lowercase
 
         # --- 5. Call Challenge Generation Logic ---
         logger.debug("Calling generate_challenge_logic...")
@@ -102,85 +107,81 @@ def generate_challenge():
             weights=processed_weights,
             game_vars=game_vars_for_logic,
             raw_b2b=generation_data.get('raw_b2b', 1),
-            entries=generation_data.get('generation_pool_entries', []),
-            selected_modes=generation_data.get('selected_modes', {})
+            entries=generation_data.get('generation_pool_entries', []), # Pass parsed entries
+            selected_modes=generation_data.get('selected_modes', {}) # Pass parsed modes
         )
 
-        # --- 6. Handle Result & Add Penalty/Share Info ---
+        # --- 6. Handle Result & Add Info ---
         if challenge_result_data is None:
-            # ... error handling ...
-            logger.error("generate_challenge_logic returned None.")
-            return jsonify({"error": "No matching entries found for challenge generation."}), 400 # Use 400
+            logger.error("generate_challenge_logic returned None. No matching entries found for criteria.")
+            return jsonify({"error": "No matching entries found for challenge criteria."}), 400
 
-        penalty_info = None
+        # Add penalty info if requested
         if generation_data.get('use_penalties'):
-            penalty_info = {
-                'tab_id': generation_data.get('penalty_tab_id', 'default'),
-            }
-            challenge_result_data['penalty_info'] = penalty_info
-            logger.info(f"Challenge generated WITH penalty info for tab {penalty_info['tab_id']}")
-        else:
-            challenge_result_data['penalty_info'] = None
-            logger.info("Challenge generated WITHOUT penalties.")
+            challenge_result_data['penalty_info'] = {'tab_id': generation_data.get('penalty_tab_id', 'default')}
+        else: challenge_result_data['penalty_info'] = None
 
-        # Add share-related info to the response payload
+        # Add share-related options
         challenge_result_data['share_options'] = {
             'challenge_name': generation_data.get('challenge_name'),
             'max_groups': generation_data.get('max_groups'),
+            'num_players_per_group': num_players_per_group
         }
 
         logger.info("Challenge generated successfully.")
         return jsonify(challenge_result_data)
 
     except json.JSONDecodeError as e:
-        logger.exception("Failed to decode JSON input:")
-        return jsonify({"error": f"Invalid format for JSON data (entries or selected_modes). {e}"}), 400
+        logger.exception("Failed to decode JSON input (entries or selected_modes):")
+        return jsonify({"error": f"Invalid JSON format in request: {e}"}), 400
     except ValueError as e:
         logger.exception("Invalid numeric value received:")
-        return jsonify({"error": f"Invalid numeric value provided. {e}"}), 400
+        return jsonify({"error": f"Invalid numeric value provided: {e}"}), 400
     except Exception as e:
         logger.exception("Unexpected error in generate_challenge:")
-        return jsonify({"error": "An unexpected server error occurred during challenge generation."}), 500
+        return jsonify({"error": "Server error during challenge generation."}), 500
 
 
+# --- /share endpoint ---
 # --- /share endpoint ---
 @challenge_api_bp.route("/share", methods=["POST"])
 @login_required
 def share_challenge():
     """
-    Creates a persistent SharedChallenge, now with a limit per user.
+    Creates a persistent SharedChallenge, now with a limit per user
+    and saves the intended number of players per group.
     """
     logger.info(f"'/api/challenge/share' endpoint called by user {current_user.username}")
-    # Define the limit
-    MAX_CHALLENGES_PER_USER = 10 # Or get from config: current_app.config.get('MAX_CHALLENGES', 10)
-
+    MAX_CHALLENGES_PER_USER = current_app.config.get('MAX_CHALLENGES_PER_USER', 10)
     data = request.get_json()
-    # ... (keep data validation as before) ...
-    if not data or 'challenge_data' not in data or not isinstance(data['challenge_data'], dict):
-        return jsonify({"error": "Invalid request data."}), 400
+
+    # Validate payload structure
+    if not data or not isinstance(data.get('challenge_data'), dict) or \
+       ('normal' not in data['challenge_data'] and 'b2b' not in data['challenge_data']):
+        return jsonify({"error": "Invalid or missing challenge data structure."}), 400
 
     challenge_data = data.get('challenge_data')
-    penalty_info = data.get('penalty_info')
-    name = data.get('name', None)
-    max_groups = int(data.get('max_groups', 10)) # Keep max_groups
+    penalty_info = data.get('penalty_info') # Optional
+    name = data.get('name', None) # Optional
+    max_groups = int(data.get('max_groups', 1)) # Default to 1 if not multigroup/passed
+    # --- Read num_players_per_group from payload ---
+    num_players_per_group = int(data.get('num_players_per_group', 1)) # Default to 1
+    # Basic validation
+    if max_groups < 1: max_groups = 1
+    if num_players_per_group < 1: num_players_per_group = 1
 
-    # --- ADD Limit Check ---
     with SessionLocal() as session:
         try:
+            # Check user challenge limit
             current_challenge_count = session.query(func.count(SharedChallenge.id))\
                 .filter(SharedChallenge.creator_id == current_user.id)\
                 .scalar()
-
             if current_challenge_count >= MAX_CHALLENGES_PER_USER:
-                logger.warning(f"User {current_user.username} failed to share challenge: Limit ({MAX_CHALLENGES_PER_USER}) reached.")
-                return jsonify({
-                    "error": f"You have reached the maximum limit of {MAX_CHALLENGES_PER_USER} active challenges. Please delete an old one to create a new one."
-                }), 403 # Forbidden or 400 Bad Request
+                return jsonify({"error": f"Max challenges ({MAX_CHALLENGES_PER_USER}) reached."}), 403
 
             logger.debug(f"User {current_user.username} has {current_challenge_count} challenges. Limit is {MAX_CHALLENGES_PER_USER}. Proceeding.")
-            # --- END Limit Check ---
 
-            # --- Continue with challenge creation ---
+            # Create SharedChallenge object
             public_id = str(uuid.uuid4())
             new_challenge = SharedChallenge(
                 public_id=public_id,
@@ -188,13 +189,17 @@ def share_challenge():
                 name=name,
                 challenge_data=challenge_data,
                 penalty_info=penalty_info,
-                max_groups=max_groups
+                max_groups=max_groups,
+                # --- Set the num_players_per_group field ---
+                num_players_per_group=num_players_per_group
             )
             session.add(new_challenge)
             session.commit() # Commit transaction
             logger.info(f"Successfully created SharedChallenge {public_id} by user {current_user.username}")
 
+            # Generate share URL using correct parameter name
             share_url = url_for('main.challenge_view', challenge_id=public_id, _external=True)
+
             return jsonify({
                 "status": "success",
                 "message": "Challenge shared successfully.",
@@ -202,11 +207,14 @@ def share_challenge():
                 "share_url": share_url
             }), 201
 
-        # Keep existing error handling (IntegrityError, SQLAlchemyError, Exception)...
         except (IntegrityError, SQLAlchemyError) as e:
-            session.rollback(); logger.exception(...); return jsonify({...}), 500 # Simplified
+             session.rollback()
+             logger.exception(f"DB Error sharing challenge for user {current_user.username}")
+             return jsonify({"error": "Database error creating challenge."}), 500
         except Exception as e:
-            session.rollback(); logger.exception(...); return jsonify({...}), 500 # Simplified
+             session.rollback()
+             logger.exception(f"Unexpected error sharing challenge for user {current_user.username}")
+             return jsonify({"error": "An unexpected server error occurred."}), 500
 
 
 # --- /<public_id>/groups endpoint ---
@@ -475,6 +483,60 @@ def leave_group(group_id):
              session.rollback()
              logger.exception(f"Unexpected error leaving group {group_id} for user {current_user.username}: {e}")
              return jsonify({"error": "An unexpected server error occurred."}), 500
+
+@challenge_api_bp.route("/groups/<int:group_id>/players", methods=["POST"])
+@login_required
+def update_group_players(group_id):
+    """Updates the list of player names for a specific group."""
+    logger.info(f"User {current_user.username} attempting to update players for group {group_id}")
+    data = request.get_json()
+
+    if not data or not isinstance(data.get('player_names'), list):
+        return jsonify({"error": "Invalid request. JSON data with 'player_names' (list) required."}), 400
+
+    player_names = [str(name).strip() for name in data['player_names'] if isinstance(name, str) and str(name).strip()]
+    logger.debug(f"Received player names for group {group_id}: {player_names}")
+
+    with SessionLocal() as session:
+        try:
+            # Find group and eagerly load parent challenge and current members
+            group = session.query(ChallengeGroup).options(
+                joinedload(ChallengeGroup.shared_challenge),
+                selectinload(ChallengeGroup.members)
+            ).get(group_id)
+
+            if not group:
+                return jsonify({"error": "Group not found."}), 404
+
+            challenge = group.shared_challenge
+            if not challenge: # Should not happen
+                 return jsonify({"error": "Challenge for group not found."}), 500
+
+            # Authorization: Check if current user is a member of the group
+            is_member = any(member.id == current_user.id for member in group.members)
+            if not is_member:
+                logger.warning(f"Forbidden: User {current_user.username} not member of group {group_id}, cannot update players.")
+                return jsonify({"error": "Not authorized to update this group's players."}), 403
+
+            # Validation: Check against num_players_per_group stored on the challenge
+            max_players = challenge.num_players_per_group
+            if len(player_names) > max_players:
+                 logger.warning(f"Too many players ({len(player_names)}) submitted for group {group_id}. Max allowed: {max_players}")
+                 return jsonify({"error": f"Too many player names submitted. Maximum allowed is {max_players}."}), 400
+
+            # Update the player_names JSON column
+            group.player_names = player_names
+            flag_modified(group, "player_names") # Mark as modified
+            session.commit()
+
+            logger.info(f"User {current_user.username} updated player names for group {group_id}")
+            return jsonify({"status": "success", "message": "Player names updated."}), 200
+
+        except (SQLAlchemyError) as e:
+             session.rollback(); logger.exception("DB Error updating group players"); return jsonify({"error": "Database error."}), 500
+        except Exception as e:
+             session.rollback(); logger.exception("Unexpected error updating group players"); return jsonify({"error": "Server error."}), 500
+
 
 @challenge_api_bp.route("/<public_id>", methods=["DELETE"])
 @login_required
