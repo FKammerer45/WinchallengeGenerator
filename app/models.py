@@ -120,7 +120,8 @@ class ChallengeGroup(Base):
     group_name = Column(String(80), nullable=False)
     progress_data = Column(JSON, nullable=True, default=lambda: {})
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
-
+    active_penalty_text = Column(String(255), nullable=True)
+    
     # --- ADDED: Store player names specific to this group ---
     # Stored as a JSON list, e.g., ["Player A", "Player B"]
     player_names = Column(JSON, nullable=True)

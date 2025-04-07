@@ -119,8 +119,8 @@ def challenge_view(challenge_id):
                     "name": g.group_name,
                     "progress": g.progress_data or {},
                     "member_count": len(g.members),
-                    # --- Add player_names list ---
-                    "player_names": g.player_names or [] # Default to empty list if null
+                    "player_names": g.player_names or [], # Default to empty list if null
+                    "active_penalty_text": g.active_penalty_text or ""
                  }
                  for g in shared_challenge.groups
             ]
@@ -138,7 +138,6 @@ def challenge_view(challenge_id):
             is_multigroup=is_multigroup,
             user_joined_group_id=user_joined_group_id,
             initial_groups=initial_groups_data,
-            # --- Pass num_players_per_group ---
             num_players_per_group=num_players_per_group
         )
     except Exception as render_error:

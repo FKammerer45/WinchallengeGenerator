@@ -36,7 +36,9 @@ Challenge Not Found
     data-initial-groups='{{ initial_groups | tojson if initial_groups else ' null' }}' {# Needs player_names from
     main.py #} data-challenge-json='{{ shared_challenge.challenge_data | tojson if shared_challenge else ' null' }}'
     data-penalty-info='{{ shared_challenge.penalty_info | tojson if shared_challenge and shared_challenge.penalty_info else '
-    null' }}' data-max-groups="{{ shared_challenge.max_groups if shared_challenge else 1 }}"></div>
+    null' }}' data-max-groups="{{ shared_challenge.max_groups if shared_challenge else 1 }}"
+    data-set-penalty-url-base="{{ url_for('challenge_api.set_group_penalty', group_id=0) | replace('/groups/0/penalty', '/groups') if not is_local else '' }}">
+  </div>
   {% endif %}
   {# --- End Data Div --- #}
 
@@ -169,6 +171,18 @@ Challenge Not Found
             </div>
             {# --- END Placeholder --- #}
           </div>
+          <div class="active-penalty-display mt-2 border-top border-secondary pt-2" data-group-id="{{ group.id }}"
+            style="{{ 'display: none;' if not group.active_penalty_text }}"> {# Initially hide if empty #}
+            <h6 class="text-danger small mb-1">Active Penalty:</h6>
+            <p class="mb-0 text-warning small penalty-text-content">
+              {{ group.active_penalty_text | escape if group.active_penalty_text else '' }}
+            </p>
+
+            {# --- NEW BUTTON --- #}
+            <button class="btn btn-xs btn-outline-light clear-penalty-btn mt-1"
+              data-group-id="{{ group.id }}">Clear</button>
+            {# --- END NEW BUTTON --- #}
+          </div>
           {% if is_multigroup %}
           <div class="card-footer text-muted text-center join-leave-footer">
             <button class="btn btn-sm btn-danger leave-group-btn" data-group-id="{{ group.id }}"><span>Leave
@@ -203,6 +217,13 @@ Challenge Not Found
             <div class="player-name-inputs"></div>
             <div class="player-name-error text-danger small mt-1"></div>
           </div>
+        </div>
+        <div class="active-penalty-display mt-2 border-top border-secondary pt-2" data-group-id="{{ group.id }}"
+          style="{{ 'display: none;' if not group.active_penalty_text }}"> {# Initially hide if empty #}
+          <h6 class="text-danger small mb-1">Active Penalty:</h6>
+          <p class="mb-0 text-warning small penalty-text-content">
+            {{ group.active_penalty_text | escape if group.active_penalty_text else '' }}
+          </p>
         </div>
         {% if is_multigroup %}
         <div class="card-footer text-muted text-center join-leave-footer">
@@ -250,6 +271,12 @@ Challenge Not Found
           default here too #}
           <div class="player-name-inputs"></div>
           <div class="player-name-error text-danger small mt-1"></div>
+        </div>
+        <div class="active-penalty-display mt-2 border-top border-secondary pt-2" style="display: none;"> {# Initially
+          hidden #}
+          <h6 class="text-danger small mb-1">Active Penalty:</h6>
+          <p class="mb-0 text-warning small penalty-text-content"></p> {# Empty paragraph #}
+          {# Optional: Clear button placeholder if needed #}
         </div>
       </div>
       <div class="card-footer text-muted text-center join-leave-footer"> {# Button added by JS #} </div>

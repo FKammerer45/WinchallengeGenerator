@@ -576,3 +576,50 @@ def delete_shared_challenge(public_id):
              session.rollback()
              logger.exception(f"Unexpected error deleting challenge {public_id} for user {current_user.username}: {e}")
              return jsonify({"error": "An unexpected server error occurred."}), 500
+
+@challenge_api_bp.route("/groups/<int:group_id>/penalty", methods=["POST"])
+@login_required # Or adjust authorization as needed
+def set_group_penalty(group_id):
+    """Sets the active penalty text for a specific group."""
+    logger.info(f"User {current_user.id} setting penalty for group {group_id}")
+    data = request.get_json()
+    penalty_text = data.get('penalty_text') # Expecting {'penalty_text': 'Player X gets Y...'}
+
+    # Basic validation - allow empty string to clear penalty
+    if penalty_text is None: # Check for None specifically
+        return jsonify({"error": "Missing 'penalty_text' in request body."}), 400
+    if not isinstance(penalty_text, str) or len(penalty_text) > 255:
+         return jsonify({"error": "Invalid 'penalty_text' format or length."}), 400
+
+    with SessionLocal() as session:
+        try:
+            # Find the group and verify user permission (e.g., user is member)
+            group = session.query(ChallengeGroup).options(
+                 selectinload(ChallengeGroup.members) # Load members for auth check
+            ).filter(ChallengeGroup.id == group_id).first()
+
+            if not group:
+                return jsonify({"error": "Group not found."}), 404
+
+            # Authorization Check (Example: must be a member to set penalty)
+            is_member = any(member.id == current_user.id for member in group.members)
+            if not is_member:
+                 logger.warning(f"Forbidden: User {current_user.id} tried to set penalty for group {group_id} but is not member.")
+                 return jsonify({"error": "You are not authorized to set penalties for this group."}), 403
+
+            # Update the penalty text (allow empty string to clear)
+            group.active_penalty_text = penalty_text.strip() if penalty_text else None # Store None if empty
+            flag_modified(group, "active_penalty_text") # Important for JSON mutation if using that
+            session.commit()
+
+            logger.info(f"Successfully set penalty for group {group_id} by user {current_user.id}")
+            return jsonify({"status": "success", "message": "Penalty updated."}), 200
+
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.exception(f"Database error setting penalty for group {group_id}: {e}")
+            return jsonify({"error": "Database error setting penalty."}), 500
+        except Exception as e:
+            session.rollback()
+            logger.exception(f"Unexpected error setting penalty for group {group_id}: {e}")
+            return jsonify({"error": "An unexpected server error occurred."}), 500

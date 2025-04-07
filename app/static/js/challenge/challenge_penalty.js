@@ -5,7 +5,8 @@
 import { getLocalPenalties } from "../penalties/penaltyLocalStorageUtils.js";
 // Import shared helper functions
 import { escapeHtml, showError } from '../utils/helpers.js'; // Use showError instead of local displayStatus
-
+import { apiFetch } from '../utils/api.js';
+import { updatePenaltyDisplay } from './challenge_ui.js';
 // --- Library Checks ---
 let winwheelLoaded = true;
 if (typeof Winwheel === 'undefined') {
@@ -110,18 +111,87 @@ function resetPenaltyUI() {
     console.log("Penalty UI Reset");
 }
 
-function displayFinalResult(chosenEntity, chosenPenalty, button) {
+async function displayFinalResult(chosenEntity, chosenPenalty, button) {
     const resultDisplay = document.getElementById(`penaltyResult-${CHALLENGE_INDEX}`);
     if (!resultDisplay) return;
-    let message = ''; let type = 'info';
+
+    let message = '';
+    let type = 'info';
+    let penaltyTextToSave = '';
+
+    // --- Construct display message and text to save ---
     if (chosenEntity && chosenPenalty && chosenPenalty.name && chosenPenalty.name !== "No Penalty") {
-        message = `<strong>${escapeHtml(chosenEntity)}</strong> receives penalty: <br><strong>${escapeHtml(chosenPenalty.name)}</strong>`;
-        if (chosenPenalty.description) message += `<br><small class="text-muted">(${escapeHtml(chosenPenalty.description)})</small>`;
+        const baseText = `${escapeHtml(chosenEntity)} receives penalty: ${escapeHtml(chosenPenalty.name)}`;
+        message = `<strong>${baseText}</strong>`;
+        penaltyTextToSave = baseText;
+        if (chosenPenalty.description) {
+            const escapedDesc = escapeHtml(chosenPenalty.description);
+            message += `<br><small class="text-muted">(${escapedDesc})</small>`;
+            penaltyTextToSave += ` (${escapedDesc})`;
+        }
         type = 'warning';
-    } else { message = `<strong>${escapeHtml(chosenEntity)}</strong>: ${escapeHtml(chosenPenalty?.description || 'No penalty assigned.')}`; type = 'success'; }
+    } else {
+        message = `<strong>${escapeHtml(chosenEntity)}</strong>: ${escapeHtml(chosenPenalty?.description || 'No penalty assigned.')}`;
+        penaltyTextToSave = '';
+        type = 'success';
+    }
+
+    // --- Update result display UI ---
     resultDisplay.innerHTML = message;
     resultDisplay.className = `mt-3 penalty-result-display alert alert-${type}`;
     resultDisplay.style.display = 'block';
+
+    // --- API Call to save the penalty ---
+    const dataEl = document.getElementById('challengeData'); // Get the data div
+    const setPenaltyUrlBase = dataEl?.dataset.setPenaltyUrlBase;
+    const csrfToken = dataEl?.dataset.csrfToken;
+
+    // *** FIX: Get userJoinedGroupId from dataEl dataset ***
+    let userJoinedGroupId = null;
+    try {
+        // Parse the userJoinedGroupId from the data attribute
+        const parsedId = JSON.parse(dataEl?.dataset.userJoinedGroupId || 'null');
+        if (typeof parsedId === 'number') {
+            userJoinedGroupId = parsedId;
+        }
+    } catch (e) {
+        console.error("Error parsing userJoinedGroupId from data attribute:", e);
+    }
+    // *** END FIX ***
+
+    // Determine which group ID to use (adjust logic if necessary)
+    const targetGroupId = userJoinedGroupId;
+
+    if (targetGroupId && setPenaltyUrlBase && csrfToken) {
+        const url = `${setPenaltyUrlBase}/${targetGroupId}/penalty`;
+        try {
+            console.log(`Saving penalty to backend for group ${targetGroupId}: "${penaltyTextToSave}"`);
+            await apiFetch(url, {
+                method: 'POST',
+                body: { penalty_text: penaltyTextToSave }
+            }, csrfToken);
+            console.log("Backend penalty save successful.");
+
+            // Trigger UI update (assuming updatePenaltyDisplay is imported/available)
+            // Make sure updatePenaltyDisplay is exported from challenge_ui.js and imported here,
+            // or move the function if more appropriate.
+            if (typeof updatePenaltyDisplay === "function") { // Check if function exists
+                 updatePenaltyDisplay(targetGroupId, penaltyTextToSave);
+            } else {
+                 console.warn("updatePenaltyDisplay function not found/imported - UI won't update immediately.");
+            }
+
+
+        } catch (error) {
+             console.error("Failed to save penalty state to backend:", error);
+             resultDisplay.innerHTML += `<br><small class="text-danger">Error saving penalty state: ${error.message}</small>`;
+        }
+    } else {
+         console.warn("Cannot save penalty state: Missing Group ID, URL base, or CSRF token.");
+         if (!targetGroupId) console.warn("Reason: User is not in a group or target group determination failed.");
+    }
+    // --- End API Call ---
+
     if (button) button.disabled = false;
 }
 
@@ -327,6 +397,7 @@ function initializePenaltyHandler() {
     // Read INITIAL config data from the DOM
     if (dataEl?.dataset) {
          try {
+            
              const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
              const initialGroups = JSON.parse(dataEl.dataset.initialGroups || 'null');
              const numPlayers = parseInt(dataEl.dataset.numPlayersPerGroup, 10);

@@ -5,9 +5,7 @@ import { apiFetch } from '../utils/api.js';
 import { setLoading, showError, escapeHtml } from '../utils/helpers.js';
 import {
     updateGroupCountDisplay, renderProgressItems, addGroupToDOM,
-    updateUIAfterMembershipChange, renderOrUpdateProgressBar, renderStaticChallengeDetailsJS
-    // Ensure renderPlayerNameInputs is exported from challenge_ui.js if needed here,
-    // but it's primarily called within updateUIAfterMembershipChange
+    updateUIAfterMembershipChange, renderOrUpdateProgressBar, renderStaticChallengeDetailsJS, updatePenaltyDisplay
 } from './challenge_ui.js';
 import { getLocalChallengeById, updateLocalChallengeProgress } from './local_challenge_storage.js'; // Use './' assuming same folder now
 import { updatePenaltyConfig } from './challenge_penalty.js';
@@ -101,11 +99,17 @@ async function handleJoinGroupClick(event) {
             myGroupContainerEl.appendChild(cardToMove); // Move the card element
             console.log(`Moved group ${groupId} to My Group container.`);
         } else {
-             console.error(`Could not find card ${groupId} in other groups container to move.`);
-             // Don't block state update if card wasn't found (maybe already moved?)
-         }
+            console.error(`Could not find card ${groupId} in other groups container to move.`);
+            // Don't block state update if card wasn't found (maybe already moved?)
+        }
 
         challengeConfig.userJoinedGroupId = parseInt(groupId, 10); // Update state
+        const dataEl = document.getElementById('challengeData');
+        if (dataEl) {
+            // Update the data attribute (store as JSON string, e.g., "129" or "null")
+            dataEl.dataset.userJoinedGroupId = JSON.stringify(challengeConfig.userJoinedGroupId);
+            console.log("Updated #challengeData userJoinedGroupId attribute:", dataEl.dataset.userJoinedGroupId);
+        }
         updateUIAfterMembershipChange(challengeConfig); // Update main UI (buttons, checkboxes, player inputs)
 
         // --- ADDED: Update penalty module's state ---
@@ -125,13 +129,14 @@ async function handleLeaveGroupClick(event) {
     const leaveButton = event.target.closest('.leave-group-btn');
     if (!leaveButton) return;
     const groupId = leaveButton.dataset.groupId;
-    const buttonContainer = leaveButton.closest('.card-footer');
+    const buttonContainer = leaveButton.closest('.card-footer'); // For error display
 
     if (!groupId) { showError(buttonContainer, "Missing group ID."); return; }
+    // Ensure the main container elements were found on page load
     if (!myGroupContainerEl || !otherGroupsContainerEl) {
         console.error("Group containers not found, cannot move card on leave.");
-         showError(buttonContainer || statusDiv, "UI Error: Cannot move group.", "danger");
-         return;
+        showError(buttonContainer || statusDiv, "UI Error: Cannot move group.", "danger");
+        return;
     }
 
     console.log(`handleLeaveGroupClick: Leaving group ${groupId}`);
@@ -142,38 +147,34 @@ async function handleLeaveGroupClick(event) {
         const data = await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
         console.log("Leave successful:", data.message);
 
-        // Move Card and Update State
+        // --- Move Card and Update State ---
         const cardToMove = myGroupContainerEl.querySelector(`.group-card-wrapper[data-group-id="${groupId}"]`);
         if (cardToMove) {
-             // Ensure the target row exists
-             if (!otherGroupsContainerEl.querySelector('.row')) {
-                 const row = document.createElement('div');
-                 row.className = 'row';
-                 otherGroupsContainerEl.appendChild(row);
-             }
-             otherGroupsContainerEl.querySelector('.row').appendChild(cardToMove); // Append to row inside other container
-             myGroupContainerEl.innerHTML = ''; // Clear "Your Group" section
-             console.log(`Moved group ${groupId} back to Other Groups container.`);
+
+            otherGroupsContainerEl.appendChild(cardToMove);
+
+
+            myGroupContainerEl.innerHTML = ''; // Clear "Your Group" section
+            console.log(`Moved group ${groupId} back to Other Groups container.`);
         } else {
-             console.error(`Could not find card ${groupId} in your group container to move back.`);
-             // Don't block state update if card wasn't found
+            console.error(`Could not find card ${groupId} in your group container to move back.`);
         }
 
         challengeConfig.userJoinedGroupId = null; // Update state
-        updateUIAfterMembershipChange(challengeConfig); // Update main UI
-
-        // --- ADDED: Update penalty module's state ---
-         if (typeof updatePenaltyConfig === 'function') {
-            updatePenaltyConfig(challengeConfig);
+        const dataEl = document.getElementById('challengeData');
+        if (dataEl) {
+            // Update the data attribute (will store the string "null")
+            dataEl.dataset.userJoinedGroupId = JSON.stringify(challengeConfig.userJoinedGroupId);
+            console.log("Updated #challengeData userJoinedGroupId attribute:", dataEl.dataset.userJoinedGroupId);
         }
-        // --- END ADDED ---
+        updateUIAfterMembershipChange(challengeConfig); // Update UI
 
     } catch (error) {
         console.error("Failed to leave group:", error);
         showError(buttonContainer, `Error: ${error.message}`);
-        setLoading(leaveButton, false); // Reset this button on error
+        setLoading(leaveButton, false); // Reset button only on error
     }
-     // setLoading(false) is handled by updateUIAfterMembershipChange on success path
+    // setLoading(false) is handled by updateUIAfterMembershipChange on success path
 }
 
 
@@ -256,8 +257,8 @@ async function handleSavePlayersClick(event) {
     // Collect non-empty, trimmed names from input fields
     const nameInputs = inputsContainer.querySelectorAll('.player-name-input');
     const playerNames = Array.from(nameInputs)
-                             .map(input => input.value.trim())
-                             .filter(name => name.length > 0); // Only save non-empty names
+        .map(input => input.value.trim())
+        .filter(name => name.length > 0); // Only save non-empty names
 
     // Validate against allowed number (read from config)
     const maxAllowed = challengeConfig.numPlayersPerGroup || 1;
@@ -277,26 +278,26 @@ async function handleSavePlayersClick(event) {
         }, challengeConfig.csrfToken); // Pass CSRF token
 
         if (data.status === 'success') {
-             console.log("Player names saved successfully via API.");
-             showError(errorContainer, "Names saved!", 'success');
-             setTimeout(() => showError(errorContainer, null), 2500); // Clear success message
+            console.log("Player names saved successfully via API.");
+            showError(errorContainer, "Names saved!", 'success');
+            setTimeout(() => showError(errorContainer, null), 2500); // Clear success message
 
-             // --- Update client-side state ---
-             const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === parseInt(groupId, 10));
-             if (groupIndex !== -1) {
-                 challengeConfig.initialGroups[groupIndex].player_names = playerNames; // Update array in config
-                 console.log("Updated challengeConfig.initialGroups with new player names.");
+            // --- Update client-side state ---
+            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === parseInt(groupId, 10));
+            if (groupIndex !== -1) {
+                challengeConfig.initialGroups[groupIndex].player_names = playerNames; // Update array in config
+                console.log("Updated challengeConfig.initialGroups with new player names.");
 
-                 // --- ADDED: Update penalty module's state ---
-                 if (typeof updatePenaltyConfig === 'function') {
-                     updatePenaltyConfig(challengeConfig);
-                 }
-                 // --- END ADDED ---
+                // --- ADDED: Update penalty module's state ---
+                if (typeof updatePenaltyConfig === 'function') {
+                    updatePenaltyConfig(challengeConfig);
+                }
+                // --- END ADDED ---
 
-             } else {
-                 console.warn("Could not find group in local config state to update player names.");
-             }
-             // --- End client-side state update ---
+            } else {
+                console.warn("Could not find group in local config state to update player names.");
+            }
+            // --- End client-side state update ---
 
         } else { throw new Error(data.error || "Unknown error saving names."); } // Handle API error response
     } catch (error) {
@@ -343,8 +344,58 @@ function renderLocalChallengeView(challenge) {
         console.error("Error during dynamic render of local challenge:", renderError);
         showError(statusDiv || displayContainer, "Error displaying challenge details.", "danger");
     }
-}
 
+}
+async function handleClearPenaltyClick(event) {
+    const clearButton = event.target.closest('.clear-penalty-btn');
+    if (!clearButton) return; // Should not happen if called correctly
+
+    const groupId = clearButton.dataset.groupId;
+    const penaltyDisplayDiv = clearButton.closest('.active-penalty-display'); // Find parent for error display
+
+    // Get necessary data from the main data div
+    const dataEl = document.getElementById('challengeData');
+    const setPenaltyUrlBase = dataEl?.dataset.setPenaltyUrlBase;
+    const csrfToken = dataEl?.dataset.csrfToken;
+
+    // Validation
+    if (!groupId || !setPenaltyUrlBase || !csrfToken) {
+        console.error("Clear Penalty Error: Missing groupId, URL base, or CSRF token.");
+        showError(penaltyDisplayDiv || statusDiv, "Cannot clear penalty: config missing.", "danger");
+        return;
+    }
+
+    console.log(`Clearing penalty for group ${groupId}...`);
+    setLoading(clearButton, true, 'Clearing...');
+    showError(penaltyDisplayDiv || statusDiv, null); // Clear previous errors in scope
+
+    const url = `${setPenaltyUrlBase}/${groupId}/penalty`;
+    console.log("Debug Clear Penalty - Constructed URL:", url);
+    const payload = { penalty_text: "" }; // Send empty string to clear
+
+    try {
+        const data = await apiFetch(url, {
+            method: 'POST',
+            body: payload
+        }, csrfToken);
+
+        if (data.status === 'success') {
+            console.log(`Penalty cleared successfully for group ${groupId}.`);
+            // Update the UI immediately
+            updatePenaltyDisplay(groupId, ''); // Call the UI function to clear display
+            // Optionally remove the button itself after clearing, or just let display:none hide it
+            // clearButton.remove();
+        } else {
+            // Handle specific API errors if needed
+            throw new Error(data.error || "Unknown error from server.");
+        }
+    } catch (error) {
+        console.error("Failed to clear penalty:", error);
+        showError(penaltyDisplayDiv || statusDiv, `Error: ${error.message}`, 'danger');
+        setLoading(clearButton, false); // Reset button only on error
+    }
+    // No finally setLoading(false) here, as the UI update should hide the button's container
+}
 
 // --- Initialize Page ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -360,43 +411,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Read data into challengeConfig
     try {
-         const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
-         const structureJson = dataEl.dataset.challengeJson;
-         const coreStructure = structureJson && structureJson !== 'null' ? JSON.parse(structureJson) : null;
-         const parsedMaxGroups = parseInt(dataEl.dataset.maxGroups, 10);
-         const maxGroupsValue = (!isNaN(parsedMaxGroups) && parsedMaxGroups >= 1) ? parsedMaxGroups : 1;
-         const parsedInitialCount = parseInt(dataEl.dataset.initialGroupCount, 10);
-         const initialCountValue = (!isNaN(parsedInitialCount) && parsedInitialCount >= 0) ? parsedInitialCount : 0;
-         // --- ADDED Reading for numPlayersPerGroup and initialGroups (with player names) ---
-         const parsedNumPlayers = parseInt(dataEl.dataset.numPlayersPerGroup, 10);
-         const initialGroupsJson = dataEl.dataset.initialGroups;
-         const initialGroupsData = initialGroupsJson && initialGroupsJson !== 'null' ? JSON.parse(initialGroupsJson) : [];
+        const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
+        const structureJson = dataEl.dataset.challengeJson;
+        const coreStructure = structureJson && structureJson !== 'null' ? JSON.parse(structureJson) : null;
+        const parsedMaxGroups = parseInt(dataEl.dataset.maxGroups, 10);
+        const maxGroupsValue = (!isNaN(parsedMaxGroups) && parsedMaxGroups >= 1) ? parsedMaxGroups : 1;
+        const parsedInitialCount = parseInt(dataEl.dataset.initialGroupCount, 10);
+        const initialCountValue = (!isNaN(parsedInitialCount) && parsedInitialCount >= 0) ? parsedInitialCount : 0;
+        // --- ADDED Reading for numPlayersPerGroup and initialGroups (with player names) ---
+        const parsedNumPlayers = parseInt(dataEl.dataset.numPlayersPerGroup, 10);
+        const initialGroupsJson = dataEl.dataset.initialGroups;
+        const initialGroupsData = initialGroupsJson && initialGroupsJson !== 'null' ? JSON.parse(initialGroupsJson) : [];
 
-         challengeConfig = {
-             id: dataEl.dataset.challengeId,
-             isLocal: dataEl.dataset.isLocal === 'true',
-             isMultigroup: dataEl.dataset.isMultigroup === 'true',
-             maxGroups: maxGroupsValue,
-             initialGroupCount: initialCountValue,
-             userJoinedGroupId: typeof joinedId === 'number' ? joinedId : null,
-             coreChallengeStructure: coreStructure,
-             progressData: {},
-             csrfToken: dataEl.dataset.csrfToken,
-             // Store the new config value
-             numPlayersPerGroup: (!isNaN(parsedNumPlayers) && parsedNumPlayers >= 1) ? parsedNumPlayers : 1,
-             // Store the initial groups data (includes player names)
-             initialGroups: Array.isArray(initialGroupsData) ? initialGroupsData : [],
-             urls: {
-                 addGroup: dataEl.dataset.addGroupUrl,
-                 updateProgressBase: dataEl.dataset.updateProgressUrlBase,
-                 joinLeaveBase: dataEl.dataset.joinLeaveUrlBase
-             }
-         };
-         // --- End Reading Additions ---
-         if (!challengeConfig.id /*|| ... other validation ...*/) throw new Error("Essential config missing.");
-         console.log("challenge_view.js: Parsed challengeConfig:", challengeConfig);
+        challengeConfig = {
+            id: dataEl.dataset.challengeId,
+            isLocal: dataEl.dataset.isLocal === 'true',
+            isMultigroup: dataEl.dataset.isMultigroup === 'true',
+            maxGroups: maxGroupsValue,
+            initialGroupCount: initialCountValue,
+            userJoinedGroupId: typeof joinedId === 'number' ? joinedId : null,
+            coreChallengeStructure: coreStructure,
+            progressData: {},
+            csrfToken: dataEl.dataset.csrfToken,
+            // Store the new config value
+            numPlayersPerGroup: (!isNaN(parsedNumPlayers) && parsedNumPlayers >= 1) ? parsedNumPlayers : 1,
+            // Store the initial groups data (includes player names)
+            initialGroups: Array.isArray(initialGroupsData) ? initialGroupsData : [],
+            urls: {
+                addGroup: dataEl.dataset.addGroupUrl,
+                updateProgressBase: dataEl.dataset.updateProgressUrlBase,
+                joinLeaveBase: dataEl.dataset.joinLeaveUrlBase
+            }
+        };
+        // --- End Reading Additions ---
+        if (!challengeConfig.id /*|| ... other validation ...*/) throw new Error("Essential config missing.");
+        console.log("challenge_view.js: Parsed challengeConfig:", challengeConfig);
 
-    } catch(e) { console.error("challenge_view.js: Failed to parse initial data:", e); showError(statusDiv || document.body, `Init Error: ${e.message}`); return; }
+    } catch (e) { console.error("challenge_view.js: Failed to parse initial data:", e); showError(statusDiv || document.body, `Init Error: ${e.message}`); return; }
 
     // --- Branch based on Local vs DB ---
     if (challengeConfig.isLocal) {
@@ -446,22 +497,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (pageContainer) {
-             // --- Consolidated Click Listener ---
-             pageContainer.addEventListener('click', (event) => {
+            // --- Consolidated Click Listener ---
+            pageContainer.addEventListener('click', (event) => {
                 if (challengeConfig.isMultigroup && event.target.closest('.join-group-btn')) {
                     handleJoinGroupClick(event);
                 } else if (challengeConfig.isMultigroup && event.target.closest('.leave-group-btn')) {
                     handleLeaveGroupClick(event);
                 } else if (challengeConfig.isMultigroup && event.target.closest('.save-player-names-btn')) {
                     handleSavePlayersClick(event);
+                } else if (event.target.closest('.clear-penalty-btn')) { // <<< ADD THIS ELSE IF CONDITION
+                    handleClearPenaltyClick(event); // <<< CALL THE NEW HANDLER
                 }
-             });
-             console.log("Listeners attached: Join/Leave/Save Players (delegated)");
+            });
+            console.log("Listeners attached: Join/Leave/Save Players/Clear Penalty (delegated)"); // Updated log
 
-             // Progress listener needed for all DB modes
-             pageContainer.addEventListener('change', handleProgressChange);
-             console.log("Listener attached: DB Progress (delegated)");
+            // Progress listener needed for all DB modes (keep existing)
+            pageContainer.addEventListener('change', handleProgressChange);
+            console.log("Listener attached: DB Progress (delegated)");
         } else { console.error("Main view container (#challengeViewContainer) NOT FOUND!"); }
+
     }
 
 }); // End DOMContentLoaded

@@ -246,7 +246,8 @@ export function addGroupToDOM(group, challengeConfig) {
     const title = clone.querySelector('.card-title');
     const progressContainer = clone.querySelector('.group-progress-container');
     const buttonContainer = clone.querySelector('.card-footer');
-    // --- Find player names section in template ---
+    const penaltyDisplayDiv = clone.querySelector('.active-penalty-display');
+    const penaltyTextP = clone.querySelector('.penalty-text-content');
     const playerNamesSection = clone.querySelector('.player-names-section');
 
     if (!wrapper || !title || !progressContainer || !buttonContainer || !playerNamesSection) {
@@ -258,7 +259,15 @@ export function addGroupToDOM(group, challengeConfig) {
     title.textContent = group.name;
     progressContainer.innerHTML = ''; // Clear placeholder
     playerNamesSection.style.display = 'none'; // Ensure hidden by default
-
+        // Initialize penalty display based on data passed in 'group' object
+    if (penaltyDisplayDiv && penaltyTextP) {
+        const initialPenalty = group.active_penalty_text || ''; // Use the text passed from the API
+        penaltyTextP.textContent = initialPenalty;
+        penaltyDisplayDiv.style.display = initialPenalty ? 'block' : 'none';
+        penaltyDisplayDiv.dataset.groupId = group.id; // Ensure group ID is set
+    } else {
+         console.warn("Penalty display elements missing in group card template.");
+    }
     // Render initial progress items (always disabled initially)
     if (challengeConfig.coreChallengeStructure) {
         renderProgressItems(progressContainer, challengeConfig.coreChallengeStructure, group.id, group.progress || {}, false);
@@ -298,7 +307,7 @@ export function updateUIAfterMembershipChange(challengeConfig) {
     allGroupCards.forEach(cardWrapper => { // Iterate through the wrapper divs
         const card = cardWrapper.querySelector('.card.group-card'); // Get the actual card element inside
         if (!card) return; // Skip if card element not found
-
+        const penaltyDisplayDiv = cardWrapper.querySelector('.active-penalty-display');
         const cardGroupId = parseInt(cardWrapper.dataset.groupId, 10);
         const buttonContainer = card.querySelector('.card-footer');
         const checkBoxes = card.querySelectorAll('.progress-checkbox');
@@ -307,38 +316,63 @@ export function updateUIAfterMembershipChange(challengeConfig) {
         if (isNaN(cardGroupId)) return;
 
         const isJoinedGroup = (challengeConfig.userJoinedGroupId === cardGroupId);
-
-        // --- **NEW: Add/Remove Highlight Class** ---
-        if (isJoinedGroup && challengeConfig.isMultigroup) {
-            cardWrapper.classList.add('joined-group-active'); // Add class to the wrapper
+        const classesForOtherGroup = ['col-lg-4', 'col-md-6', 'mb-4', 'group-card-wrapper'];
+        const classesForJoinedGroup = ['col-md-8', 'col-lg-6', 'mx-auto', 'mb-4', 'group-card-wrapper', 'joined-group-layout'];
+        if (isJoinedGroup) {
+            // Apply classes for the "Your Group" layout
+            cardWrapper.className = classesForJoinedGroup.join(' '); // Replace all classes
+            cardWrapper.classList.add('joined-group-active'); // Add highlight separately if needed
         } else {
-            cardWrapper.classList.remove('joined-group-active'); // Remove class from others/if not joined
+            // Apply classes for the "Other Groups" layout
+            cardWrapper.className = classesForOtherGroup.join(' '); // Replace all classes
         }
-        // --- **END NEW** ---
+        const groupData = challengeConfig.initialGroups?.find(g => g.id === cardGroupId);
+        if (penaltyDisplayDiv && groupData) {
+            updatePenaltyDisplay(cardGroupId, groupData.active_penalty_text || '');
+        }
+        // Add/Remove Highlight Class for the wrapper
+        if (isJoinedGroup && challengeConfig.isMultigroup) {
+            cardWrapper.classList.add('joined-group-active');
+        } else {
+            cardWrapper.classList.remove('joined-group-active');
+        }
 
         // Checkbox Enable/Disable
         const enableCheckboxes = !challengeConfig.isMultigroup || isJoinedGroup;
         checkBoxes.forEach(cb => cb.disabled = !enableCheckboxes);
 
-        // Player Name Section Visibility and Content
+        // --- Update Player Name Section Visibility and Content ---
         if (playerNamesSection) {
+            // Remove any previously rendered Save button first
              const existingSaveBtn = playerNamesSection.querySelector('.save-player-names-btn');
              if(existingSaveBtn) existingSaveBtn.remove();
 
             if (isJoinedGroup && challengeConfig.isMultigroup) {
-                const groupData = Array.isArray(challengeConfig.initialGroups) ? challengeConfig.initialGroups.find(g => g.id === cardGroupId) : null;
-                // Only call render if the element is actually visible in the DOM
-                // (prevents unnecessary work if card is hidden for some reason)
+                // Show and render inputs only for JOINED group in MULTIGROUP mode
+                console.log(`Rendering player inputs for joined group ${cardGroupId}`);
+                // Find the group's data from config to get current names
+                const groupData = Array.isArray(challengeConfig.initialGroups)
+                    ? challengeConfig.initialGroups.find(g => g.id === cardGroupId)
+                    : null;
+                // Only call render if the card is actually visible
                 if (cardWrapper.offsetParent !== null) {
-                     renderPlayerNameInputs(playerNamesSection, cardGroupId, groupData?.player_names || [], challengeConfig.numPlayersPerGroup || 1);
+                     renderPlayerNameInputs(
+                         playerNamesSection,
+                         cardGroupId,
+                         groupData?.player_names || [], // Pass current names or empty array
+                         challengeConfig.numPlayersPerGroup || 1 // Pass max allowed
+                     );
                  } else {
                       playerNamesSection.style.display = 'none'; // Ensure hidden if parent isn't visible
                  }
             } else {
+                // Hide for non-joined groups or single group mode
                 playerNamesSection.style.display = 'none';
                 const inputsContainer = playerNamesSection.querySelector('.player-name-inputs');
-                if(inputsContainer) inputsContainer.innerHTML = '';
+                if(inputsContainer) inputsContainer.innerHTML = ''; // Clear inputs if hidden
             }
+        } else if (isJoinedGroup && challengeConfig.isMultigroup) {
+             console.error(`Player names section missing in card for joined group ${cardGroupId}`);
         }
          // --- End Player Name Section Update ---
 
@@ -346,52 +380,69 @@ export function updateUIAfterMembershipChange(challengeConfig) {
         if (challengeConfig.isMultigroup) {
             if (!buttonContainer) { console.warn(`Button container missing for group ${cardGroupId}`); return; }
             let currentButton = buttonContainer.querySelector('button');
-            if (!currentButton) { /* Create placeholder if needed */ /*...*/ }
+            // Ensure button exists before proceeding
+            if (!currentButton) {
+                 // Attempt to create a placeholder if missing entirely
+                 currentButton = document.createElement('button');
+                 currentButton.dataset.groupId = cardGroupId;
+                 currentButton.innerHTML = '<span class="spinner-border spinner-border-sm" style="display: none;"></span><span>...</span>';
+                 buttonContainer.innerHTML = '';
+                 buttonContainer.appendChild(currentButton);
+                 console.warn(`Created placeholder button for group ${cardGroupId}`);
+            }
             const buttonTextSpan = currentButton.querySelector('span:not(.spinner-border-sm)');
 
             let btnClass = 'btn btn-sm'; let btnText = ''; let btnDisabled = false;
-            // ... (button state logic based on isJoinedGroup, userJoinedGroupId) ...
+            // Determine button state based on join status
              if (isJoinedGroup) { btnClass += ' btn-danger leave-group-btn'; btnText = 'Leave Group'; }
              else if (challengeConfig.userJoinedGroupId !== null) { btnClass += ' btn-outline-secondary'; btnText = 'Joined Other'; btnDisabled = true; }
-             else { const isFull = currentButton.textContent.includes('Full'); if(isFull){ btnClass += ' btn-outline-secondary'; btnText = 'Full'; btnDisabled = true; } else { btnClass += ' btn-success join-group-btn'; btnText = 'Join Group'; } }
+             else {
+                 // Check if button text indicates full (less reliable than member count)
+                 const isFull = currentButton.textContent.includes('Full');
+                 if(isFull){ btnClass += ' btn-outline-secondary'; btnText = 'Full'; btnDisabled = true; }
+                 else { btnClass += ' btn-success join-group-btn'; btnText = 'Join Group'; }
+             }
+            // Apply updates
             currentButton.className = btnClass; currentButton.disabled = btnDisabled;
             if (buttonTextSpan) buttonTextSpan.textContent = btnText;
-            currentButton.dataset.groupId = cardGroupId;
-            setLoading(currentButton, false);
+            currentButton.dataset.groupId = cardGroupId; // Ensure group ID is still correct
+            setLoading(currentButton, false); // Reset loading state
+
         } else { // Single group mode
             if (buttonContainer) buttonContainer.style.display = 'none';
         }
-    });
+    }); // End forEach card
 }
 
 function renderPlayerNameInputs(container, groupId, currentNames = [], numPlayersAllowed = 1) {
-    if (!container) return;
+    if (!container) return; // Nothing to render into
 
     const inputsContainer = container.querySelector('.player-name-inputs');
     const errorContainer = container.querySelector('.player-name-error');
+    // Remove any previously added save button before re-rendering inputs
     const existingSaveBtn = container.querySelector('.save-player-names-btn');
-
-    // Clear previous state cleanly
     if(existingSaveBtn) existingSaveBtn.remove();
+
     if (!inputsContainer || !errorContainer) {
-        console.error("Player name section sub-elements missing.");
-        container.innerHTML = '<p class="text-danger small">Error rendering player name inputs.</p>'; // Show error
+        console.error("Player name section missing '.player-name-inputs' or '.player-name-error' sub-elements.");
+        container.innerHTML = '<p class="text-danger small">Error rendering player name inputs UI.</p>';
         container.style.display = 'block';
         return;
     }
-    inputsContainer.innerHTML = '';
-    showError(errorContainer, null); // Use helper to clear error
 
-    if (numPlayersAllowed <= 0) { // Should not happen based on model default, but good check
-         container.style.display = 'none';
+    inputsContainer.innerHTML = ''; // Clear previous inputs
+    showError(errorContainer, null); // Clear previous errors using helper
+
+    if (numPlayersAllowed <= 0) {
+         container.style.display = 'none'; // Hide if no players allowed somehow
          return;
     }
 
     // Generate input fields
     let inputsHtml = '';
     for (let i = 0; i < numPlayersAllowed; i++) {
-        const currentName = currentNames?.[i] || '';
-        // --- REMOVED Jinja comment from here ---
+        const currentName = currentNames?.[i] || ''; // Get current name or default to empty
+        // Add data-index for easy identification later
         inputsHtml += `
             <input type="text"
                    class="form-control form-control-sm mb-1 player-name-input"
@@ -403,14 +454,32 @@ function renderPlayerNameInputs(container, groupId, currentNames = [], numPlayer
     }
     inputsContainer.innerHTML = inputsHtml;
 
-    // Add Save Button
-    const saveButtonHtml = `
-        <button class="btn btn-primary btn-sm mt-2 save-player-names-btn" data-group-id="${groupId}">
-            <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-            <span>Save Names</span>
-        </button>`;
-    inputsContainer.insertAdjacentHTML('afterend', saveButtonHtml);
+    // Add Save Button if inputs were rendered
+    if (inputsHtml) {
+        const saveButtonHtml = `
+            <button class="btn btn-primary btn-sm mt-2 save-player-names-btn" data-group-id="${groupId}">
+                <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                <span>Save Names</span>
+            </button>`;
+        // Append button *after* the inputs container, but *within* the main section container
+        inputsContainer.insertAdjacentHTML('afterend', saveButtonHtml);
+    }
 
-    container.style.display = 'block'; // Make section visible
+    container.style.display = 'block'; // Make the whole section visible
     // console.log(`UI: Rendered player name inputs for group ${groupId}`); // Optional log
+}
+
+export function updatePenaltyDisplay(groupId, penaltyText) {
+    const penaltyDisplayDiv = document.querySelector(`.active-penalty-display[data-group-id="${groupId}"]`);
+    if (!penaltyDisplayDiv) {
+        console.warn(`UI Update: Could not find penalty display for group ${groupId}`);
+        return;
+    }
+    const textContentP = penaltyDisplayDiv.querySelector('.penalty-text-content');
+    if (textContentP) {
+        textContentP.textContent = penaltyText || ''; // Set text content directly
+    }
+    // Show/hide the whole div based on whether there's text
+    penaltyDisplayDiv.style.display = penaltyText ? 'block' : 'none';
+    console.log(`UI Update: Penalty display updated for group ${groupId}`);
 }
