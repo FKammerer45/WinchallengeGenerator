@@ -13,31 +13,35 @@ Challenge Not Found
 
 {% block head %}
 {{ super() }}
+{# Link to specific CSS for this page #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/challenge_view.css') }}">
-{# Removed empty inline style block #}
 {% endblock %}
 
 
 {% block content %}
-{# Add class to body based on mode for CSS rules #}
+{# Add body class based on mode for potential CSS targeting #}
 {% set body_class = 'single-group-mode' if not is_multigroup else 'multi-group-mode' %}
 <div class="container mt-4 {{ body_class }}">
 
-  {# --- Data Div holding ALL data needed by JS --- #}
-  {% if is_local or shared_challenge %} {# Only render if there's data to pass #}
-  <div id="challengeData" style="display: none;" aria-hidden="true" data-challenge-id="{{ challenge_id }}" {# Public or
-    local ID #} data-is-local="{{ is_local | lower }}" data-is-multigroup="{{ is_multigroup | lower }}"
-    data-csrf-token="{{ csrf_token() }}" data-user-joined-group-id="{{ user_joined_group_id | tojson }}"
-    data-add-group-url="{{ url_for('challenge_api.add_group_to_challenge', public_id=challenge_id) if not is_local else '' }}"
-    data-update-progress-url-base="{{ url_for('challenge_api.update_group_progress', public_id=challenge_id, group_id=0) | replace('/0/progress', '') if not is_local else '' }}"
-    data-join-leave-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') if not is_local else '' }}"
-    {# --- ADDED num_players_per_group (Value from main.py) --- #}
-    data-num-players-per-group="{{ num_players_per_group | default(1) }}"
-    data-initial-groups='{{ initial_groups | tojson if initial_groups else ' null' }}' {# Needs player_names from
-    main.py #} data-challenge-json='{{ shared_challenge.challenge_data | tojson if shared_challenge else ' null' }}'
-    data-penalty-info='{{ shared_challenge.penalty_info | tojson if shared_challenge and shared_challenge.penalty_info else '
-    null' }}' data-max-groups="{{ shared_challenge.max_groups if shared_challenge else 1 }}"
-    data-set-penalty-url-base="{{ url_for('challenge_api.set_group_penalty', group_id=0) | replace('/groups/0/penalty', '/groups') if not is_local else '' }}">
+  {# --- Hidden Data Div for JavaScript --- #}
+  {% if is_local or shared_challenge %}
+  <div id="challengeData" style="display: none;" aria-hidden="true"
+       data-challenge-id="{{ challenge_id }}"
+       data-is-local="{{ is_local | lower }}"
+       data-is-multigroup="{{ is_multigroup | lower }}"
+       data-is-logged-in="{{ current_user.is_authenticated | lower }}"
+       data-csrf-token="{{ csrf_token() }}"
+       data-user-joined-group-id="{{ user_joined_group_id | tojson }}"
+       data-add-group-url="{{ url_for('challenge_api.add_group_to_challenge', public_id=challenge_id) if not is_local else '' }}"
+       data-update-progress-url-base="{{ url_for('challenge_api.update_group_progress', public_id=challenge_id, group_id=0) | replace('/0/progress', '') if not is_local else '' }}"
+       data-join-leave-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') if not is_local else '' }}"
+       data-save-players-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') if not is_local else '' }}" {# Assumes same base URL, adjust if needed #}
+       data-set-penalty-url-base="{{ url_for('challenge_api.set_group_penalty', group_id=0) | replace('/groups/0/penalty', '/groups') if not is_local else '' }}"
+       data-num-players-per-group="{{ num_players_per_group | default(1) }}"
+       data-initial-groups='{{ initial_groups | tojson if initial_groups else "null" }}'
+       data-challenge-json='{{ shared_challenge.challenge_data | tojson if shared_challenge else "null" }}'
+       data-penalty-info='{{ shared_challenge.penalty_info | tojson if shared_challenge and shared_challenge.penalty_info else "null" }}'
+       data-max-groups="{{ shared_challenge.max_groups if shared_challenge else 1 }}">
   </div>
   {% endif %}
   {# --- End Data Div --- #}
@@ -46,11 +50,11 @@ Challenge Not Found
   {# --- Main Content Area Container --- #}
   <div id="challengeViewContainer">
 
-    {# General status message area for JS #}
+    {# General status message area - ALWAYS RENDERED #}
     <div id="pageStatusDisplay" class="mb-3"></div>
 
     {% if is_local %}
-    {# Placeholder for Local Challenge (JS Rendering) #}
+    {# --- Local Challenge View (Rendered entirely by JS) --- #}
     <div id="localChallengeDisplay">
       <h1 class="text-center text-muted">Loading Local Challenge...</h1>
       <div class="d-flex justify-content-center mt-3">
@@ -59,65 +63,56 @@ Challenge Not Found
     </div>
 
     {% elif shared_challenge %}
-    {# Render structure for DB Challenge #}
+    {# --- Database Challenge View --- #}
 
-    {# Combined Header & Rules Section #}
+    {# Row for Challenge Info and Rules Cards #}
     <div class="row mb-4">
       <div class="col-lg-5 mb-4 mb-lg-0"> {# Info Card #}
         <div class="card h-100 bg-dark text-light shadow-sm">
-          <div class="card-header">
-            <h3 class="h5 mb-0">Challenge Info</h3>
-          </div>
+          <div class="card-header"><h3 class="h5 mb-0">Challenge Info</h3></div>
           <div class="card-body">
             <h4 class="card-title text-warning">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h4>
-            <p class="card-text small mb-1"><strong class="text-muted">ID:</strong> <code class="user-select-all"
-                style="font-size: 0.9em;">{{ shared_challenge.public_id }}</code></p>
-            <p class="card-text small mb-1"><strong class="text-muted">Created by:</strong> {{
-              shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</p>
-            <p class="card-text small mb-3"><strong class="text-muted">Mode:</strong> {% if is_multigroup %}Multigroup
-              (Max {{ shared_challenge.max_groups }}) | Players/Group: {{ num_players_per_group }}{% else %}Single
-              Group{% endif %}</p>
-            <p class="card-text small font-italic">{% if is_multigroup %}Share URL to join!{% else %}Track progress
-              below.{% endif %}</p>
+            <p class="card-text small mb-1"><strong class="text-muted">ID:</strong> <code class="user-select-all" style="font-size: 0.9em;">{{ shared_challenge.public_id }}</code></p>
+            <p class="card-text small mb-1"><strong class="text-muted">Created by:</strong> {{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</p>
+            <p class="card-text small mb-3"><strong class="text-muted">Mode:</strong> {% if is_multigroup %}Multigroup (Max {{ shared_challenge.max_groups }}) | Players/Group: {{ num_players_per_group }}{% else %}Single Group{% endif %}</p>
+            <p class="card-text small font-italic">{% if is_multigroup %}Share URL to join!{% else %}Track progress below.{% endif %}</p>
           </div>
         </div>
       </div>
       <div class="col-lg-7"> {# Rules Card #}
         <div class="card h-100 bg-dark text-light shadow-sm">
-          <div class="card-header">
-            <h3 class="h5 mb-0">Challenge Rules</h3>
-          </div>
+          <div class="card-header"><h3 class="h5 mb-0">Challenge Rules</h3></div>
           <div class="card-body challenge-rules-list">
-            {% set c = shared_challenge.challenge_data %}{% include 'challenge/_challenge_details.html' ignore missing
-            %}
+            {# Include the static rules partial #}
+            {% set c = shared_challenge.challenge_data %}
+            {% include 'challenge/_challenge_details.html' ignore missing %}
           </div>
         </div>
       </div>
     </div>
 
-    {# Penalty Section (Conditional & Collapsible) #}
+    {# Penalty Section (Conditional) #}
     {% if shared_challenge.penalty_info %}
-    <div id="penaltySectionContainer" class="mb-4 card bg-secondary text-light"> {# ID for JS show/hide #}
+    <div id="penaltySectionContainer" class="mb-4 card bg-secondary text-light">
       <div class="card-header">
         <h3 class="mb-0 d-inline">Penalties</h3>
-        {# BS4 Collapse Trigger #}
         <button class="btn btn-sm btn-outline-light float-right" type="button" data-toggle="collapse"
-          data-target="#penaltyBody" aria-expanded="true" aria-controls="penaltyBody">
+                data-target="#penaltyBody" aria-expanded="true" aria-controls="penaltyBody">
           Toggle View
         </button>
       </div>
-      <div class="card-body collapse show" id="penaltyBody"> {# Added ID and classes #}
+      <div class="card-body collapse show" id="penaltyBody">
+        {# Include the penalty wheel section #}
         {% set p_info = shared_challenge.penalty_info %}
-        {% set current_group_names = shared_challenge.groups | map(attribute='group_name') | list %}
-        {% set players = current_group_names %}
+        {% set players = [] %} {# Let JS handle fetching player names #}
         {% set penalty_tab_id = p_info.get('tab_id') %}
-        {% set challenge_index = 'shared' %}
+        {% set challenge_index = 'shared' %} {# Used for unique element IDs #}
         {% include 'challenge/_challenge_penalty_section.html' ignore missing %}
       </div>
     </div>
     {% endif %}
 
-    {# Group Management & Display #}
+    {# --- Group Management & Display Section --- #}
     <hr class="my-4 border-secondary">
     <h2 class="mb-3 text-light">{% if is_multigroup %}Groups & Progress{% else %}Your Progress{% endif %}</h2>
 
@@ -126,192 +121,136 @@ Challenge Not Found
     <div class="mb-4 card bg-dark border-secondary text-light">
       <div class="card-body">
         <h4 class="card-title text-warning">Create or Join Group</h4>
-        <form id="addGroupForm" class="form">
+        <form id="addGroupForm" class="form" novalidate>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-row align-items-center">
             <div class="col-sm-8 col-md-9 mb-2 mb-sm-0">
+              <label for="groupNameInput" class="sr-only">Group Name</label>
               <input type="text" class="form-control form-control-lg bg-secondary text-light border-secondary"
-                id="groupNameInput" name="group_name" placeholder="Enter group name to create/join" required
-                maxlength="80">
+                     id="groupNameInput" name="group_name" placeholder="Enter group name to create" required maxlength="80">
             </div>
             <div class="col-sm-4 col-md-3">
               <button type="submit" id="addGroupBtn" class="btn btn-success btn-lg btn-block">
-                <span class="spinner-border spinner-border-sm"></span><span>Create Group</span>
+                <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                <span>Create Group</span>
               </button>
             </div>
           </div>
-          <small id="groupLimitInfo" class="form-text text-muted mt-2">Groups: <span id="currentGroupCount">{{
-              shared_challenge.groups | length }}</span> / <span id="maxGroupCount">{{ shared_challenge.max_groups
-              }}</span></small>
+          <small id="groupLimitInfo" class="form-text text-muted mt-2">Groups: <span id="currentGroupCount">{{ initial_groups | length }}</span> / <span id="maxGroupCount">{{ shared_challenge.max_groups }}</span></small>
         </form>
         <div id="addGroupError" class="text-danger mt-2 font-weight-bold" style="display: none;"></div>
       </div>
     </div>
     {% endif %}
 
-    {# --- "Your Group" Section --- #}
+    {# --- "Your Group" Section Container --- #}
     <div id="myGroupContainer" class="mb-4">
       {% if not is_local and user_joined_group_id is not none %}
-      <h4 class="text-warning mb-3">Your Group</h4>
-      {# NO row needed here either, direct column for the single card #}
-      {% for group in initial_groups if group.id == user_joined_group_id %}
-      {# Wrapper div with column classes #}
-      <div class="col-md-8 col-lg-6 mx-auto mb-4 group-card-wrapper joined-group-layout" data-group-id="{{ group.id }}">
-        {# Example wider columns + centering #}
-        <div class="card group-card h-100"> {# Added h-100 #}
-          <div class="card-body">
-            <h5 class="card-title">{{ group.name | escape }}</h5>
-            {% set challenge = shared_challenge %}{% set is_member = True %}
-            {% include 'challenge/_challenge_group_progress.html' ignore missing %}
-            {# --- ADDED Placeholder for Player Names --- #}
-            <div class="player-names-section mt-3 border-top border-secondary pt-3" style="display: none;">
-              <h6 class="text-light small mb-2">Group Players (Max {{ num_players_per_group }}):</h6>
-              <div class="player-name-inputs"></div> {# JS fills this #}
-              <div class="player-name-error text-danger small mt-1"></div>
-            </div>
-            {# --- END Placeholder --- #}
-          </div>
-          <div class="active-penalty-display mt-2 border-top border-secondary pt-2" data-group-id="{{ group.id }}"
-            style="{{ 'display: none;' if not group.active_penalty_text }}"> {# Initially hide if empty #}
-            <h6 class="text-danger small mb-1">Active Penalty:</h6>
-            <p class="mb-0 text-warning small penalty-text-content">
-              {{ group.active_penalty_text | escape if group.active_penalty_text else '' }}
-            </p>
-
-            {# --- NEW BUTTON --- #}
-            <button class="btn btn-xs btn-outline-light clear-penalty-btn mt-1"
-              data-group-id="{{ group.id }}">Clear</button>
-            {# --- END NEW BUTTON --- #}
-          </div>
-          {% if is_multigroup %}
-          <div class="card-footer text-muted text-center join-leave-footer">
-            <button class="btn btn-sm btn-danger leave-group-btn" data-group-id="{{ group.id }}"><span>Leave
-                Group</span><span class="spinner-border spinner-border-sm"></span></button>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
+        <h4 class="text-warning mb-3">Your Group</h4>
+        {% for group_data in initial_groups if group_data.id == user_joined_group_id %}
+          {# *** Include the new partial, passing context *** #}
+          {% with group=group_data, challenge=shared_challenge, is_member=True, is_multigroup=is_multigroup, num_players_per_group=num_players_per_group %}
+            {% include 'challenge/_group_card_content.html' ignore missing %}
+          {% endwith %}
+        {% endfor %}
+        <hr class="border-secondary"> {# Separator after "Your Group" #}
+      {% endif %}
     </div>
-    <hr class="border-secondary">
-    {% endif %}
-  </div>
-  {# --- End "Your Group" Section --- #}
+    {# --- End "Your Group" Section --- #}
 
-  {# --- "Other Groups" Section --- #}
-  <h4 class="text-info mb-3 {% if not is_multigroup %}d-none{% endif %}">
-    {% if user_joined_group_id is none %}Available Groups{% else %}Other Available Groups{% endif %}
-  </h4>
-  <div id="otherGroupsContainer" class="row">
-    {% if not is_local and initial_groups %}
-    {% for group in initial_groups if group.id != user_joined_group_id %}
-    <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="{{ group.id }}">
-      <div class="card group-card h-100"> {# Added h-100 #}
-        <div class="card-body">
-          <h5 class="card-title">{{ group.name | escape }}</h5>
-          {% set challenge = shared_challenge %}{% set is_member = False %}
-          {% include 'challenge/_challenge_group_progress.html' ignore missing %}
-          {# --- ADDED Placeholder (hidden unless moved) --- #}
-          <div class="player-names-section mt-3 border-top border-secondary pt-3" style="display: none;">
-            <h6 class="text-light small mb-2">Group Players (Max {{ num_players_per_group }}):</h6>
-            <div class="player-name-inputs"></div>
-            <div class="player-name-error text-danger small mt-1"></div>
-          </div>
-        </div>
-        <div class="active-penalty-display mt-2 border-top border-secondary pt-2" data-group-id="{{ group.id }}"
-          style="{{ 'display: none;' if not group.active_penalty_text }}"> {# Initially hide if empty #}
-          <h6 class="text-danger small mb-1">Active Penalty:</h6>
-          <p class="mb-0 text-warning small penalty-text-content">
-            {{ group.active_penalty_text | escape if group.active_penalty_text else '' }}
-          </p>
-        </div>
-        {% if is_multigroup %}
-        <div class="card-footer text-muted text-center join-leave-footer">
-          {# ... Join/Full/Joined Other button logic ... #}
-          {% if current_user.is_authenticated %} {% if user_joined_group_id is none and group.member_count < 1 %}
-            <button class="btn btn-sm btn-success join-group-btn" data-group-id="{{ group.id }}"><span>Join</span><span
-              class="spinner-border spinner-border-sm"></span></button> {% else %} <button
-              class="btn btn-sm btn-outline-secondary" disabled><span>{% if group.member_count >= 1 %}Full{% else
-                %}Joined Other{% endif %}</span></button> {% endif %} {% else %} <a
-              href="{{ url_for('auth.login', next=request.url) }}" class="btn btn-sm btn-outline-primary">Log in to
-              Join</a> {% endif %}
-        </div>
-        {% endif %}
-      </div>
+
+    {# --- "Other Groups" Section --- #}
+    <h4 class="text-info mb-3 {% if not is_multigroup %}d-none{% endif %}">
+      {% if user_joined_group_id is none %}Available Groups{% else %}Other Available Groups{% endif %}
+    </h4>
+    {# Container where cards for other groups are placed. Added justify-content-center #}
+    <div id="otherGroupsContainer" class="row justify-content-center">
+      {% if not is_local and initial_groups %}
+        {% for group_data in initial_groups if group_data.id != user_joined_group_id %}
+           {# *** Include the new partial, passing context *** #}
+           {% with group=group_data, challenge=shared_challenge, is_member=False, is_multigroup=is_multigroup, num_players_per_group=num_players_per_group %}
+             {% include 'challenge/_group_card_content.html' ignore missing %}
+           {% endwith %}
+        {% endfor %}
+      {% endif %}
     </div>
-    {% endfor %}
-    {% endif %}
-  </div>
-  {# --- End "Other Groups" Section --- #}
+    {# --- End "Other Groups" Section --- #}
 
-  <div id="noGroupsMessageContainer" class="col-12 {% if initial_groups %}d-none{% endif %}">
-    <p class="text-muted text-center py-5">No groups yet.{% if is_multigroup %} Create one above!{% endif %}</p>
-  </div>
+    {# Message shown if no groups exist (JS manages visibility) #}
+    <div id="noGroupsMessageContainer" class="col-12 {% if initial_groups %}d-none{% endif %}">
+      <p class="text-muted text-center py-5">No groups yet.{% if is_multigroup %} Create one above!{% endif %}</p>
+    </div>
 
-  {% else %} {# Error loading challenge #}
-  {% if not is_local %} <div class="alert alert-danger">Error loading details.</div> {% endif %}
-  {% endif %} {# End if is_local / elif shared_challenge #}
+    {% else %} {# Error loading challenge #}
+      {% if not is_local %}
+        <div class="alert alert-danger">Error: Challenge details could not be loaded.</div>
+      {% endif %}
+    {% endif %} {# End if is_local / elif shared_challenge #}
 
-</div> {# End challengeViewContainer #}
+  </div> {# End challengeViewContainer #}
 </div> {# End container #}
 
-{# Template for new group cards - ADDED player name placeholder #}
+{# --- Template for New Group Cards (Used by JS) --- #}
+{# This template defines the structure JS clones when adding a group dynamically #}
 {% if is_multigroup %}
 <template id="groupCardTemplate">
+  {# Use standard column classes for dynamically added cards #}
   <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="">
-    <div class="card group-card h-100"> {# Added h-100 #}
+    <div class="card group-card h-100">
       <div class="card-body">
-        <h5 class="card-title"></h5>
+        <h5 class="card-title"></h5> {# JS sets name #}
         <div class="group-progress-container">
-          <p class="text-muted small">Loading...</p>
+          <p class="text-muted small">Loading progress...</p> {# Placeholder #}
         </div>
-        {# --- ADDED Placeholder for Player Names --- #}
+        {# Placeholder for Player Names section #}
         <div class="player-names-section mt-3 border-top border-secondary pt-3" style="display: none;">
-          <h6 class="text-light small mb-2">Group Players (Max {{ num_players_per_group | default(1) }}):</h6> {# Use
-          default here too #}
-          <div class="player-name-inputs"></div>
-          <div class="player-name-error text-danger small mt-1"></div>
+          <h6 class="text-light small mb-2">Group Players (Max {{ num_players_per_group | default(1) }}):</h6>
+          <div class="player-name-inputs"></div> {# JS renders inputs here #}
+          <div class="player-name-error text-danger small mt-1"></div> {# JS shows errors here #}
+          {# JS adds save button here #}
         </div>
-        <div class="active-penalty-display mt-2 border-top border-secondary pt-2" style="display: none;"> {# Initially
-          hidden #}
-          <h6 class="text-danger small mb-1">Active Penalty:</h6>
-          <p class="mb-0 text-warning small penalty-text-content"></p> {# Empty paragraph #}
-          {# Optional: Clear button placeholder if needed #}
+         {# Placeholder for Active Penalty display #}
+        <div class="active-penalty-display mt-2 border-top border-secondary pt-2 mx-3 mb-2" data-group-id="" style="display: none;">
+             <h6 class="text-danger small mb-1">Active Penalty:</h6>
+             <p class="mb-0 text-warning small penalty-text-content"></p>
+             {# JS adds clear button here if needed #}
         </div>
       </div>
-      <div class="card-footer text-muted text-center join-leave-footer"> {# Button added by JS #} </div>
+      {# Footer where JS adds Join/Leave/Login button #}
+      <div class="card-footer text-muted text-center join-leave-footer"></div>
     </div>
   </div>
 </template>
 {% endif %}
+{# --- End Template --- #}
+
+{# *** REMOVED Macro Definitions - Moved to _group_card_content.html *** #}
 
 {% endblock %}
 
 
 {% block scripts %}
-{{ super() }} {# Base scripts #}
+{{ super() }} {# Include scripts from base.html #}
 
-{# Conditional Penalty Libs/Utils #}
-{% set might_have_penalties = (shared_challenge and shared_challenge.penalty_info) or is_local %} {# Simplified check
-for loading #}
+{# --- Conditionally Load Penalty-Related Scripts --- #}
+{% set might_have_penalties = (shared_challenge and shared_challenge.penalty_info) or is_local %}
 {% if might_have_penalties %}
-<script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
-<script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
+  <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
 {% endif %}
 
-{# Core Modules #}
+{# --- Core Challenge View Modules --- #}
 <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
-{# Correct path needed here based on actual location #}
 <script type="module" src="{{ url_for('static', filename='js/challenge/local_challenge_storage.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_ui.js') }}"></script>
 
-{# Conditional Penalty Module #}
+{# --- Conditionally Load Penalty Logic Module --- #}
 {% if might_have_penalties %}
-<script type="module" src="{{ url_for('static', filename='js/challenge/challenge_penalty.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_penalty.js') }}"></script>
 {% endif %}
 
-{# Main View Module #}
+{# --- Main View Orchestrator Module --- #}
 <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_view.js') }}"></script>
 {% endblock %}

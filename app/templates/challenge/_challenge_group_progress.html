@@ -1,13 +1,17 @@
 {# templates/challenge/_challenge_group_progress.html #}
 {# Renders the INTERACTIVE progress checkboxes for a specific group #}
 {# Expects:
-    challenge (the full shared_challenge object, to access challenge_data)
-    group (the specific group object, including group.id and group.progress_data)
+    challenge (the full shared_challenge object, used for context but not directly here)
+    group (a dictionary containing group data, including 'id' and 'progress')
     is_member (boolean: True if current_user viewing the page is in this group)
 #}
 
-{% set c = challenge.challenge_data %}
-{% set group_progress = group.progress_data or {} %} {# Use group's progress, default to empty dict #}
+{# Get challenge data from the passed challenge object if needed, otherwise assume structure is in group?
+   Let's assume 'c' still comes from the parent template context for challenge structure #}
+{% set c = challenge.challenge_data %} {# Assumes 'challenge' is passed correctly when including this template #}
+
+{# *** FIX: Access the progress data using the 'progress' key from the group dictionary *** #}
+{% set group_progress = group.progress or {} %} {# Use group.progress #}
 {% set group_id = group.id %}
 
 {% if c %}
@@ -26,24 +30,25 @@
                         {% set item_key = key %}
                         {% set item_index = i %}
                         {% set progress_key = item_type ~ '_' ~ item_key ~ '_' ~ item_index %}
+                        {# Use the corrected group_progress variable #}
                         {% set is_checked = group_progress.get(progress_key, False) %}
+                        {% set safe_id_key = progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') %}
+                        {% set input_id = 'check_' ~ group_id ~ '_' ~ safe_id_key %}
 
-                        <div class="form-check form-check-inline progress-item {% if is_checked %}completed{% endif %}">
+                        <div class="form-check form-check-inline progress-item {% if is_checked %}completed{% endif %}" data-progress-key="{{ progress_key }}">
                           <input type="checkbox"
                                  class="form-check-input progress-checkbox"
-                                 id="check_{{ group_id }}_{{ progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') }}" {# Unique ID #}
+                                 id="{{ input_id }}"
                                  aria-label="Win {{ i+1 }} for {{ key | escape }}"
                                  data-group-id="{{ group_id }}"
                                  data-item-type="{{ item_type }}"
                                  data-item-key="{{ item_key | escape }}"
                                  data-item-index="{{ item_index }}"
                                  {% if is_checked %}checked{% endif %}
-                                 {# --- ADDED DISABLED LOGIC --- #}
                                  {% if not is_member %}disabled{% endif %}
-                                 {# -------------------------- #}
                                  >
-                          <label class="form-check-label" for="check_{{ group_id }}_{{ progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') }}">
-                             <span class="sr-only">Win {{ i+1 }} for {{ key | escape }}</span> {# Screen reader text #}
+                          <label class="form-check-label" for="{{ input_id }}">
+                             <span class="sr-only">Win {{ i+1 }} for {{ key | escape }}</span>
                           </label>
                         </div>
                     {% endfor %}
@@ -71,12 +76,15 @@
                                 {% set item_index = i %}
                                 {% set segment_index = outer_loop_index %}
                                 {% set progress_key = item_type ~ '_' ~ segment_index ~ '_' ~ item_key ~ '_' ~ item_index %}
+                                {# Use the corrected group_progress variable #}
                                 {% set is_checked = group_progress.get(progress_key, False) %}
+                                {% set safe_id_key = progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') %}
+                                {% set input_id = 'check_' ~ group_id ~ '_' ~ safe_id_key %}
 
-                                <div class="form-check form-check-inline progress-item {% if is_checked %}completed{% endif %}">
+                                <div class="form-check form-check-inline progress-item {% if is_checked %}completed{% endif %}" data-progress-key="{{ progress_key }}">
                                   <input type="checkbox"
                                          class="form-check-input progress-checkbox"
-                                         id="check_{{ group_id }}_{{ progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') }}" {# Unique ID #}
+                                         id="{{ input_id }}"
                                          aria-label="Segment {{ segment_index }} Win {{ i+1 }} for {{ key | escape }}"
                                          data-group-id="{{ group_id }}"
                                          data-item-type="{{ item_type }}"
@@ -84,11 +92,9 @@
                                          data-item-index="{{ item_index }}"
                                          data-segment-index="{{ segment_index }}"
                                          {% if is_checked %}checked{% endif %}
-                                         {# --- ADDED DISABLED LOGIC --- #}
                                          {% if not is_member %}disabled{% endif %}
-                                         {# -------------------------- #}
                                          >
-                                   <label class="form-check-label" for="check_{{ group_id }}_{{ progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') }}">
+                                   <label class="form-check-label" for="{{ input_id }}">
                                        <span class="sr-only">Segment {{ segment_index }} Win {{ i+1 }} for {{ key | escape }}</span>
                                    </label>
                                 </div>
@@ -100,11 +106,11 @@
         {% endfor %}
     {% endif %}
 
-    {# Fallback if challenge structure is missing #}
+    {# Fallback if challenge structure is missing or empty #}
     {% if not c.normal and not c.b2b %}
-        <p class="text-muted small">Cannot display progress: Challenge structure missing.</p>
+        <p class="text-muted small">No progress items defined for this challenge.</p>
     {% endif %}
 </div>
 {% else %}
-    <p class="text-danger">Error: Challenge data ('c') not provided to _challenge_group_progress.html partial.</p>
+    <p class="text-danger">Error: Challenge data ('c') not provided to progress template.</p>
 {% endif %}

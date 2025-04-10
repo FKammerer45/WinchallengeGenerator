@@ -299,30 +299,36 @@ def add_group_to_challenge(public_id):
 @login_required # Require login to update progress
 def update_group_progress(public_id, group_id):
     """
-    API endpoint to update progress for a specific group.
-    NOW CHECKS if the logged-in user is a member of the group.
+    API endpoint to update progress for a specific group item.
+    Requires the logged-in user to be a member of the target group.
     """
-    logger.debug(f"User {current_user.username} attempting update progress for challenge {public_id}, group {group_id}")
+    # Minimal logging for request start
+    # logger.debug(f"User {current_user.username} progress update for challenge {public_id}, group {group_id}")
     data = request.get_json()
-    # ... (keep existing payload validation) ...
+
+    # Validate payload
     required_keys = ['item_type', 'item_key', 'item_index', 'is_complete']
     if not data or not all(key in data for key in required_keys):
         return jsonify({"error": f"Invalid request. JSON with keys {required_keys} required."}), 400
-    if not isinstance(data['is_complete'], bool):
+    if not isinstance(data.get('is_complete'), bool):
          return jsonify({"error": "'is_complete' must be a boolean."}), 400
 
-    # ... (keep extraction of item data) ...
+    # Extract data
     item_type = data['item_type']
     item_key = data['item_key']
-    item_index = data['item_index']
+    try:
+        item_index = int(data['item_index'])
+        segment_index = int(data['segment_index']) if 'segment_index' in data else None
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid index or segment_index provided."}), 400
+
     is_complete = data['is_complete']
-    segment_index = data.get('segment_index')
 
     with SessionLocal() as session:
         try:
-            # Find group, ensure it belongs to the challenge, AND load members
+            # Find the target group, ensuring it belongs to the correct challenge
             group = session.query(ChallengeGroup).options(
-                 selectinload(ChallengeGroup.members) # Eagerly load members for check
+                 selectinload(ChallengeGroup.members) # Eager load members for auth check
             ).join(SharedChallenge, SharedChallenge.id == ChallengeGroup.shared_challenge_id)\
              .filter(SharedChallenge.public_id == public_id, ChallengeGroup.id == group_id)\
              .first()
@@ -330,46 +336,56 @@ def update_group_progress(public_id, group_id):
             if not group:
                 return jsonify({"error": "Challenge or Group not found."}), 404
 
-            # --- *** AUTHORIZATION CHECK *** ---
+            # --- Authorization Check: User must be a member ---
             is_member = any(member.id == current_user.id for member in group.members)
             if not is_member:
-                logger.warning(f"Forbidden: User {current_user.username} tried to update progress for group {group_id} but is not a member.")
-                return jsonify({"error": "You are not a member of this group."}), 403 # Forbidden
-            # --- *** END AUTHORIZATION CHECK *** ---
+                logger.warning(f"Forbidden: User {current_user.username} (ID: {current_user.id}) tried to update progress for group {group_id} but is not a member.")
+                return jsonify({"error": "You are not authorized to update progress for this group."}), 403
 
-            # --- Keep existing progress update logic ---
-            if group.progress_data is None: group.progress_data = {}
-            progress = group.progress_data
-            needs_flag_modified = False
+            # --- Update Progress Logic ---
+            if group.progress_data is None: # Initialize if null
+                group.progress_data = {}
 
+            # Work with a copy or directly on the attribute
+            progress = group.progress_data # Get current progress dict
+
+            # Construct the progress key
             if item_type == 'b2b':
-                if segment_index is None: return jsonify({"error": "'segment_index' is required for b2b items."}), 400
+                if segment_index is None or segment_index < 1:
+                    return jsonify({"error": "'segment_index' (>= 1) is required for b2b items."}), 400
                 progress_key = f"{item_type}_{segment_index}_{item_key}_{item_index}"
             elif item_type == 'normal':
                  progress_key = f"{item_type}_{item_key}_{item_index}"
             else:
                  return jsonify({"error": "Invalid progress item type specified."}), 400
 
+            needs_update = False
+            # Update the dictionary
             if is_complete:
                 if progress.get(progress_key) is not True:
-                    progress[progress_key] = True; needs_flag_modified = True
+                    progress[progress_key] = True
+                    needs_update = True
             else:
                 if progress_key in progress:
-                    del progress[progress_key]; needs_flag_modified = True
+                    del progress[progress_key]
+                    needs_update = True
 
-            if needs_flag_modified:
+            # If the dictionary was changed, ensure SQLAlchemy detects it
+            if needs_update:
+                # This helps ensure SQLAlchemy tracks the modification to the mutable JSON field.
+                group.progress_data = progress
+
+                # Keep flag_modified as a safeguard, though reassignment often suffices
                 flag_modified(group, "progress_data")
-                logger.debug(f"Flagged progress_data modified for group {group_id}.")
-            else:
-                 logger.debug(f"No change needed for progress_data group {group_id}.")
+                # logger.debug(f"Progress data flagged as modified for group {group_id}, key {progress_key}, complete: {is_complete}") # Minimal logging
+            # else:
+                 # logger.debug(f"No change needed for progress data group {group_id}, key {progress_key}") # Minimal logging
 
-            session.commit()
-            logger.info(f"User {current_user.username} successfully updated progress for {public_id}/group/{group_id}.")
+            session.commit() # Commit the changes
+            logger.info(f"Progress updated for group {group_id} by user {current_user.username}. Key: {progress_key}, Complete: {is_complete}") # Log success with details
             return jsonify({"status": "success", "message": "Progress updated."}), 200
-            # --- End existing progress update logic ---
 
-        # Keep existing error handling...
-        except (SQLAlchemyError) as e:
+        except SQLAlchemyError as e:
             session.rollback()
             logger.exception(f"Database error updating progress for {public_id}/group/{group_id}: {e}")
             return jsonify({"error": "Database error updating progress."}), 500
@@ -377,6 +393,7 @@ def update_group_progress(public_id, group_id):
              session.rollback()
              logger.exception(f"Unexpected error updating progress for {public_id}/group/{group_id}: {e}")
              return jsonify({"error": "An unexpected server error occurred."}), 500
+
         
 @challenge_api_bp.route("/groups/<int:group_id>/join", methods=["POST"])
 @login_required

@@ -1,424 +1,51 @@
 // static/js/challenge/challenge_view.js
-// Main orchestrator for the UNIFIED challenge view page
+// Main orchestrator for the unified challenge view page (challenge.html).
+// Handles state, user interactions, API calls, and coordinates UI updates.
 
 import { apiFetch } from '../utils/api.js';
 import { setLoading, showError, escapeHtml } from '../utils/helpers.js';
 import {
     updateGroupCountDisplay, renderProgressItems, addGroupToDOM,
-    updateUIAfterMembershipChange, renderOrUpdateProgressBar, renderStaticChallengeDetailsJS, updatePenaltyDisplay
+    updateUIAfterMembershipChange, renderOrUpdateProgressBar,
+    renderStaticChallengeDetailsJS, updatePenaltyDisplay, renderPlayerNameInputs
 } from './challenge_ui.js';
-import { getLocalChallengeById, updateLocalChallengeProgress } from './local_challenge_storage.js'; // Use './' assuming same folder now
+import { getLocalChallengeById, updateLocalChallengeProgress } from './local_challenge_storage.js';
 import { updatePenaltyConfig } from './challenge_penalty.js';
 
-// --- Module-level state ---
+// --- Module-level State ---
 let challengeConfig = {
-    id: null, // public_id or localId
-    isLocal: false,
-    isMultigroup: false,
-    maxGroups: 1,
-    initialGroupCount: 0,
-    userJoinedGroupId: null,
-    coreChallengeStructure: null,
-    progressData: {}, // Holds progress ONLY for local challenges
-    csrfToken: null,
-    numPlayersPerGroup: 1, // Added default
-    initialGroups: [], // Added default, holds {id, name, progress, member_count, player_names} for DB challenges
-    urls: { addGroup: null, updateProgressBase: null, joinLeaveBase: null }
+    id: null, isLocal: false, isMultigroup: false, maxGroups: 1, initialGroupCount: 0,
+    userJoinedGroupId: null, coreChallengeStructure: null, progressData: {},
+    csrfToken: null, numPlayersPerGroup: 1, initialGroups: [],
+    urls: { addGroup: null, updateProgressBase: null, joinLeaveBase: null, setPenaltyUrlBase: null, savePlayersBase: null },
+    isLoggedIn: false
 };
-// --- DOM Element Refs ---
+let isProcessingClick = false;
+
+// --- DOM Element References ---
 let myGroupContainerEl = null;
 let otherGroupsContainerEl = null;
-let statusDiv = null; // For general page status/errors
+let statusDiv = null;
 
-// --- Event Handlers ---
+// --- Constants for Column Classes ---
+const JOINED_GROUP_COL_CLASSES = ['col-md-8', 'col-lg-6', 'mx-auto', 'mb-4']; // Classes for the single joined group
+const OTHER_GROUP_COL_CLASSES = ['col-lg-4', 'col-md-6', 'mb-4']; // Standard grid classes for other groups
 
-async function handleCreateGroupSubmit(event) {
-    event.preventDefault();
-    const form = event.target;
-    const groupNameInput = form.elements.group_name;
-    const groupName = groupNameInput.value.trim();
-    const submitButton = form.querySelector('#addGroupBtn');
-    const errorDiv = document.getElementById('addGroupError'); // Error display specific to this form
-
-    showError(errorDiv, null);
-    if (!groupName || groupName.length > 80) { showError(errorDiv, "Invalid group name (1-80 chars)."); return; }
-    if (challengeConfig.initialGroupCount >= challengeConfig.maxGroups) { showError(errorDiv, `Max groups (${challengeConfig.maxGroups}) reached.`); return; }
-
-    setLoading(submitButton, true, 'Creating...');
-
-    try {
-        const data = await apiFetch(challengeConfig.urls.addGroup, {
-            method: 'POST', body: { group_name: groupName }
-        }, challengeConfig.csrfToken);
-
-        if (data.status === 'success' && data.group) {
-            addGroupToDOM(data.group, challengeConfig); // Renders card, calls updateUIAfterMembershipChange
-            challengeConfig.initialGroupCount++; // Update count state
-            console.log("DOM Check before count update:", {
-                countSpanExists: document.getElementById('currentGroupCount'),
-                limitInfoExists: document.getElementById('groupLimitInfo')
-            });
-            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); // Update display
-            groupNameInput.value = ''; // Clear input
-        } else { throw new Error(data.error || "Failed to add group."); }
-    } catch (error) {
-        console.error("Create group failed:", error);
-        showError(errorDiv, `Error: ${error.message}`);
-    } finally {
-        setLoading(submitButton, false);
-    }
-}
-
-async function handleJoinGroupClick(event) {
-    const joinButton = event.target.closest('.join-group-btn');
-    if (!joinButton) return;
-    const groupId = joinButton.dataset.groupId;
-    const buttonContainer = joinButton.closest('.card-footer'); // Target for errors
-
-    if (!groupId) { showError(buttonContainer, "Missing group ID."); return; }
-    // Ensure container elements were found during initialization
-    if (!myGroupContainerEl || !otherGroupsContainerEl) {
-        console.error("Group containers not found, cannot move card on join.");
-        showError(buttonContainer || statusDiv, "UI Error: Cannot move group.", "danger");
-        return;
-    }
-
-    console.log(`handleJoinGroupClick: Joining group ${groupId}`);
-    setLoading(joinButton, true, 'Joining...');
-    const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`;
-
-    try {
-        const data = await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
-        console.log("Join successful:", data.message);
-
-        // Move Card and Update State
-        const cardToMove = otherGroupsContainerEl.querySelector(`.group-card-wrapper[data-group-id="${groupId}"]`);
-        if (cardToMove) {
-            myGroupContainerEl.innerHTML = ''; // Clear placeholder/previous
-            const heading = document.createElement('h4'); heading.className = 'text-warning mb-3'; heading.textContent = 'Your Group'; myGroupContainerEl.appendChild(heading);
-            myGroupContainerEl.appendChild(cardToMove); // Move the card element
-            console.log(`Moved group ${groupId} to My Group container.`);
-        } else {
-            console.error(`Could not find card ${groupId} in other groups container to move.`);
-            // Don't block state update if card wasn't found (maybe already moved?)
-        }
-
-        challengeConfig.userJoinedGroupId = parseInt(groupId, 10); // Update state
-        const dataEl = document.getElementById('challengeData');
-        if (dataEl) {
-            // Update the data attribute (store as JSON string, e.g., "129" or "null")
-            dataEl.dataset.userJoinedGroupId = JSON.stringify(challengeConfig.userJoinedGroupId);
-            console.log("Updated #challengeData userJoinedGroupId attribute:", dataEl.dataset.userJoinedGroupId);
-        }
-        updateUIAfterMembershipChange(challengeConfig); // Update main UI (buttons, checkboxes, player inputs)
-
-        // --- ADDED: Update penalty module's state ---
-        if (typeof updatePenaltyConfig === 'function') {
-            updatePenaltyConfig(challengeConfig);
-        }
-        // --- END ADDED ---
-
-    } catch (error) {
-        console.error("Failed to join group:", error);
-        showError(buttonContainer, `Error: ${error.message}`);
-        setLoading(joinButton, false); // Reset this button on error
-    }
-    // setLoading(false) is handled by updateUIAfterMembershipChange on success path
-}
-async function handleLeaveGroupClick(event) {
-    const leaveButton = event.target.closest('.leave-group-btn');
-    if (!leaveButton) return;
-    const groupId = leaveButton.dataset.groupId;
-    const buttonContainer = leaveButton.closest('.card-footer'); // For error display
-
-    if (!groupId) { showError(buttonContainer, "Missing group ID."); return; }
-    // Ensure the main container elements were found on page load
-    if (!myGroupContainerEl || !otherGroupsContainerEl) {
-        console.error("Group containers not found, cannot move card on leave.");
-        showError(buttonContainer || statusDiv, "UI Error: Cannot move group.", "danger");
-        return;
-    }
-
-    console.log(`handleLeaveGroupClick: Leaving group ${groupId}`);
-    setLoading(leaveButton, true, 'Leaving...');
-    const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/leave`;
-
-    try {
-        const data = await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
-        console.log("Leave successful:", data.message);
-
-        // --- Move Card and Update State ---
-        const cardToMove = myGroupContainerEl.querySelector(`.group-card-wrapper[data-group-id="${groupId}"]`);
-        if (cardToMove) {
-
-            otherGroupsContainerEl.appendChild(cardToMove);
-
-
-            myGroupContainerEl.innerHTML = ''; // Clear "Your Group" section
-            console.log(`Moved group ${groupId} back to Other Groups container.`);
-        } else {
-            console.error(`Could not find card ${groupId} in your group container to move back.`);
-        }
-
-        challengeConfig.userJoinedGroupId = null; // Update state
-        const dataEl = document.getElementById('challengeData');
-        if (dataEl) {
-            // Update the data attribute (will store the string "null")
-            dataEl.dataset.userJoinedGroupId = JSON.stringify(challengeConfig.userJoinedGroupId);
-            console.log("Updated #challengeData userJoinedGroupId attribute:", dataEl.dataset.userJoinedGroupId);
-        }
-        updateUIAfterMembershipChange(challengeConfig); // Update UI
-
-    } catch (error) {
-        console.error("Failed to leave group:", error);
-        showError(buttonContainer, `Error: ${error.message}`);
-        setLoading(leaveButton, false); // Reset button only on error
-    }
-    // setLoading(false) is handled by updateUIAfterMembershipChange on success path
-}
-
-
-async function handleProgressChange(event) {
-    if (!event.target.matches('.progress-checkbox')) return;
-    const checkbox = event.target;
-    const itemData = checkbox.dataset;
-    const isComplete = checkbox.checked;
-    const groupId = itemData.groupId; // Holds localId for local, groupId for DB
-    const itemDiv = checkbox.closest('.progress-item');
-
-    if (!groupId || !itemData.itemType || !itemData.itemKey || typeof itemData.itemIndex === 'undefined') {
-        showError(itemDiv, "Data missing!"); checkbox.checked = !isComplete; return;
-    }
-
-    // Construct flat progress key
-    let progressKey; /* ... build key logic ... */
-    if (itemData.itemType === 'b2b' && itemData.segmentIndex) progressKey = `${itemData.itemType}_${itemData.segmentIndex}_${itemData.itemKey}_${itemData.itemIndex}`;
-    else if (itemData.itemType === 'normal') progressKey = `${itemData.itemType}_${itemData.itemKey}_${itemData.itemIndex}`;
-    else { showError(itemDiv, "Unknown type!"); checkbox.checked = !isComplete; return; }
-
-    console.log(`Progress Change: ID=${groupId}, Key=${progressKey}, Complete=${isComplete}, IsLocal=${challengeConfig.isLocal}`);
-    if (itemDiv) itemDiv.classList.toggle('completed', isComplete); // Optimistic UI
-    checkbox.disabled = true; // Disable during save
-
-    try {
-        if (challengeConfig.isLocal) {
-            // Update local state first
-            challengeConfig.progressData = challengeConfig.progressData || {};
-            if (isComplete) challengeConfig.progressData[progressKey] = true;
-            else delete challengeConfig.progressData[progressKey];
-            // Persist to localStorage
-            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete);
-            if (!success) throw new Error("Save failed.");
-            console.log("Local progress saved.");
-            // Update progress bar for local challenges
-            const progressBarContainer = document.getElementById('localProgressBarContainer');
-            if (progressBarContainer) renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData);
-        } else { // DB Challenge
-            const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
-            const payload = { item_type: itemData.itemType, item_key: itemData.itemKey, item_index: parseInt(itemData.itemIndex, 10), is_complete: isComplete, };
-            if (itemData.segmentIndex) payload.segment_index = parseInt(itemData.segmentIndex, 10);
-            await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
-            console.log("DB Progress update successful.");
-            // Optionally update DB progress bar if implemented
-        }
-    } catch (error) {
-        console.error("Failed to update progress:", error);
-        if (itemDiv) { itemDiv.classList.toggle('completed', !isComplete); showError(itemDiv, `Save failed!`); setTimeout(() => showError(itemDiv, null), 3000); }
-        else { alert(`Error saving progress: ${error.message}`); } // Fallback alert
-        checkbox.checked = !isComplete; // Revert state
-        // Revert local state if needed
-        if (challengeConfig.isLocal && challengeConfig.progressData) { if (isComplete) delete challengeConfig.progressData[progressKey]; else challengeConfig.progressData[progressKey] = true; }
-    } finally {
-        // Re-enable only if interaction is allowed
-        const canInteract = challengeConfig.isLocal || (challengeConfig.userJoinedGroupId === parseInt(groupId, 10));
-        checkbox.disabled = !canInteract;
-    }
-}
-
-// --- *** NEW: Handler for Saving Player Names *** ---
-async function handleSavePlayersClick(event) {
-    const saveButton = event.target.closest('.save-player-names-btn');
-    // Event delegation should handle this, but double check
-    if (!saveButton || !challengeConfig.isMultigroup) return;
-
-    const groupId = saveButton.dataset.groupId;
-    const playerNamesSection = saveButton.closest('.player-names-section');
-    const errorContainer = playerNamesSection?.querySelector('.player-name-error');
-    const inputsContainer = playerNamesSection?.querySelector('.player-name-inputs');
-
-    if (!groupId || !playerNamesSection || !inputsContainer || !errorContainer) {
-        console.error("Save Players: Could not find necessary elements for group", groupId);
-        showError(statusDiv || document.body, "Error preparing to save player names.", "danger");
-        return;
-    }
-
-    showError(errorContainer, null); // Clear specific error area for this group
-
-    // Collect non-empty, trimmed names from input fields
-    const nameInputs = inputsContainer.querySelectorAll('.player-name-input');
-    const playerNames = Array.from(nameInputs)
-        .map(input => input.value.trim())
-        .filter(name => name.length > 0); // Only save non-empty names
-
-    // Validate against allowed number (read from config)
-    const maxAllowed = challengeConfig.numPlayersPerGroup || 1;
-    if (playerNames.length > maxAllowed) {
-        showError(errorContainer, `You can only enter up to ${maxAllowed} player names.`, 'warning');
-        return;
-    }
-
-    console.log(`Saving player names for group ${groupId}:`, playerNames);
-    setLoading(saveButton, true, 'Saving...');
-
-    try {
-        const url = `/api/challenge/groups/${groupId}/players`; // API endpoint
-        const data = await apiFetch(url, {
-            method: 'POST',
-            body: { player_names: playerNames } // Send validated list
-        }, challengeConfig.csrfToken); // Pass CSRF token
-
-        if (data.status === 'success') {
-            console.log("Player names saved successfully via API.");
-            showError(errorContainer, "Names saved!", 'success');
-            setTimeout(() => showError(errorContainer, null), 2500); // Clear success message
-
-            // --- Update client-side state ---
-            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === parseInt(groupId, 10));
-            if (groupIndex !== -1) {
-                challengeConfig.initialGroups[groupIndex].player_names = playerNames; // Update array in config
-                console.log("Updated challengeConfig.initialGroups with new player names.");
-
-                // --- ADDED: Update penalty module's state ---
-                if (typeof updatePenaltyConfig === 'function') {
-                    updatePenaltyConfig(challengeConfig);
-                }
-                // --- END ADDED ---
-
-            } else {
-                console.warn("Could not find group in local config state to update player names.");
-            }
-            // --- End client-side state update ---
-
-        } else { throw new Error(data.error || "Unknown error saving names."); } // Handle API error response
-    } catch (error) {
-        console.error("Failed to save player names:", error);
-        showError(errorContainer, `Error: ${error.message}`, 'danger'); // Show error in the specific group card
-    } finally {
-        setLoading(saveButton, false); // Reset save button loading state
-    }
-}
-
-/** Renders the view for a local challenge */
-function renderLocalChallengeView(challenge) {
-    console.log("renderLocalChallengeView: Rendering", challenge?.localId);
-    const displayContainer = document.getElementById('localChallengeDisplay');
-    const statusDivLocal = document.getElementById('pageStatusDisplay'); // Use main status div
-    if (!displayContainer) { console.error("#localChallengeDisplay missing!"); return; }
-
-    displayContainer.innerHTML = ''; // Clear loading
-
-    try {
-        // Render Header Card
-        const headerCard = document.createElement('div'); /* ... set class, innerHTML ... */
-        headerCard.className = 'mb-4 card bg-dark text-light';
-        headerCard.innerHTML = `<div class="card-header"><h2 class="h3 mb-0">${escapeHtml(challenge.name || 'Unnamed')}</h2></div><div class="card-body"><p class="text-muted small mb-0">Saved: ${new Date(challenge.createdAt).toLocaleString()}<br><span class="d-inline-block mt-1">ID: <code>${escapeHtml(challenge.localId)}</code></span></p></div>`;
-        displayContainer.appendChild(headerCard);
-
-        // Render Static Details Card
-        const detailsCard = document.createElement('div'); /* ... set class, innerHTML ... */
-        detailsCard.className = 'mb-4 card bg-dark text-light'; detailsCard.innerHTML = '<div class="card-header"><h3 class="mb-0 h5">Challenge Rules</h3></div>'; const detailsBody = document.createElement('div'); detailsBody.className = 'card-body'; detailsCard.appendChild(detailsBody); displayContainer.appendChild(detailsCard);
-        renderStaticChallengeDetailsJS(detailsBody, challenge.challengeData || {}); // Call UI helper
-
-        // Render Progress Bar
-        const progressBarContainer = document.createElement('div'); /* ... set id, class ... */
-        progressBarContainer.id = 'localProgressBarContainer'; progressBarContainer.className = 'mb-3'; displayContainer.appendChild(progressBarContainer);
-        renderOrUpdateProgressBar(progressBarContainer, challenge.challengeData || {}, challenge.progressData || {}); // Call UI helper
-
-        // Render Progress Items Card
-        const progressCard = document.createElement('div'); /* ... set class, innerHTML ... */
-        progressCard.className = 'mb-4 card bg-dark text-light'; progressCard.innerHTML = '<div class="card-header"><h3 class="mb-0 h5">Your Progress</h3></div>'; const progressBody = document.createElement('div'); progressBody.className = 'card-body'; progressBody.id = `progress-local-${challenge.localId}`; progressCard.appendChild(progressBody); displayContainer.appendChild(progressCard);
-        renderProgressItems(progressBody, challenge.challengeData || {}, challenge.localId, challenge.progressData || {}, true); // Call UI helper
-
-        console.log("renderLocalChallengeView: Render complete.");
-    } catch (renderError) {
-        console.error("Error during dynamic render of local challenge:", renderError);
-        showError(statusDiv || displayContainer, "Error displaying challenge details.", "danger");
-    }
-
-}
-async function handleClearPenaltyClick(event) {
-    const clearButton = event.target.closest('.clear-penalty-btn');
-    if (!clearButton) return; // Should not happen if called correctly
-
-    const groupId = clearButton.dataset.groupId;
-    const penaltyDisplayDiv = clearButton.closest('.active-penalty-display'); // Find parent for error display
-
-    // Get necessary data from the main data div
+// --- Helper Functions --- (initializeConfigFromDOM, updateUserJoinedGroupState remain the same)
+function initializeConfigFromDOM() {
     const dataEl = document.getElementById('challengeData');
-    const setPenaltyUrlBase = dataEl?.dataset.setPenaltyUrlBase;
-    const csrfToken = dataEl?.dataset.csrfToken;
-
-    // Validation
-    if (!groupId || !setPenaltyUrlBase || !csrfToken) {
-        console.error("Clear Penalty Error: Missing groupId, URL base, or CSRF token.");
-        showError(penaltyDisplayDiv || statusDiv, "Cannot clear penalty: config missing.", "danger");
-        return;
-    }
-
-    console.log(`Clearing penalty for group ${groupId}...`);
-    setLoading(clearButton, true, 'Clearing...');
-    showError(penaltyDisplayDiv || statusDiv, null); // Clear previous errors in scope
-
-    const url = `${setPenaltyUrlBase}/${groupId}/penalty`;
-    console.log("Debug Clear Penalty - Constructed URL:", url);
-    const payload = { penalty_text: "" }; // Send empty string to clear
-
-    try {
-        const data = await apiFetch(url, {
-            method: 'POST',
-            body: payload
-        }, csrfToken);
-
-        if (data.status === 'success') {
-            console.log(`Penalty cleared successfully for group ${groupId}.`);
-            // Update the UI immediately
-            updatePenaltyDisplay(groupId, ''); // Call the UI function to clear display
-            // Optionally remove the button itself after clearing, or just let display:none hide it
-            // clearButton.remove();
-        } else {
-            // Handle specific API errors if needed
-            throw new Error(data.error || "Unknown error from server.");
-        }
-    } catch (error) {
-        console.error("Failed to clear penalty:", error);
-        showError(penaltyDisplayDiv || statusDiv, `Error: ${error.message}`, 'danger');
-        setLoading(clearButton, false); // Reset button only on error
-    }
-    // No finally setLoading(false) here, as the UI update should hide the button's container
-}
-
-// --- Initialize Page ---
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("challenge_view.js: Initializing...");
-
-    // Assign elements needed early or frequently
-    myGroupContainerEl = document.getElementById('myGroupContainer');
-    otherGroupsContainerEl = document.getElementById('otherGroupsContainer');
     statusDiv = document.getElementById('pageStatusDisplay');
-
-    const dataEl = document.getElementById('challengeData');
-    if (!dataEl?.dataset) { /* ... error handling ... */ return; }
-
-    // Read data into challengeConfig
+    if (!dataEl?.dataset) {
+        console.error("CRITICAL: #challengeData element or its dataset is missing!");
+        showError(statusDiv || document.body, "Initialization Error: Cannot read page data.", "danger");
+        return false;
+    }
     try {
         const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
         const structureJson = dataEl.dataset.challengeJson;
         const coreStructure = structureJson && structureJson !== 'null' ? JSON.parse(structureJson) : null;
         const parsedMaxGroups = parseInt(dataEl.dataset.maxGroups, 10);
         const maxGroupsValue = (!isNaN(parsedMaxGroups) && parsedMaxGroups >= 1) ? parsedMaxGroups : 1;
-        const parsedInitialCount = parseInt(dataEl.dataset.initialGroupCount, 10);
-        const initialCountValue = (!isNaN(parsedInitialCount) && parsedInitialCount >= 0) ? parsedInitialCount : 0;
-        // --- ADDED Reading for numPlayersPerGroup and initialGroups (with player names) ---
         const parsedNumPlayers = parseInt(dataEl.dataset.numPlayersPerGroup, 10);
         const initialGroupsJson = dataEl.dataset.initialGroups;
         const initialGroupsData = initialGroupsJson && initialGroupsJson !== 'null' ? JSON.parse(initialGroupsJson) : [];
@@ -428,94 +55,447 @@ document.addEventListener('DOMContentLoaded', () => {
             isLocal: dataEl.dataset.isLocal === 'true',
             isMultigroup: dataEl.dataset.isMultigroup === 'true',
             maxGroups: maxGroupsValue,
-            initialGroupCount: initialCountValue,
+            initialGroupCount: initialGroupsData.length,
             userJoinedGroupId: typeof joinedId === 'number' ? joinedId : null,
             coreChallengeStructure: coreStructure,
             progressData: {},
             csrfToken: dataEl.dataset.csrfToken,
-            // Store the new config value
             numPlayersPerGroup: (!isNaN(parsedNumPlayers) && parsedNumPlayers >= 1) ? parsedNumPlayers : 1,
-            // Store the initial groups data (includes player names)
             initialGroups: Array.isArray(initialGroupsData) ? initialGroupsData : [],
             urls: {
                 addGroup: dataEl.dataset.addGroupUrl,
                 updateProgressBase: dataEl.dataset.updateProgressUrlBase,
-                joinLeaveBase: dataEl.dataset.joinLeaveUrlBase
-            }
+                joinLeaveBase: dataEl.dataset.joinLeaveUrlBase,
+                setPenaltyUrlBase: dataEl.dataset.setPenaltyUrlBase,
+                savePlayersBase: dataEl.dataset.savePlayersUrlBase
+            },
+            isLoggedIn: dataEl.dataset.isLoggedIn === 'true'
         };
-        // --- End Reading Additions ---
-        if (!challengeConfig.id /*|| ... other validation ...*/) throw new Error("Essential config missing.");
-        console.log("challenge_view.js: Parsed challengeConfig:", challengeConfig);
-
-    } catch (e) { console.error("challenge_view.js: Failed to parse initial data:", e); showError(statusDiv || document.body, `Init Error: ${e.message}`); return; }
-
-    // --- Branch based on Local vs DB ---
-    if (challengeConfig.isLocal) {
-        // --- LOCAL CHALLENGE ---
-        console.log("Mode: Local Challenge. ID:", challengeConfig.id);
-        const localData = getLocalChallengeById(challengeConfig.id); // Fetch from LS
-        console.log("Local data fetched from storage:", localData);
-
-        if (localData) {
-            // Store fetched local data in config
-            challengeConfig.coreChallengeStructure = localData.challengeData;
-            challengeConfig.progressData = localData.progressData || {};
-            console.log("Local challenge found, proceeding to render...");
-
-            // Render the view dynamically using the fetched local data
-            renderLocalChallengeView(localData); // Assumes this function exists
-
-            // Attach the change listener for progress AFTER rendering
-            const displayContainer = document.getElementById('localChallengeDisplay');
-            if (displayContainer) {
-                displayContainer.addEventListener('change', handleProgressChange); // Ensure handleProgressChange checks isLocal
-                console.log("challenge_view.js: Local progress listener attached.");
-            } else {
-                console.error("Could not attach local progress listener: #localChallengeDisplay missing after render attempt.");
-            }
-        } else {
-            // Handle case where local challenge ID exists in URL but data is missing in LS
-            const displayContainer = document.getElementById('localChallengeDisplay');
-            const errorMsg = `Error: Could not load local challenge data (ID: ${escapeHtml(challengeConfig.id)}). Was it deleted?`; // Escape ID
-            if (displayContainer) showError(displayContainer, errorMsg, 'danger'); // Use showError
-            else console.error(errorMsg);
+        if (!challengeConfig.id) throw new Error("Essential config 'challengeId' missing.");
+        if (!challengeConfig.isLocal) {
+            if(!challengeConfig.urls.addGroup) console.warn("Add Group URL missing.");
+            if(!challengeConfig.urls.updateProgressBase) console.warn("Update Progress URL base missing.");
+            if(!challengeConfig.urls.joinLeaveBase) console.warn("Join/Leave URL base missing.");
+            if(!challengeConfig.urls.savePlayersBase) console.warn("Save Players URL base missing.");
         }
+        return true;
+    } catch (e) {
+        console.error("challenge_view.js: Failed to parse initial data:", e);
+        showError(statusDiv || document.body, `Initialization Error: ${e.message}`, 'danger');
+        return false;
+    }
+}
+function updateUserJoinedGroupState(newGroupId) {
+    challengeConfig.userJoinedGroupId = newGroupId;
+    const dataEl = document.getElementById('challengeData');
+    if (dataEl) {
+        dataEl.dataset.userJoinedGroupId = JSON.stringify(newGroupId);
+    }
+    if (typeof updatePenaltyConfig === 'function') {
+        updatePenaltyConfig(challengeConfig);
+    }
+}
 
-    } else {
-        // --- DATABASE CHALLENGE ---
-        console.log(`Mode: DB Challenge (Multigroup: ${challengeConfig.isMultigroup})`);
-        const addGroupForm = document.getElementById('addGroupForm');
-        const pageContainer = document.getElementById('challengeViewContainer'); // Use this for delegation
 
-        updateUIAfterMembershipChange(challengeConfig); // Initial UI state sync
-        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); // Initial count
+// --- Event Handlers ---
 
-        // Attach Listeners
-        if (challengeConfig.isMultigroup && addGroupForm) {
-            addGroupForm.addEventListener('submit', handleCreateGroupSubmit);
-            console.log("Listener attached: Create Group");
-        }
+async function handleCreateGroupSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    const groupNameInput = form.elements.group_name;
+    const groupName = groupNameInput.value.trim();
+    const submitButton = form.querySelector('#addGroupBtn');
+    const errorDiv = document.getElementById('addGroupError');
 
-        if (pageContainer) {
-            // --- Consolidated Click Listener ---
-            pageContainer.addEventListener('click', (event) => {
-                if (challengeConfig.isMultigroup && event.target.closest('.join-group-btn')) {
-                    handleJoinGroupClick(event);
-                } else if (challengeConfig.isMultigroup && event.target.closest('.leave-group-btn')) {
-                    handleLeaveGroupClick(event);
-                } else if (challengeConfig.isMultigroup && event.target.closest('.save-player-names-btn')) {
-                    handleSavePlayersClick(event);
-                } else if (event.target.closest('.clear-penalty-btn')) { // <<< ADD THIS ELSE IF CONDITION
-                    handleClearPenaltyClick(event); // <<< CALL THE NEW HANDLER
-                }
-            });
-            console.log("Listeners attached: Join/Leave/Save Players/Clear Penalty (delegated)"); // Updated log
-
-            // Progress listener needed for all DB modes (keep existing)
-            pageContainer.addEventListener('change', handleProgressChange);
-            console.log("Listener attached: DB Progress (delegated)");
-        } else { console.error("Main view container (#challengeViewContainer) NOT FOUND!"); }
-
+    showError(errorDiv, null);
+    if (!groupName || groupName.length > 80) {
+        showError(errorDiv, "Invalid group name (1-80 characters)."); return;
+    }
+    if (challengeConfig.initialGroupCount >= challengeConfig.maxGroups) {
+        showError(errorDiv, `Maximum number of groups (${challengeConfig.maxGroups}) reached.`); return;
     }
 
+    setLoading(submitButton, true, 'Creating...');
+    try {
+        const data = await apiFetch(challengeConfig.urls.addGroup, {
+            method: 'POST', body: { group_name: groupName }
+        }, challengeConfig.csrfToken);
+
+        if (data.status === 'success' && data.group) {
+            challengeConfig.initialGroups.push({
+                id: data.group.id, name: data.group.name, progress: data.group.progress || {},
+                member_count: 0, player_names: [], active_penalty_text: ''
+            });
+            challengeConfig.initialGroupCount++;
+            addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+            groupNameInput.value = '';
+            showError(errorDiv, null);
+        } else { throw new Error(data.error || "Failed to add group."); }
+    } catch (error) {
+        console.error("Create group failed:", error);
+        showError(errorDiv, `Error: ${error.message}`);
+    } finally { setLoading(submitButton, false); }
+}
+
+async function handleJoinGroupClick(event, joinButton) {
+    if (!joinButton || !joinButton.classList.contains('join-group-btn')) {
+        isProcessingClick = false; return;
+    }
+    const groupId = parseInt(joinButton.dataset.groupId, 10);
+    if (isNaN(groupId)) { isProcessingClick = false; return; }
+
+    const buttonContainer = joinButton.closest('.card-footer');
+    const cardWrapper = joinButton.closest('.group-card-wrapper');
+    if (!cardWrapper || !myGroupContainerEl) {
+        console.error("Cannot join group: Missing card wrapper or target container.");
+        isProcessingClick = false; return;
+    }
+
+    setLoading(joinButton, true, 'Joining...');
+    const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`;
+
+    try {
+        await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
+
+        // --- FIX: Update classes BEFORE moving ---
+        cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
+        cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
+        // --- End Fix ---
+
+        // Move Card
+        myGroupContainerEl.innerHTML = ''; // Clear placeholder/old
+        const heading = document.createElement('h4');
+        heading.className = 'text-warning mb-3'; heading.textContent = 'Your Group';
+        myGroupContainerEl.appendChild(heading);
+        myGroupContainerEl.appendChild(cardWrapper);
+
+        // Update State
+        updateUserJoinedGroupState(groupId);
+        const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
+        if (groupIndex !== -1) {
+            challengeConfig.initialGroups[groupIndex].member_count = Math.min(
+                (challengeConfig.initialGroups[groupIndex].member_count || 0) + 1,
+                challengeConfig.numPlayersPerGroup
+            );
+        }
+
+        // Refresh UI
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+
+    } catch (error) {
+        console.error("Failed to join group:", error);
+        showError(buttonContainer || statusDiv, `Error joining: ${error.message}`);
+        setLoading(joinButton, false); // Reset button only on error
+        // --- FIX: Revert classes if move failed ---
+        cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
+        cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
+        // --- End Fix ---
+    } finally { isProcessingClick = false; }
+}
+
+async function handleLeaveGroupClick(event, leaveButton) {
+    if (!leaveButton || !leaveButton.classList.contains('leave-group-btn')) {
+        isProcessingClick = false; return;
+    }
+    const groupId = parseInt(leaveButton.dataset.groupId, 10);
+    if (isNaN(groupId)) { isProcessingClick = false; return; }
+
+    const buttonContainer = leaveButton.closest('.card-footer');
+    const cardWrapper = leaveButton.closest('.group-card-wrapper');
+    if (!cardWrapper || !otherGroupsContainerEl || !myGroupContainerEl) {
+         console.error("Cannot leave group: Missing card wrapper or target container.");
+         isProcessingClick = false; return;
+    }
+
+    setLoading(leaveButton, true, 'Leaving...');
+    const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/leave`;
+
+    try {
+        await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
+
+        // --- FIX: Update classes BEFORE moving ---
+        cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
+        cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
+        // --- End Fix ---
+
+        // Move Card
+        otherGroupsContainerEl.appendChild(cardWrapper);
+        myGroupContainerEl.innerHTML = ''; // Clear "Your Group" section
+
+        // Update State
+        updateUserJoinedGroupState(null);
+        const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
+        if (groupIndex !== -1) {
+            challengeConfig.initialGroups[groupIndex].member_count = Math.max(0, (challengeConfig.initialGroups[groupIndex].member_count || 0) - 1);
+        }
+
+        // Refresh UI
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+
+    } catch (error) {
+        console.error("Failed to leave group:", error);
+        showError(buttonContainer || statusDiv, `Error leaving: ${error.message}`);
+        setLoading(leaveButton, false); // Reset button only on error
+         // --- FIX: Revert classes if move failed ---
+        cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
+        cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
+        // --- End Fix ---
+    } finally { isProcessingClick = false; }
+}
+
+// --- handleProgressChange, handleSavePlayersClick, renderLocalChallengeView, handleClearPenaltyClick ---
+// remain the same as the previous corrected version (no changes needed here for layout)
+async function handleProgressChange(event) {
+    if (!event.target.matches('.progress-checkbox')) return;
+    const checkbox = event.target;
+    if (checkbox.disabled) { return; }
+
+    const itemData = checkbox.dataset;
+    const isComplete = checkbox.checked;
+    const groupId = itemData.groupId;
+    const itemDiv = checkbox.closest('.progress-item');
+
+    if (!groupId || !itemData.itemType || !itemData.itemKey || typeof itemData.itemIndex === 'undefined') {
+        console.error("Progress checkbox missing required data attributes:", itemData);
+        showError(statusDiv || document.body, "Cannot save progress: Checkbox data missing.", 'warning');
+        checkbox.checked = !isComplete; return;
+    }
+
+    let progressKey;
+    try {
+        const type = itemData.itemType; const key = itemData.itemKey;
+        const index = parseInt(itemData.itemIndex, 10);
+        const segmentIndex = itemData.segmentIndex ? parseInt(itemData.segmentIndex, 10) : null;
+        if (isNaN(index) || (segmentIndex !== null && isNaN(segmentIndex))) throw new Error("Invalid index.");
+        if (type === 'b2b' && segmentIndex !== null) progressKey = `${type}_${segmentIndex}_${key}_${index}`;
+        else if (type === 'normal') progressKey = `${type}_${key}_${index}`;
+        else throw new Error("Unknown progress item type.");
+    } catch (e) {
+        console.error("Error constructing progress key:", e);
+        showError(statusDiv || document.body, "Cannot save progress: Invalid item data.", 'warning');
+        checkbox.checked = !isComplete; return;
+    }
+
+    checkbox.disabled = true;
+    if(itemDiv) itemDiv.style.opacity = '0.6';
+
+    try {
+        if (challengeConfig.isLocal) {
+            challengeConfig.progressData = challengeConfig.progressData || {};
+            if (isComplete) challengeConfig.progressData[progressKey] = true;
+            else delete challengeConfig.progressData[progressKey];
+            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete);
+            if (!success) throw new Error("Failed to save progress locally.");
+            if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
+            const progressBarContainer = document.getElementById('localProgressBarContainer');
+            if (progressBarContainer) renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData);
+        } else {
+            const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
+            const payload = {
+                item_type: itemData.itemType, item_key: itemData.itemKey,
+                item_index: parseInt(itemData.itemIndex, 10), is_complete: isComplete,
+            };
+            if (itemData.segmentIndex) payload.segment_index = parseInt(itemData.segmentIndex, 10);
+            await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
+            if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
+        }
+    } catch (error) {
+        console.error("Failed to update progress:", error);
+        checkbox.checked = !isComplete;
+        showError(statusDiv, `Error saving progress: ${error.message}`, 'danger');
+        if (itemDiv) {
+            itemDiv.classList.add('error-flash');
+            setTimeout(() => itemDiv.classList.remove('error-flash'), 1500);
+        }
+        if (challengeConfig.isLocal && challengeConfig.progressData) {
+            if (isComplete) delete challengeConfig.progressData[progressKey];
+            else challengeConfig.progressData[progressKey] = true;
+        }
+    } finally {
+        const canInteract = challengeConfig.isLocal || (challengeConfig.userJoinedGroupId === parseInt(groupId, 10));
+        checkbox.disabled = !canInteract;
+        if(itemDiv) itemDiv.style.opacity = '1';
+    }
+}
+async function handleSavePlayersClick(event, saveButton) {
+    if (!saveButton || !saveButton.classList.contains('save-player-names-btn') || !challengeConfig.isMultigroup) {
+        isProcessingClick = false; return;
+    }
+    const groupId = parseInt(saveButton.dataset.groupId, 10);
+    if (isNaN(groupId)) { isProcessingClick = false; return; }
+
+    const playerNamesSection = saveButton.closest('.player-names-section');
+    const errorContainer = playerNamesSection?.querySelector('.player-name-error');
+    const inputsContainer = playerNamesSection?.querySelector('.player-name-inputs');
+    if (!playerNamesSection || !inputsContainer || !errorContainer) {
+        showError(statusDiv || document.body, "UI Error: Cannot save player names.", "danger");
+        isProcessingClick = false; return;
+    }
+
+    showError(errorContainer, null);
+    const nameInputs = inputsContainer.querySelectorAll('.player-name-input');
+    const playerNames = Array.from(nameInputs)
+        .map(input => input.value.trim())
+        .filter(name => name.length > 0 && name.length <= 50);
+
+    const maxAllowed = challengeConfig.numPlayersPerGroup || 1;
+    if (playerNames.length > maxAllowed) {
+        showError(errorContainer, `You can only enter up to ${maxAllowed} player names.`, 'warning');
+        isProcessingClick = false; return;
+    }
+
+    setLoading(saveButton, true, 'Saving...');
+    try {
+        if (!challengeConfig.urls.savePlayersBase) throw new Error("API endpoint for saving player names is not configured.");
+        const url = `${challengeConfig.urls.savePlayersBase}/${groupId}/players`;
+        const data = await apiFetch(url, { method: 'POST', body: { player_names: playerNames } }, challengeConfig.csrfToken);
+
+        if (data.status === 'success') {
+            showError(errorContainer, "Names saved!", 'success');
+            setTimeout(() => showError(errorContainer, null), 2500);
+            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
+            if (groupIndex !== -1) {
+                challengeConfig.initialGroups[groupIndex].player_names = playerNames;
+                if (typeof updatePenaltyConfig === 'function') updatePenaltyConfig(challengeConfig);
+            } else console.warn("Could not find group in local config state to update player names.");
+        } else throw new Error(data.error || "Unknown error saving names.");
+    } catch (error) {
+        console.error("Failed to save player names:", error);
+        showError(errorContainer, `Error: ${error.message}`, 'danger');
+    } finally { setLoading(saveButton, false); isProcessingClick = false; }
+}
+function renderLocalChallengeView(challenge) {
+    const displayContainer = document.getElementById('localChallengeDisplay');
+    if (!displayContainer) { showError(statusDiv || document.body, "UI Error: Cannot display local challenge.", "danger"); return; }
+    displayContainer.innerHTML = '';
+    try {
+        const challengeData = challenge.challengeData || {}; const progressData = challenge.progressData || {};
+        const headerCard = document.createElement('div'); headerCard.className = 'mb-4 card bg-dark text-light shadow-sm';
+        headerCard.innerHTML = `<div class="card-header"><h2 class="h3 mb-0">${escapeHtml(challenge.name || 'Unnamed Local Challenge')}</h2></div><div class="card-body"><p class="text-muted small mb-0">Saved: ${challenge.createdAt ? new Date(challenge.createdAt).toLocaleString() : 'N/A'}<br><span class="d-inline-block mt-1">ID: <code class="user-select-all" style="font-size: 0.9em;">${escapeHtml(challenge.localId)}</code> (Local)</span></p></div>`;
+        displayContainer.appendChild(headerCard);
+        const detailsCard = document.createElement('div'); detailsCard.className = 'mb-4 card bg-dark text-light shadow-sm';
+        detailsCard.innerHTML = '<div class="card-header"><h3 class="mb-0 h5">Challenge Rules</h3></div>'; const detailsBody = document.createElement('div'); detailsBody.className = 'card-body challenge-rules-list'; detailsCard.appendChild(detailsBody); displayContainer.appendChild(detailsCard);
+        renderStaticChallengeDetailsJS(detailsBody, challengeData);
+        const progressBarContainer = document.createElement('div'); progressBarContainer.id = 'localProgressBarContainer'; progressBarContainer.className = 'mb-4'; displayContainer.appendChild(progressBarContainer);
+        renderOrUpdateProgressBar(progressBarContainer, challengeData, progressData);
+        const progressCard = document.createElement('div'); progressCard.className = 'mb-4 card bg-dark text-light shadow-sm';
+        progressCard.innerHTML = '<div class="card-header"><h3 class="mb-0 h5">Your Progress</h3></div>'; const progressBody = document.createElement('div'); progressBody.className = 'card-body'; progressBody.id = `progress-items-${challenge.localId}`; progressCard.appendChild(progressBody); displayContainer.appendChild(progressCard);
+        renderProgressItems(progressBody, challengeData, challenge.localId, progressData, true);
+    } catch (renderError) { console.error("Error during dynamic render of local challenge:", renderError); showError(displayContainer, "Error displaying challenge details.", "danger"); }
+}
+async function handleClearPenaltyClick(event, clearButton) {
+    if (!clearButton || !clearButton.classList.contains('clear-penalty-btn')) { isProcessingClick = false; return; }
+    const groupId = parseInt(clearButton.dataset.groupId, 10);
+    if (isNaN(groupId)) { isProcessingClick = false; return; }
+    const penaltyDisplayDiv = clearButton.closest('.active-penalty-display');
+    if (!challengeConfig.urls.setPenaltyUrlBase || !challengeConfig.csrfToken) {
+        showError(penaltyDisplayDiv || statusDiv, "Cannot clear penalty: Configuration missing.", "danger");
+        isProcessingClick = false; return;
+    }
+    setLoading(clearButton, true, 'Clearing...');
+    showError(penaltyDisplayDiv || statusDiv, null);
+    const url = `${challengeConfig.urls.setPenaltyUrlBase}/${groupId}/penalty`;
+    const payload = { penalty_text: "" };
+    try {
+        const data = await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
+        if (data.status === 'success') {
+            updatePenaltyDisplay(groupId, '');
+            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
+            if (groupIndex !== -1) challengeConfig.initialGroups[groupIndex].active_penalty_text = '';
+        } else throw new Error(data.error || "Unknown error from server.");
+    } catch (error) {
+        console.error("Failed to clear penalty:", error);
+        showError(penaltyDisplayDiv || statusDiv, `Error: ${error.message}`, 'danger');
+        setLoading(clearButton, false);
+    } finally { isProcessingClick = false; }
+}
+
+
+// --- Page Initialization ---
+document.addEventListener('DOMContentLoaded', () => {
+    // console.log("challenge_view.js: Initializing..."); // Minimal log
+
+    // Assign and check essential elements
+    const dataEl = document.getElementById('challengeData');
+    const pageContainer = document.getElementById('challengeViewContainer');
+    statusDiv = document.getElementById('pageStatusDisplay');
+
+    if (!dataEl || !pageContainer) {
+        console.error("CRITICAL: #challengeData or #challengeViewContainer element missing!");
+        showError(statusDiv || document.body, "Initialization Error: Core page structure missing.", "danger");
+        return;
+    }
+
+    // Read configuration
+    if (!initializeConfigFromDOM()) { return; }
+    // console.log(`Challenge Initialized: ${challengeConfig.isLocal ? "Local" : "DB"}, ID: ${challengeConfig.id}`); // Minimal log
+
+    // --- Branch Logic: Local vs. Database Challenge ---
+    if (challengeConfig.isLocal) {
+        // --- LOCAL CHALLENGE ---
+        const localData = getLocalChallengeById(challengeConfig.id);
+        if (localData) {
+            challengeConfig.coreChallengeStructure = localData.challengeData || {};
+            challengeConfig.progressData = localData.progressData || {};
+            renderLocalChallengeView(localData);
+            const displayContainer = document.getElementById('localChallengeDisplay');
+            if (displayContainer) displayContainer.addEventListener('change', handleProgressChange);
+            else console.error("Could not attach local progress listener.");
+        } else {
+            const errorMsg = `Error: Could not load local challenge data (ID: ${escapeHtml(challengeConfig.id)}). It might have been deleted.`;
+            showError(document.getElementById('localChallengeDisplay') || statusDiv, errorMsg, 'danger');
+        }
+    } else {
+        // --- DATABASE CHALLENGE ---
+        // Assign group containers only if DB challenge
+        myGroupContainerEl = document.getElementById('myGroupContainer');
+        otherGroupsContainerEl = document.getElementById('otherGroupsContainer');
+        if (!myGroupContainerEl || !otherGroupsContainerEl) {
+             console.error("Essential DB challenge elements missing (#myGroupContainer or #otherGroupsContainer)!");
+             showError(statusDiv || document.body, "Initialization Error: Page structure for shared challenge is incomplete.", "danger");
+             return;
+        }
+
+        const addGroupForm = document.getElementById('addGroupForm');
+
+        // Initial UI setup
+        try {
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+        } catch (uiError) {
+            console.error("Error during initial UI update:", uiError);
+            showError(statusDiv, "Error initializing UI state.", "danger");
+        }
+
+        // Attach Create Group Form Listener
+        if (challengeConfig.isMultigroup && addGroupForm) {
+            addGroupForm.addEventListener('submit', handleCreateGroupSubmit);
+        }
+
+        // --- Attach Delegated Event Listeners to the Main Container ---
+        pageContainer.addEventListener('click', (event) => {
+            if (isProcessingClick) { event.preventDefault(); return; }
+            const closestButton = event.target.closest('button[data-group-id]');
+            if (!closestButton) return;
+
+            const buttonClasses = closestButton.classList;
+            isProcessingClick = true;
+            try {
+                if (challengeConfig.isMultigroup && buttonClasses.contains('join-group-btn')) handleJoinGroupClick(event, closestButton);
+                else if (challengeConfig.isMultigroup && buttonClasses.contains('leave-group-btn')) handleLeaveGroupClick(event, closestButton);
+                else if (challengeConfig.isMultigroup && buttonClasses.contains('save-player-names-btn')) handleSavePlayersClick(event, closestButton);
+                else if (buttonClasses.contains('clear-penalty-btn')) handleClearPenaltyClick(event, closestButton);
+                else isProcessingClick = false; // Reset if no action matched
+            } catch (handlerError) {
+                console.error("Error occurred inside click event handler:", handlerError);
+                showError(statusDiv, "An unexpected error occurred processing your click.", "danger");
+                isProcessingClick = false; // Reset on error
+            }
+        });
+
+        // Attach change listener for progress checkboxes
+        pageContainer.addEventListener('change', handleProgressChange);
+    }
 }); // End DOMContentLoaded
+
