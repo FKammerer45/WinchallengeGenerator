@@ -1,21 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Games Configuration{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-  <h2>Games Configuration</h2>
+{% block head %}
+    {{ super() }}
+    {# Link the main stylesheet #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# Add page-specific class via style tag or body class if needed #}
+    <style> body { background-color: var(--body-bg, #212529); } </style>
+{% endblock %}
 
+
+{% block content %}
+{# Added config-page-container class for CSS targeting #}
+<div class="container mt-4 config-page-container">
+  <h2 class="mb-4">Games Configuration</h2>
+
+  {# Script variables needed by JS for this page #}
   <script>
-    // Used by games.js and gamesExtensions.js to conditionally attach handlers/show UI
     const isLoggedIn = {{ current_user.is_authenticated| tojson }};
-    // Used by gamesExtensions.js for API calls requiring CSRF protection
-    const csrfToken = "{{ csrf_token() }}";
+    const csrfToken = "{{ csrf_token() }}"; // Needed for API calls via extensions
   </script>
 
-  <div class="modal fade" id="confirmLoadDefaultModal" tabindex="-1" role="dialog"
-    aria-labelledby="confirmLoadDefaultModalLabel" aria-hidden="true">
+  {# Confirmation Modal for Loading Defaults #}
+  <div class="modal fade" id="confirmLoadDefaultModal" tabindex="-1" role="dialog" aria-labelledby="confirmLoadDefaultModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
-      <div class="modal-content text-dark"> <div class="modal-header">
+      <div class="modal-content"> {# text-dark removed, style.css handles modal theme #}
+        <div class="modal-header">
           <h5 class="modal-title" id="confirmLoadDefaultModalLabel">Load Default Entries</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
@@ -26,49 +36,74 @@
         </div>
         <div class="modal-footer">
           <button type="button" id="cancelLoadDefaultBtn" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-          <button type="button" id="confirmLoadDefaultBtn" class="btn btn-primary">Yes, Load</button>
+          <button type="button" id="confirmLoadDefaultBtn" class="btn btn-primary">Yes, Load</button> {# Use primary (blue) #}
         </div>
       </div>
     </div>
   </div>
 
+  {# --- Top Button Row --- #}
   {% if current_user.is_authenticated %}
-  <div class="mb-3 d-flex flex-wrap">
-    <button id="saveTabBtn" class="btn btn-success mr-2 mb-2" title="Save the currently active tab to your account">Save Current Tab</button>
-    <button id="deleteTabBtn" class="btn btn-danger mr-2 mb-2" title="Delete the currently active tab from local storage and your account">Delete Current Tab</button>
-    <button id="loadSavedTabsBtn" class="btn btn-info mr-2 mb-2" title="Load all tabs saved to your account (overwrites local tabs)">Load Saved Tabs</button>
-    <small class="ml-auto text-muted align-self-center">You can save up to 5 tabs.</small>
-  </div>
+    {# Use Flexbox to align button group left and text right #}
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+        {# Group the action buttons #}
+        <div>
+            <button id="saveTabBtn" class="btn btn-success btn-sm mr-2 mb-2" title="Save the currently active tab to your account">Save Current Tab</button>
+            <button id="deleteTabBtn" class="btn btn-danger btn-sm mr-2 mb-2" title="Delete the currently active tab from local storage and your account">Delete Current Tab</button>
+            <button id="loadSavedTabsBtn" class="btn btn-info btn-sm mr-2 mb-2" title="Load all tabs saved to your account (overwrites local tabs)">Load Saved Tabs</button>
+        </div>
+        {# Text aligned to the right #}
+        <small class="text-muted mb-2">You can save up to 5 tabs.</small>
+    </div>
   {% endif %}
+  {# --- End Top Button Row --- #}
 
-  <ul class="nav nav-tabs" id="gamesTab" role="tablist">
+
+  {# --- Tabs Navigation --- #}
+  <ul class="nav nav-tabs mb-3" id="gamesTab" role="tablist"> {# Added mb-3 #}
     <li class="nav-item">
       <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
         aria-selected="true" title="This tab cannot be renamed or deleted. Double-click other tabs to rename.">Default</a>
     </li>
+    {# JS will insert other tabs here #}
     <li class="nav-item">
       <a class="nav-link" href="#" id="addTabBtn" role="tab" title="Add New Tab">+</a>
     </li>
-     </ul>
+  </ul>
+  {# --- End Tabs Navigation --- #}
 
-  <div class="tab-content mt-3" id="gamesTabContent">
+
+  {# --- Tab Content --- #}
+  <div class="tab-content" id="gamesTabContent">
+    {# Default Tab Pane #}
     <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
-       <button id="loadDefaultEntriesBtn" class="btn btn-warning mb-3" title="Load all entries from the central database into this local tab">Load Entries From DB</button>
-       <div class="my-3">
-         <button class="btn btn-primary insertGameBtn" data-tab="default" title="Add a new entry to this local tab">Insert New Entry</button>
-      </div>
-      {% include "games/games_table.html" %}
+       {# --- Tab Action Buttons (Horizontal) --- #}
+       <div class="d-flex justify-content-start mb-3">
+           <button id="loadDefaultEntriesBtn" class="btn btn-warning mr-2" title="Load all entries from the central database into this local tab">Load Entries From DB</button>
+           <button class="btn btn-primary insertGameBtn" data-tab="default" title="Add a new entry to this local tab">Insert New Entry</button>
+       </div>
+       {# --- End Tab Action Buttons --- #}
+       {# Include table structure #}
+       {% include "games/games_table.html" %}
     </div>
-     </div>
+    {# JS will insert other tab panes here #}
+  </div>
+  {# --- End Tab Content --- #}
 
+
+  {# Include Modals #}
   {% include "games/games_modals.html" %}
+  {# Fallback CSRF token field if needed by older JS #}
   <input type="hidden" name="csrf_token_field_fallback" value="{{ csrf_token() }}">
-</div>
+
+</div> {# End container #}
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
+{# Load JS module for this page #}
 <script type="module" src="{{ url_for('static', filename='js/games/games.js') }}"></script>
-
+{# Inline script for default tab rename alert #}
 <script>
   document.addEventListener('dblclick', function(event) {
       const link = event.target.closest('.nav-link');
@@ -78,5 +113,4 @@
       }
   });
 </script>
-
 {% endblock %}

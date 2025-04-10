@@ -1,100 +1,82 @@
-<!-- Modal for Inserting a New Game Entry -->
 <div class="modal fade" id="newGameModal" tabindex="-1" role="dialog" aria-labelledby="newGameModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <!-- Container for form alerts -->
-      <div id="gameFormAlert"></div>
-      <div class="modal-content" style="color:#000;">
-        <div class="modal-header">
-          <h5 class="modal-title" id="newGameModalLabel">Insert New Game Entry</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form id="newGameForm">
-            <!-- CSRF Token -->
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <!-- Additional alert container inside the form -->
-            <div id="newGameAlert"></div>
-            <!-- Game field -->
-            <div class="form-group">
-              <label for="newGameName">Game</label>
-              <input type="text" class="form-control" id="newGameName" name="Spiel" placeholder="Game Name" list="existingGames" required>
-              <datalist id="existingGames">
-                {% for g in existing_games %}
-                  <option value="{{ g }}">
-                {% endfor %}
-              </datalist>
-            </div>
-            <!-- Game Mode field -->
-            <div class="form-group">
-              <label for="newGameMode">Game Mode</label>
-              <input type="text" class="form-control" id="newGameMode" name="Spielmodus" placeholder="Game Mode" required>
-            </div>
-            <!-- Difficulty field -->
-            <div class="form-group">
-              <label for="newDifficulty">Difficulty (1 to 10 in 0.1 increments)</label>
-              <input type="number" class="form-control" id="newDifficulty" name="Schwierigkeit" min="1" max="10" step="0.1" placeholder="e.g., 5.0" required>
-            </div>
-            <!-- Number of Players field -->
-            <div class="form-group">
-              <label for="newPlayers">Number of Players (1 to 20)</label>
-              <input type="number" class="form-control" id="newPlayers" name="Spieleranzahl" min="1" max="20" step="1" placeholder="e.g., 5" required>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="saveNewGameBtn" class="btn btn-primary">Save</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        </div>
+  <div class="modal-dialog" role="document">
+    <div class="modal-content"> 
+      <div class="modal-header">
+        <h5 class="modal-title" id="newGameModalLabel">Insert New Game Entry</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="newGameForm">
+          {# Alert container inside the form #}
+          <div id="newGameAlert"></div>
+          {# Game field #}
+          <div class="form-group">
+            <label for="newGameName">Game</label>
+            <input type="text" class="form-control" id="newGameName" name="Spiel" placeholder="Game Name" list="existingGames" required>
+            {# Datalist can still be useful #}
+            <datalist id="existingGames">
+              {% for g in existing_games %} {# This context variable might need updating in the route #}
+                <option value="{{ g }}">
+              {% endfor %}
+            </datalist>
+          </div>
+          {# Game Mode field #}
+          <div class="form-group">
+            <label for="newGameMode">Game Mode</label>
+            <input type="text" class="form-control" id="newGameMode" name="Spielmodus" placeholder="Game Mode (e.g., Ranked, Casual)" required>
+          </div>
+          {# Difficulty field #}
+          <div class="form-group">
+            <label for="newDifficulty">Difficulty (0.0 to 10.0)</label>
+            <input type="number" class="form-control" id="newDifficulty" name="Schwierigkeit" min="0" max="10" step="0.1" placeholder="e.g., 7.5" required>
+          </div>
+          {# Number of Players field #}
+          <div class="form-group">
+            <label for="newPlayers">Number of Players (1 to 99)</label>
+            <input type="number" class="form-control" id="newPlayers" name="Spieleranzahl" min="1" max="99" step="1" placeholder="e.g., 5" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="saveNewGameBtn" class="btn btn-primary">Save New Entry</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
       </div>
     </div>
   </div>
-  
-  <!-- Modal for Editing/Deleting an Existing Game Entry -->
-  <div class="modal fade" id="editGameModal" tabindex="-1" role="dialog" aria-labelledby="editGameModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content" style="color:#000;">
-        <div class="modal-header">
-          <h5 class="modal-title" id="editGameModalLabel">Edit Game Entry</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form id="editGameForm">
-            <!-- Alert container for edit form -->
-            <div id="editGameAlert"></div>
-            <!-- Hidden field for the entry id -->
-            <input type="hidden" id="editEntryId" name="entry_id">
-            <!-- Game field -->
-            <div class="form-group">
-              <label for="editGameName">Game</label>
-              <input type="text" class="form-control" id="editGameName" name="Spiel" placeholder="Game Name" list="existingGames" required>
-            </div>
-            <!-- Game Mode field -->
-            <div class="form-group">
-              <label for="editGameMode">Game Mode</label>
-              <input type="text" class="form-control" id="editGameMode" name="Spielmodus" placeholder="Game Mode" required>
-            </div>
-            <!-- Difficulty field -->
-            <div class="form-group">
-              <label for="editDifficulty">Difficulty (1 to 10 in 0.1 increments)</label>
-              <input type="number" class="form-control" id="editDifficulty" name="Schwierigkeit" min="1" max="10" step="0.1" placeholder="e.g., 5.0" required>
-            </div>
-            <!-- Number of Players field -->
-            <div class="form-group">
-              <label for="editPlayers">Number of Players (1 to 20)</label>
-              <input type="number" class="form-control" id="editPlayers" name="Spieleranzahl" min="1" max="20" step="1" placeholder="e.g., 5" required>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="updateGameBtn" class="btn btn-primary">Save</button>
-          <button type="button" id="deleteGameBtn" class="btn btn-danger">Delete</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        </div>
+</div>
+
+<div class="modal fade" id="editGameModal" tabindex="-1" role="dialog" aria-labelledby="editGameModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document"> {# Use modal-lg for more space #}
+    <div class="modal-content"> {# Modal text should be dark #}
+      <div class="modal-header">
+        <h5 class="modal-title" id="editGameModalLabel">Edit Game Modes for: <span id="editGameNameDisplay" class="font-weight-bold"></span></h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="editGameForm">
+          {# Alert container for edit form #}
+          <div id="editGameAlert"></div>
+          {# Hidden field to store the game name being edited #}
+          <input type="hidden" id="editGameNameHidden" name="game_name">
+
+          {# Container where JS will inject inputs for each mode #}
+          <div id="editGameModesContainer">
+              <p class="text-muted">Loading modes...</p>
+          </div>
+
+          {# <button type="button" id="addNewModeToGameBtn" class="btn btn-sm btn-outline-success mt-3">Add New Mode</button> #}
+
+        </form>
+      </div>
+      <div class="modal-footer">
+        {# Removed Delete Button #}
+        <button type="button" id="updateGameBtn" class="btn btn-primary">Save Changes</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
       </div>
     </div>
   </div>
-  
+</div>
