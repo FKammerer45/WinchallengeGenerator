@@ -1,15 +1,30 @@
 {# templates/challenge/_challenge_timer.html #}
-{# Expects: loop_index (int) passed from the include #}
-<div class="card mb-3 bg-dark text-light border-secondary">
-   <div class="card-body py-2">
-     <div class="d-flex align-items-center flex-wrap">
-       {# Timer Display - Added class 'timer-display' #}
-       <div id="timerDisplay-{{ loop_index }}" class="mr-3 timer-display" style="font-family:monospace; font-size: 1.4em;">00:00:00</div>
-       <div class="ml-md-auto">
-          {# Timer Buttons - Added classes 'timer-start', 'timer-stop', 'timer-reset' #}
-          <button id="btnStart-{{ loop_index }}" class="btn btn-success btn-sm mr-1 timer-start" title="Start Timer">Start</button>
-          <button id="btnStop-{{ loop_index }}" class="btn btn-warning btn-sm mr-1 timer-stop" title="Stop Timer">Stop</button>
-          <button id="btnReset-{{ loop.index }}" class="btn btn-danger btn-sm timer-reset" title="Reset Timer">Reset</button>
+{# Expects: timer_id (string, e.g., 'main') #}
+
+{# Use a more descriptive container with specific classes #}
+<div class="challenge-timer-widget card bg-dark text-light border-secondary shadow-sm mb-4">
+   <div class="card-body p-2">
+     <div class="d-flex justify-content-between align-items-center flex-wrap">
+       {# Timer Display Area #}
+       <div class="timer-display-wrapper mr-3">
+            {# Larger, monospace font for the timer display #}
+           <span id="timerDisplay-{{ timer_id }}" class="timer-display">00:00:00</span>
+       </div>
+       {# Timer Controls Area #}
+       <div class="timer-controls ml-md-auto">
+          {# Buttons with specific IDs and classes #}
+          <button id="btnStart-{{ timer_id }}" class="btn btn-success btn-sm timer-button timer-start" title="Start Timer">
+              <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-play-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+              <span class="button-text">Start</span>
+          </button>
+          <button id="btnStop-{{ timer_id }}" class="btn btn-warning btn-sm timer-button timer-stop" title="Stop Timer">
+               <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-pause-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/></svg>
+               <span class="button-text">Stop</span>
+          </button>
+          <button id="btnReset-{{ timer_id }}" class="btn btn-danger btn-sm timer-button timer-reset" title="Reset Timer">
+               <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-stop-fill" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
+               <span class="button-text">Reset</span>
+          </button>
        </div>
      </div>
    </div>

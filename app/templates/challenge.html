@@ -13,8 +13,6 @@ Challenge Not Found
 
 {% block head %}
 {{ super() }}
-{# Link to specific CSS for this page #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/challenge_view.css') }}">
 {% endblock %}
 
 
@@ -35,7 +33,7 @@ Challenge Not Found
        data-add-group-url="{{ url_for('challenge_api.add_group_to_challenge', public_id=challenge_id) if not is_local else '' }}"
        data-update-progress-url-base="{{ url_for('challenge_api.update_group_progress', public_id=challenge_id, group_id=0) | replace('/0/progress', '') if not is_local else '' }}"
        data-join-leave-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') if not is_local else '' }}"
-       data-save-players-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') if not is_local else '' }}" {# Assumes same base URL, adjust if needed #}
+       data-save-players-url-base="{{ url_for('challenge_api.join_group', group_id=0) | replace('/groups/0/join', '/groups') if not is_local else '' }}"
        data-set-penalty-url-base="{{ url_for('challenge_api.set_group_penalty', group_id=0) | replace('/groups/0/penalty', '/groups') if not is_local else '' }}"
        data-num-players-per-group="{{ num_players_per_group | default(1) }}"
        data-initial-groups='{{ initial_groups | tojson if initial_groups else "null" }}'
@@ -53,6 +51,12 @@ Challenge Not Found
     {# General status message area - ALWAYS RENDERED #}
     <div id="pageStatusDisplay" class="mb-3"></div>
 
+    {# --- *** FIX: Corrected include syntax for timer *** --- #}
+    {% with timer_id='main' %}
+      {% include 'challenge/_challenge_timer.html' ignore missing %}
+    {% endwith %}
+    {# --- *** END FIX *** --- #}
+
     {% if is_local %}
     {# --- Local Challenge View (Rendered entirely by JS) --- #}
     <div id="localChallengeDisplay">
@@ -67,23 +71,41 @@ Challenge Not Found
 
     {# Row for Challenge Info and Rules Cards #}
     <div class="row mb-4">
-      <div class="col-lg-5 mb-4 mb-lg-0"> {# Info Card #}
-        <div class="card h-100 bg-dark text-light shadow-sm">
+      <div class="col-lg-5 mb-4 mb-lg-0"> {# Info Card Column #}
+        <div class="card h-100 bg-dark text-light shadow-sm challenge-info-card">
           <div class="card-header"><h3 class="h5 mb-0">Challenge Info</h3></div>
-          <div class="card-body">
-            <h4 class="card-title text-warning">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h4>
-            <p class="card-text small mb-1"><strong class="text-muted">ID:</strong> <code class="user-select-all" style="font-size: 0.9em;">{{ shared_challenge.public_id }}</code></p>
-            <p class="card-text small mb-1"><strong class="text-muted">Created by:</strong> {{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</p>
-            <p class="card-text small mb-3"><strong class="text-muted">Mode:</strong> {% if is_multigroup %}Multigroup (Max {{ shared_challenge.max_groups }}) | Players/Group: {{ num_players_per_group }}{% else %}Single Group{% endif %}</p>
-            <p class="card-text small font-italic">{% if is_multigroup %}Share URL to join!{% else %}Track progress below.{% endif %}</p>
+          <div class="card-body d-flex flex-column">
+            <h4 class="card-title text-warning mb-3">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h4>
+            <p class="card-text mb-2">
+              <strong class="text-muted" style="min-width: 80px; display: inline-block;">Mode:</strong>
+              {% if is_multigroup %}
+                Multigroup (Max {{ shared_challenge.max_groups }}) | {{ num_players_per_group }} Player{{ 's' if num_players_per_group != 1 else '' }}/Group
+              {% else %}
+                Single Group
+              {% endif %}
+            </p>
+            <p class="card-text mb-auto">
+              <strong class="text-muted" style="min-width: 80px; display: inline-block;">Creator:</strong>
+              {{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}
+            </p>
+            <div class="mt-3 pt-3 border-top border-secondary">
+                <p class="card-text small mb-0">
+                  <strong class="text-muted">ID:</strong>
+                  <code class="user-select-all bg-secondary p-1 rounded" style="font-size: 0.9em;">{{ shared_challenge.public_id }}</code>
+                </p>
+                {% if is_multigroup %}
+                <p class="card-text small mt-1">
+                    <a href="{{ request.url }}" class="text-info">Copy Share Link</a>
+                </p>
+                {% endif %}
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-lg-7"> {# Rules Card #}
-        <div class="card h-100 bg-dark text-light shadow-sm">
+      <div class="col-lg-7"> {# Rules Card Column #}
+        <div class="card h-100 bg-dark text-light shadow-sm challenge-rules-card">
           <div class="card-header"><h3 class="h5 mb-0">Challenge Rules</h3></div>
-          <div class="card-body challenge-rules-list">
-            {# Include the static rules partial #}
+          <div class="card-body challenge-rules-body">
             {% set c = shared_challenge.challenge_data %}
             {% include 'challenge/_challenge_details.html' ignore missing %}
           </div>
@@ -102,11 +124,10 @@ Challenge Not Found
         </button>
       </div>
       <div class="card-body collapse show" id="penaltyBody">
-        {# Include the penalty wheel section #}
         {% set p_info = shared_challenge.penalty_info %}
-        {% set players = [] %} {# Let JS handle fetching player names #}
+        {% set players = [] %}
         {% set penalty_tab_id = p_info.get('tab_id') %}
-        {% set challenge_index = 'shared' %} {# Used for unique element IDs #}
+        {% set challenge_index = 'shared' %}
         {% include 'challenge/_challenge_penalty_section.html' ignore missing %}
       </div>
     </div>
@@ -148,7 +169,7 @@ Challenge Not Found
       {% if not is_local and user_joined_group_id is not none %}
         <h4 class="text-warning mb-3">Your Group</h4>
         {% for group_data in initial_groups if group_data.id == user_joined_group_id %}
-          {# *** Include the new partial, passing context *** #}
+          {# Include the group card partial, passing context #}
           {% with group=group_data, challenge=shared_challenge, is_member=True, is_multigroup=is_multigroup, num_players_per_group=num_players_per_group %}
             {% include 'challenge/_group_card_content.html' ignore missing %}
           {% endwith %}
@@ -163,20 +184,25 @@ Challenge Not Found
     <h4 class="text-info mb-3 {% if not is_multigroup %}d-none{% endif %}">
       {% if user_joined_group_id is none %}Available Groups{% else %}Other Available Groups{% endif %}
     </h4>
-    {# Container where cards for other groups are placed. Added justify-content-center #}
     <div id="otherGroupsContainer" class="row justify-content-center">
       {% if not is_local and initial_groups %}
         {% for group_data in initial_groups if group_data.id != user_joined_group_id %}
-           {# *** Include the new partial, passing context *** #}
+           {# Include the group card partial, passing context #}
            {% with group=group_data, challenge=shared_challenge, is_member=False, is_multigroup=is_multigroup, num_players_per_group=num_players_per_group %}
              {% include 'challenge/_group_card_content.html' ignore missing %}
            {% endwith %}
         {% endfor %}
       {% endif %}
+      {# Message shown if no other groups exist #}
+      {% if not is_local and initial_groups and (initial_groups | rejectattr('id', 'equalto', user_joined_group_id) | list | length == 0) %}
+         <div class="col-12">
+             <p class="text-light text-center py-3">No other groups available.</p>
+         </div>
+      {% endif %}
     </div>
     {# --- End "Other Groups" Section --- #}
 
-    {# Message shown if no groups exist (JS manages visibility) #}
+    {# Message shown if no groups exist at all (JS manages visibility) #}
     <div id="noGroupsMessageContainer" class="col-12 {% if initial_groups %}d-none{% endif %}">
       <p class="text-muted text-center py-5">No groups yet.{% if is_multigroup %} Create one above!{% endif %}</p>
     </div>
@@ -191,14 +217,15 @@ Challenge Not Found
 </div> {# End container #}
 
 {# --- Template for New Group Cards (Used by JS) --- #}
-{# This template defines the structure JS clones when adding a group dynamically #}
 {% if is_multigroup %}
 <template id="groupCardTemplate">
-  {# Use standard column classes for dynamically added cards #}
   <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="">
     <div class="card group-card h-100">
       <div class="card-body">
         <h5 class="card-title"></h5> {# JS sets name #}
+        <div id="progressBarContainer-" class="group-progress-bar-container mb-3"> {# ID will be completed by JS #}
+            {# JS will render the progress bar here #}
+        </div>
         <div class="group-progress-container">
           <p class="text-muted small">Loading progress...</p> {# Placeholder #}
         </div>
@@ -223,8 +250,6 @@ Challenge Not Found
 </template>
 {% endif %}
 {# --- End Template --- #}
-
-{# *** REMOVED Macro Definitions - Moved to _group_card_content.html *** #}
 
 {% endblock %}
 
@@ -251,6 +276,10 @@ Challenge Not Found
   <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_penalty.js') }}"></script>
 {% endif %}
 
-{# --- Main View Orchestrator Module --- #}
+{# *** ADDED: Load the Timer Module *** #}
+<script type="module" src="{{ url_for('static', filename='js/challenge/challenge_timer.js') }}"></script>
+
+{# --- Main View Orchestrator Module (Loads Last) --- #}
 <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_view.js') }}"></script>
+
 {% endblock %}

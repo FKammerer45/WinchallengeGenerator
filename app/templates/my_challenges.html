@@ -4,96 +4,125 @@
 
 {% block head %}
     {{ super() }}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/challenge_view.css') }}">
-    <style>
-        /* Styles remain the same */
-    </style>
 {% endblock %}
 
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">My Challenges</h1>
+    <h1 class="mb-4 text-center my-challenges-title">My Challenges</h1>
 
     {# Container for status messages (like delete success/error) #}
     <div id="deleteStatus" class="mb-3"></div>
 
-    {# --- Section for Challenges Saved to Account (Rendered by Server) --- #}
-    <h3 class="text-light mb-3">Saved to Account</h3>
-    <div id="myChallengesContainer">
-        {# Only loop if authenticated AND challenges exist #}
-        {% if current_user.is_authenticated and user_challenges %}
-            <div class="row">
-                {% for challenge in user_challenges %}
-                    <div class="col-md-6 col-lg-4 mb-4 challenge-list-item">
-                        {# Card structure with DB delete button - remains the same #}
-                        <div class="card challenge-card h-100">
-                            <a href="{{ url_for('main.challenge_view', challenge_id=challenge.public_id) }}" class="card-body-link">
-                                <div class="card-body">
-                                    <h5 class="card-title">{{ challenge.name or "Unnamed Challenge" }}</h5>
-                                    <h6 class="card-subtitle mb-2 text-muted">
-                                        ID: <code style="font-size: 0.9em;">{{ challenge.public_id[:8] }}...</code> (Shared)
-                                    </h6>
-                                    <p class="card-text">
-                                        Created: {{ challenge.created_at.strftime('%Y-%m-%d %H:%M') if challenge.created_at else 'N/A' }}<br>
-                                        Max Groups: {{ challenge.max_groups }}
-                                    </p>
-                                </div>
-                             </a>
-                             <div class="card-footer text-right">
-                                 <button class="btn btn-sm btn-outline-danger delete-challenge-btn"
-                                         data-public-id="{{ challenge.public_id }}"
-                                         data-challenge-name="{{ (challenge.name or 'Unnamed Challenge') | escape }}">
-                                     <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                                     <span>Delete</span>
-                                 </button>
-                             </div>
-                        </div>
-                    </div>
-                {% endfor %}
+    {# --- Section for Challenges Saved to Account (Collapsible) --- #}
+    <div class="card shadow-sm challenge-section-card">
+        <div class="card-header" id="headingAccount" data-toggle="collapse" data-target="#accountChallengesCollapse" aria-expanded="true" aria-controls="accountChallengesCollapse">
+            <h3 class="mb-0">
+                {# Button styled as a link, contains title and text indicator span #}
+                <button class="btn btn-link text-light p-0 btn-collapse-toggle d-flex justify-content-between align-items-center w-100" type="button" aria-expanded="true">
+                    <span>Saved to Account</span>
+                    {# *** REMOVED SVG, Added SPAN for CSS indicator *** #}
+                    <span class="collapse-indicator"></span>
+                </button>
+            </h3>
+        </div>
+
+        <div id="accountChallengesCollapse" class="collapse show" aria-labelledby="headingAccount">
+            <div class="card-body">
+                <div id="myChallengesContainer"> {# Container for the row #}
+                    {% if current_user.is_authenticated %}
+                        {% if user_challenges %}
+                            <div class="row"> {# The row for the cards #}
+                                {% for challenge in user_challenges %}
+                                    <div class="col-md-6 col-lg-4 mb-4 challenge-list-item">
+                                        {# --- Standard Challenge Card Structure --- #}
+                                        <div class="card challenge-card h-100">
+                                            <a href="{{ url_for('main.challenge_view', challenge_id=challenge.public_id) }}" class="card-body-link" target="_blank" title="View Challenge Details">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">{{ challenge.name or "Unnamed Challenge" }}</h5>
+                                                    <h6 class="card-subtitle mb-2 text-muted">
+                                                        ID: <code style="font-size: 0.9em;">{{ challenge.public_id[:8] }}...</code> (Shared)
+                                                    </h6>
+                                                    <p class="card-text small">
+                                                        Created: {{ challenge.created_at.strftime('%Y-%m-%d %H:%M') if challenge.created_at else 'N/A' }}<br>
+                                                        Max Groups: {{ challenge.max_groups }}
+                                                    </p>
+                                                </div>
+                                             </a>
+                                             <div class="card-footer text-right">
+                                                 <button class="btn btn-sm btn-outline-danger delete-challenge-btn"
+                                                         data-public-id="{{ challenge.public_id }}"
+                                                         data-challenge-name="{{ (challenge.name or 'Unnamed Challenge') | escape }}"
+                                                         title="Delete this shared challenge">
+                                                     <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                                                     <span>Delete</span>
+                                                 </button>
+                                             </div>
+                                        </div>
+                                        {# --- End Card Structure --- #}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="empty-section-message">No challenges saved to your account yet.</p>
+                        {% endif %}
+                    {% else %}
+                         <p class="empty-section-message">
+                             <a href="{{ url_for('auth.login', next=request.path) }}">Log in</a> to view challenges saved to your account.
+                         </p>
+                    {% endif %}
+                </div>
             </div>
-        {# Message shown by JS if no challenges found #}
-        {% elif current_user.is_authenticated and not user_challenges %}
-             {# This specific message area might be removed if JS handles the combined empty state #}
-             {# <p class="text-muted">No challenges saved to your account yet.</p> #}
-        {% endif %}
+        </div>
     </div>
     {# --- End Account Challenges Section --- #}
 
 
-    {# --- Section for Locally Saved Challenges (Populated by JS) --- #}
-    <hr class="my-4 border-secondary"> {# Separator #}
-    <h3 class="text-light mb-3">Saved Locally (This Browser Only)</h3>
-    {# Container where JS will add local challenge cards #}
-    <div id="localChallengesContainer" class="row">
-        {# Initial placeholder maybe #}
-        <div class="col-12"><p class="text-muted">Loading local challenges...</p></div>
+    {# --- Section for Locally Saved Challenges (Collapsible) --- #}
+    <div class="card shadow-sm challenge-section-card">
+         <div class="card-header" id="headingLocal" data-toggle="collapse" data-target="#localChallengesCollapse" aria-expanded="true" aria-controls="localChallengesCollapse">
+             <h3 class="mb-0">
+                 <button class="btn btn-link text-light p-0 btn-collapse-toggle d-flex justify-content-between align-items-center w-100" type="button" aria-expanded="true">
+                     <span>Saved Locally (This Browser Only)</span>
+                     {# *** REMOVED SVG, Added SPAN for CSS indicator *** #}
+                     <span class="collapse-indicator"></span>
+                 </button>
+             </h3>
+        </div>
+         <div id="localChallengesCollapse" class="collapse show" aria-labelledby="headingLocal">
+            <div class="card-body">
+                {# Container where JS will add local challenge cards #}
+                <div id="localChallengesContainer" class="row">
+                    {# Initial placeholder - JS will replace this #}
+                    <div class="col-12"><p class="text-muted empty-section-message">Loading local challenges...</p></div>
+                </div>
+            </div>
+        </div>
     </div>
      {# --- End Local Challenges Section --- #}
 
 
-    {# Message shown only if BOTH DB and Local lists end up empty #}
-     <div id="noChallengesMessageContainer" class="col-12 d-none"> {# Initially hidden #}
-          <p class="text-muted text-center py-5">You have no challenges saved either to your account or locally in this browser.</p>
+    {# Message shown only if BOTH sections end up empty (handled by JS) #}
+     <div id="noChallengesMessageContainer" class="col-12 d-none">
+          <p class="text-muted text-center py-5">You have no challenges saved.</p>
      </div>
 
 
 </div> {# End container #}
 
+{# Data div for JS #}
 <div id="myData" style="display: none;" aria-hidden="true"
-    data-is-authenticated="{{ current_user.is_authenticated | lower }}" {# Pass boolean as string 'true'/'false' #}
+    data-is-authenticated="{{ current_user.is_authenticated | lower }}"
     data-csrf-token="{{ csrf_token() }}"
-    data-view-local-url="/challenge/"
+    data-view-local-url="/challenge/" {# Base URL for local challenges #}
 ></div>
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
-    {# Pass Auth Status and Base URL for Local View #}
-
-    {# Load JS files #}
+    {# Load JS files needed for this page #}
     <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/challenge/local_challenge_storage.js') }}"></script> {# Ensure this is loaded #}
+    <script type="module" src="{{ url_for('static', filename='js/challenge/local_challenge_storage.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/challenge/my_challenges.js') }}"></script>
 {% endblock %}

@@ -29,6 +29,14 @@ export function updateGroupCountDisplay(currentCount, maxGroups) {
  * @returns {{completed: number, total: number, percentage: number}}
  */
 function calculateProgress(challengeData, progressData = {}) {
+    // *** TEMPORARY LOGGING START ***
+    console.log("Calculating Progress With:", {
+        // Log stringified versions for easier inspection of structure and keys
+        challengeData: JSON.stringify(challengeData),
+        progressData: JSON.stringify(progressData)
+    });
+    // *** TEMPORARY LOGGING END ***
+
     let total = 0;
     let completed = 0;
     const safeProgressData = progressData || {};
@@ -39,7 +47,11 @@ function calculateProgress(challengeData, progressData = {}) {
             const count = info?.count || 0;
             total += count;
             for (let i = 0; i < count; i++) {
-                if (safeProgressData[`normal_${key}_${i}`] === true) completed++;
+                const progressKey = `normal_${key}_${i}`;
+                if (safeProgressData[progressKey] === true) {
+
+                    completed++;
+                }
             }
         });
     }
@@ -51,16 +63,21 @@ function calculateProgress(challengeData, progressData = {}) {
                 Object.entries(seg.group).forEach(([key, count]) => {
                     total += count || 0;
                     for (let i = 0; i < (count || 0); i++) {
-                        if (safeProgressData[`b2b_${segmentIdx}_${key}_${i}`] === true) completed++;
+                        const progressKey = `b2b_${segmentIdx}_${key}_${i}`;
+                        if (safeProgressData[progressKey] === true) {
+
+                            completed++;
+                        }
                     }
                 });
             }
         });
     }
-
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    // console.log("Calculation Result:", { completed, total, percentage }); // Optional log result
     return { completed, total, percentage };
 }
+
 
 /**
  * Renders or updates a Bootstrap progress bar.
@@ -69,18 +86,26 @@ function calculateProgress(challengeData, progressData = {}) {
  * @param {object} progressData - The group/local progress object {'key': true,...}.
  */
 export function renderOrUpdateProgressBar(container, challengeData, progressData) {
-    if (!container) return;
-    const progress = calculateProgress(challengeData, progressData);
-    const progressBarId = container.id || `prog-${Math.random().toString(36).substring(2)}`;
-    container.dataset.progressBarId = progressBarId; // Store ID if needed
+    if (!container) {
+        // console.warn("Progress bar container not found."); // Less verbose
+        return;
+    }
+    // Ensure challengeData has at least normal or b2b, otherwise progress is meaningless
+    if (!challengeData || (!challengeData.normal && !challengeData.b2b)) {
+        container.innerHTML = '<p class="text-muted small mb-0">Challenge structure unavailable for progress.</p>';
+        return;
+    }
+
+    const progress = calculateProgress(challengeData, progressData); // Assumes calculateProgress is defined above
+    const progressBarId = `prog-bar-${container.id || Math.random().toString(36).substring(2)}`; // Unique ID for the bar itself
 
     container.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-1 small">
-            <span class="text-muted">Overall Progress:</span>
+            <span class="text-muted">Group Progress:</span>
             <span class="font-weight-bold text-light">${progress.completed} / ${progress.total} (${progress.percentage}%)</span>
         </div>
-        <div class="progress" style="height: 10px; background-color: #495057;">
-            <div id="${progressBarId}-bar"
+        <div class="progress" style="height: 8px; background-color: #495057;"> 
+            <div id="${progressBarId}"
                  class="progress-bar bg-warning progress-bar-striped"
                  role="progressbar"
                  style="width: ${progress.percentage}%;"
@@ -89,9 +114,9 @@ export function renderOrUpdateProgressBar(container, challengeData, progressData
             </div>
         </div>`;
 
-    // Add brief animation effect on update
+    // Optional animation effect
     requestAnimationFrame(() => {
-        const bar = document.getElementById(`${progressBarId}-bar`);
+        const bar = document.getElementById(progressBarId);
         if (bar) {
             bar.classList.add('progress-bar-animated');
             setTimeout(() => { bar.classList.remove('progress-bar-animated'); }, 1500);
@@ -304,110 +329,103 @@ export function updateUIAfterMembershipChange(challengeConfig, myGroupContainerE
     const otherGroupCards = otherGroupsContainerEl ? Array.from(otherGroupsContainerEl.querySelectorAll('.group-card-wrapper')) : [];
     const allGroupCards = [...yourGroupCards, ...otherGroupCards];
 
-    // Handle empty state message
     const noGroupsMsg = document.getElementById('noGroupsMessageContainer');
     if (noGroupsMsg) noGroupsMsg.classList.toggle('d-none', allGroupCards.length > 0);
 
-    if (allGroupCards.length === 0) return; // Nothing to update
+    if (allGroupCards.length === 0) return;
 
     allGroupCards.forEach(cardWrapper => {
         const card = cardWrapper.querySelector('.card.group-card');
-        if (!card) return; // Skip if card structure is broken
+        if (!card) return;
 
         const cardGroupId = parseInt(cardWrapper.dataset.groupId, 10);
-        if (isNaN(cardGroupId)) return; // Skip if ID is invalid
+        if (isNaN(cardGroupId)) return;
 
         const groupData = challengeConfig.initialGroups?.find(g => g.id === cardGroupId);
+        // Use groupData.progress if available, otherwise default to empty object
+        const groupProgress = groupData?.progress || {};
         const isJoinedGroup = (challengeConfig.userJoinedGroupId === cardGroupId);
-        const memberCount = groupData?.member_count ?? 0; // Use count from config if available
+        const memberCount = groupData?.member_count ?? 0;
         const maxPlayers = challengeConfig.numPlayersPerGroup || 1;
         const isFull = memberCount >= maxPlayers;
 
-        // --- 1. Visual State (Highlighting & Layout) ---
-        const joinedLayoutClass = 'joined-group-layout';
+        // --- 1. Visual State (Highlighting ONLY) ---
         const activeHighlightClass = 'joined-group-active';
-        cardWrapper.classList.toggle(joinedLayoutClass, isJoinedGroup);
         cardWrapper.classList.toggle(activeHighlightClass, isJoinedGroup);
 
         // --- 2. Penalty Display & Clear Button ---
         const penaltyDisplayDiv = cardWrapper.querySelector('.active-penalty-display');
         if (penaltyDisplayDiv) {
-            updatePenaltyDisplay(cardGroupId, groupData?.active_penalty_text || ''); // Update text/visibility
+            updatePenaltyDisplay(cardGroupId, groupData?.active_penalty_text || '');
             let clearButton = penaltyDisplayDiv.querySelector('.clear-penalty-btn');
-            // Show clear button only if THIS is the joined group AND user is logged in
             if (isJoinedGroup && challengeConfig.isLoggedIn) {
-                if (!clearButton) { // Add if missing
+                if (!clearButton) {
                     clearButton = document.createElement('button');
                     clearButton.className = 'btn btn-sm btn-outline-light clear-penalty-btn mt-1';
                     clearButton.dataset.groupId = cardGroupId;
                     clearButton.innerHTML = '<span>Clear</span><span class="spinner-border spinner-border-sm" style="display: none;"></span>';
                     const penaltyTextP = penaltyDisplayDiv.querySelector('.penalty-text-content');
                     if (penaltyTextP) penaltyTextP.insertAdjacentElement('afterend', clearButton);
-                    else penaltyDisplayDiv.appendChild(clearButton); // Fallback
+                    else penaltyDisplayDiv.appendChild(clearButton);
                 }
             } else if (clearButton) {
-                clearButton.remove(); // Remove if not joined or not logged in
+                clearButton.remove();
             }
         }
 
         // --- 3. Progress Checkbox Interactivity ---
         const checkBoxes = cardWrapper.querySelectorAll('.progress-checkbox');
-        // *** REFINED LOGIC: Enable if local OR (DB AND user is logged in AND user joined THIS group) ***
         const enableCheckboxes = challengeConfig.isLocal || (isJoinedGroup && challengeConfig.isLoggedIn);
         checkBoxes.forEach(cb => cb.disabled = !enableCheckboxes);
 
         // --- 4. Player Name Section ---
         const playerNamesSection = card.querySelector('.player-names-section');
         if (playerNamesSection) {
-            // Show/Render inputs only if multigroup, user is logged in, and this is the joined group
             if (challengeConfig.isMultigroup && challengeConfig.isLoggedIn && isJoinedGroup) {
-                // Ensure renderPlayerNameInputs is imported or defined in this file
                 if (typeof renderPlayerNameInputs === "function") {
-                     renderPlayerNameInputs(
+                    renderPlayerNameInputs(
                         playerNamesSection, cardGroupId,
                         groupData?.player_names || [], maxPlayers
                     );
-                } else { console.error("renderPlayerNameInputs function is not available.");}
+                } else { console.error("renderPlayerNameInputs function is not available."); }
             } else {
-                playerNamesSection.style.display = 'none'; // Hide otherwise
+                playerNamesSection.style.display = 'none';
                 const inputsContainer = playerNamesSection.querySelector('.player-name-inputs');
-                if (inputsContainer) inputsContainer.innerHTML = ''; // Clear inputs if hidden
+                if (inputsContainer) inputsContainer.innerHTML = '';
             }
         }
 
         // --- 5. Footer Button State (Join/Leave/Full/Login) ---
         const footer = card.querySelector('.card-footer.join-leave-footer');
         if (footer) {
-            footer.innerHTML = ''; // Clear previous button/link
+            footer.innerHTML = '';
             let buttonHtml = '';
-
-            if (!challengeConfig.isMultigroup) {
-                // No footer needed for single group mode
-            } else if (isJoinedGroup) {
-                // User is in THIS group -> Show Leave button (only if logged in)
-                if(challengeConfig.isLoggedIn) {
-                    buttonHtml = `<button class="btn btn-sm btn-danger leave-group-btn" data-group-id="${cardGroupId}"><span>Leave Group</span><span class="spinner-border spinner-border-sm"></span></button>`;
-                } else {
-                    // Edge case: How did they join if not logged in? Show login link.
-                     const loginUrl = `/auth/login?next=/challenge/${challengeConfig.id}`;
-                     buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in</a>`;
-                }
+            if (!challengeConfig.isMultigroup) { /* No button */ }
+            else if (isJoinedGroup) {
+                if (challengeConfig.isLoggedIn) buttonHtml = `<button class="btn btn-sm btn-danger leave-group-btn" data-group-id="${cardGroupId}"><span>Leave Group</span><span class="spinner-border spinner-border-sm"></span></button>`;
+                else { const loginUrl = `/auth/login?next=/challenge/${challengeConfig.id}`; buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in</a>`; }
             } else if (!challengeConfig.isLoggedIn) {
-                 // User is NOT logged in -> Show Login link for OTHER groups
-                 const loginUrl = `/auth/login?next=/challenge/${challengeConfig.id}`; // Construct login URL
-                 buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Join</a>`;
+                const loginUrl = `/auth/login?next=/challenge/${challengeConfig.id}`; buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Join</a>`;
             } else if (challengeConfig.userJoinedGroupId !== null) {
-                // User logged in but joined a DIFFERENT group -> Show Disabled "Joined Other"
                 buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled data-group-id="${cardGroupId}"><span>Joined Other</span></button>`;
             } else if (isFull) {
-                // User logged in, not in any group, but THIS group is full -> Show Disabled "Full"
                 buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled data-group-id="${cardGroupId}"><span>Full</span></button>`;
             } else {
-                // User logged in, not in any group, and THIS group is available -> Show Join button
                 buttonHtml = `<button class="btn btn-sm btn-success join-group-btn" data-group-id="${cardGroupId}"><span>Join</span><span class="spinner-border spinner-border-sm"></span></button>`;
             }
             footer.innerHTML = buttonHtml;
         }
+
+
+        const progressBarContainer = cardWrapper.querySelector(`#progressBarContainer-${cardGroupId}`);
+        if (progressBarContainer && challengeConfig.coreChallengeStructure) {
+            renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, groupProgress);
+        } else if (progressBarContainer) {
+            // Handle case where structure might be missing but container exists
+            progressBarContainer.innerHTML = '<p class="text-muted small mb-0">Progress unavailable.</p>';
+        }
+
+
     }); // End forEach card
 }
 

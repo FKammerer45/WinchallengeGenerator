@@ -1,76 +1,284 @@
-/* Grundlegende Styles für die Web-App */
+/* static/css/style.css */
+/* Main stylesheet for the Win Challenge Generator application */
 
+/* --- Theme Variables --- */
+:root {
+  /* --- Stronger Dark Theme --- */
+  --body-bg: #16181a;          /* Very Dark Grey/Near Black */
+  --card-bg: #212529;          /* Dark Grey (Previous Body BG) */
+  --card-bg-lighter: #2a2d33;  /* Lighter Dark Grey */
+  --card-border: #40454f;      /* Adjusted Border */
+  /* --- Primary Accent: Blue --- */
+  --accent-color: #007bff;     /* Bootstrap Primary Blue */
+  --accent-hover: #0056b3;     /* Darker Blue */
+  --accent-glow: rgba(0, 123, 255, 0.3); /* Blue glow */
+  /* --- Secondary Accent: Yellow/Orange --- */
+  --accent-secondary-color: #ffc107; /* Bootstrap Warning Yellow */
+  --accent-secondary-hover: #e0a800;
+  --accent-secondary-glow: rgba(255, 193, 7, 0.3);
+  /* --- Text & Links --- */
+  --text-light: #f8f9fa;       /* Keep text light */
+  --text-muted: #adb5bd;
+  --text-dark: #212529;        /* For light backgrounds like modals */
+  --link-color: #61dafb;      /* Light blue for links */
+  --link-hover-color: #8be9fd;
+  /* --- Semantic Colors --- */
+  --danger-color: #dc3545;
+  --success-color: #28a745;
+  --info-color: #17a2b8;
+  --warning-color: var(--accent-secondary-color);
+  /* --- Input/Form --- */
+  --input-bg: var(--card-bg-lighter);  /* Use lighter card bg for inputs */
+  --input-border: var(--card-border); /* Use card border */
+  --input-focus-border: var(--accent-color); /* Blue focus */
+  --input-focus-shadow: var(--accent-glow); /* Blue focus */
+}
+
+/* --- Navbar Styling --- */
+.navbar {
+  padding-top: 0.8rem;
+  padding-bottom: 0.8rem;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Add subtle shadow */
+}
+
+.navbar-brand {
+  font-weight: bold;
+  color: var(--accent-secondary-color, #ffc107) !important; /* Use yellow/orange accent */
+  font-size: 1.25rem;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.7); /* Slightly dimmer default link color */
+  padding-left: 1rem;
+  padding-right: 1rem;
+  transition: color 0.2s ease;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover,
+.navbar-dark .navbar-nav .nav-link:focus {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Active Nav Link Highlighting */
+.navbar-dark .navbar-nav .nav-item.active .nav-link {
+  color: #ffffff; /* Bright white for active link */
+  font-weight: 500;
+}
+
+/* User Dropdown Styling */
+.navbar-dark .navbar-nav .dropdown-menu {
+  background-color: var(--card-bg, #343a40); /* Match card background */
+  border: 1px solid var(--card-border, #495057);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  margin-top: 0.5rem; /* Add some space below toggle */
+  border-radius: 0.25rem;
+}
+
+.navbar-dark .navbar-nav .dropdown-item {
+  color: var(--text-light, #f8f9fa);
+  padding: 0.5rem 1.2rem; /* Adjust padding */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.navbar-dark .navbar-nav .dropdown-item:hover,
+.navbar-dark .navbar-nav .dropdown-item:focus {
+  color: var(--text-light);
+  background-color: rgba(0, 123, 255, 0.2); /* Use blue accent with alpha on hover */
+}
+
+.navbar-dark .navbar-nav .dropdown-item.text-danger {
+  color: var(--danger-color) !important; /* Ensure danger color overrides default */
+  font-weight: 500;
+}
+.navbar-dark .navbar-nav .dropdown-item.text-danger:hover,
+.navbar-dark .navbar-nav .dropdown-item.text-danger:focus {
+   background-color: rgba(220, 53, 69, 0.2); /* Reddish background on hover */
+   color: #f8f9fa !important; /* Lighter text on hover */
+}
+
+.navbar-dark .dropdown-divider {
+  border-top: 1px solid var(--card-border, #495057);
+}
+
+/* Login/Register Button */
+.navbar .btn-outline-warning {
+  color: var(--accent-secondary-color);
+  border-color: var(--accent-secondary-color);
+}
+.navbar .btn-outline-warning:hover {
+  color: var(--text-dark);
+  background-color: var(--accent-secondary-color);
+  border-color: var(--accent-secondary-color);
+}
+/* --- General Page Styles --- */
 body {
-    background-color: #2B2B2B;
-    color: #DCDCDC;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    margin: 0;
-    padding: 0;
-  }
-  
-  .navbar {
-    margin-bottom: 20px;
-  }
-  
-  /* Container & Cards */
-  .container {
-    margin-top: 20px;
-  }
-  
-  .card {
-    background-color: #1E1E1E;
-    border: 1px solid #357ABD;
-    color: #DCDCDC;
-    margin-bottom: 20px;
-  }
-  
-  .card-header {
-    background-color: #357ABD;
-    color: #FFFFFF;
-  }
-  
-  .btn-primary {
-    background-color: #357ABD;
-    border-color: #357ABD;
-  }
-  
-  .btn-primary:hover {
-    background-color: #2A5E8E;
-    border-color: #2A5E8E;
-  }
-  
-  /* Formularelemente */
-  input, select, textarea {
-    background-color: #1E1E1E;
-    border: 1px solid #444;
-    color: #DCDCDC;
-  }
-  
-  .form-control:focus {
-    border-color: #357ABD;
-    box-shadow: none;
-  }
-  
-  /* Timer & Challenge-Ergebnis */
-  #timerDisplay {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #FFFFFF;
-    text-align: center;
-    margin-bottom: 10px;
-  }
-  
-  /* Win-Checkboxen-Bereich */
-  .win-row {
-    border: 1px solid #444;
-    padding: 10px;
-    margin-bottom: 5px;
-    border-radius: 4px;
-    background-color: #1E1E1E;
-  }
-  
-  .win-label {
-    font-weight: bold;
-    margin-right: 10px;
-  }
-  
+  background-color: var(--body-bg);
+  color: var(--text-light);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  line-height: 1.6;
+}
+.container { max-width: 1200px; }
+h1, h2, h3, h4, h5, h6 { color: var(--text-light); font-weight: 500; }
+hr { border-color: rgba(255, 255, 255, 0.1) !important; }
+a { color: var(--link-color); transition: color 0.2s ease; }
+a:hover { color: var(--link-hover-color); text-decoration: none; }
+
+/* --- Base Card Styles --- */
+.card {
+  border-radius: 0.3rem; border: 1px solid var(--card-border);
+  background-color: var(--card-bg); color: var(--text-light);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* Slightly stronger shadow */
+  margin-bottom: 1.5rem;
+}
+.card-header { background-color: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--card-border); font-weight: 500; padding: 0.75rem 1.25rem; } /* Less contrast header */
+.card-body { padding: 1.25rem; }
+.card-footer { background-color: transparent; border-top: 1px solid var(--card-border); padding: 0.75rem 1.25rem; color: var(--text-muted); } /* Transparent footer */
+
+/* --- Button Styles --- */
+.btn { border-radius: 5px; font-weight: 500; padding: 0.6rem 1.2rem; transition: all 0.2s ease-in-out; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.2); filter: brightness(115%); } /* Slightly brighter hover */
+/* Primary button uses blue */
+.btn-primary, .btn-info { background-color: var(--accent-color); border-color: var(--accent-color); color: var(--text-light); }
+.btn-primary:hover, .btn-info:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); color: var(--text-light); }
+/* Warning button uses yellow/orange */
+.btn-warning { background-color: var(--accent-secondary-color); border-color: var(--accent-secondary-color); color: var(--text-dark); }
+.btn-warning:hover { background-color: var(--accent-secondary-hover); border-color: var(--accent-secondary-hover); color: var(--text-dark); }
+.btn-success { background-color: var(--success-color); border-color: var(--success-color); color: var(--text-light); }
+.btn-success:hover { filter: brightness(110%); background-color: #218838; border-color: #1e7e34; }
+.btn-secondary { background-color: #5a6268; border-color: #545b62; color: var(--text-light); } /* Darker secondary */
+.btn-secondary:hover { background-color: #4e555b; border-color: #484e53; }
+.btn-danger { background-color: var(--danger-color); border-color: var(--danger-color); }
+.btn-danger:hover { background-color: #c82333; border-color: #bd2130; }
+.btn-outline-danger { color: var(--danger-color); border-color: var(--danger-color); }
+.btn-outline-danger:hover { color: #fff; background-color: var(--danger-color); border-color: var(--danger-color); }
+.btn-outline-secondary { color: var(--text-muted); border-color: var(--text-muted); }
+.btn-outline-secondary:hover { color: var(--text-light); background-color: var(--text-muted); border-color: var(--text-muted); }
+.btn-outline-light { color: var(--text-light); border-color: var(--text-light); }
+.btn-outline-light:hover { color: var(--text-dark); background-color: var(--text-light); border-color: var(--text-light); }
+/* Loading state */
+.btn.loading .spinner-border-sm { display: inline-block; vertical-align: text-bottom; }
+.btn .spinner-border-sm { display: none; }
+.btn.loading span:not(.spinner-border-sm) { margin-left: 0.5em; }
+
+/* --- Form Styling (General) --- */
+.form-control, .custom-select { background-color: var(--input-bg); border-color: var(--input-border); color: var(--text-light); border-radius: 4px; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.form-control::placeholder { color: var(--text-muted); opacity: 0.7; }
+.form-control:focus, .custom-select:focus { background-color: var(--input-bg); border-color: var(--input-focus-border); color: var(--text-light); box-shadow: 0 0 0 0.2rem var(--input-focus-shadow); }
+.custom-select { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='4' height='5' viewBox='0 0 4 5'%3e%3cpath fill='%23adb5bd' d='M2 0L0 2h4zm0 5L0 3h4z'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 8px 10px; }
+.custom-control-input:checked ~ .custom-control-label::before { background-color: var(--accent-color); border-color: var(--accent-color); }
+.custom-control-input:focus ~ .custom-control-label::before { box-shadow: 0 0 0 0.2rem var(--input-focus-shadow); }
+.custom-control-label::before { background-color: var(--input-bg); border-color: var(--input-border); }
+.custom-control-label { cursor: pointer; }
+.custom-range { cursor: pointer; }
+.custom-range::-webkit-slider-thumb { background: var(--accent-color); }
+.custom-range::-moz-range-thumb { background: var(--accent-color); }
+.custom-range::-ms-thumb { background: var(--accent-color); }
+.custom-range:focus::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--body-bg), 0 0 0 0.2rem var(--input-focus-shadow); }
+.custom-range:focus::-moz-range-thumb { box-shadow: 0 0 0 1px var(--body-bg), 0 0 0 0.2rem var(--input-focus-shadow); }
+.custom-range:focus::-ms-thumb { box-shadow: 0 0 0 1px var(--body-bg), 0 0 0 0.2rem var(--input-focus-shadow); }
+
+/* --- Index Page Specific Styles --- */
+.index-page-container .page-title { color: var(--text-light); font-weight: 300; }
+.index-page-container .card.bg-dark { background-color: var(--card-bg); border: 1px solid var(--card-border); } /* Use standard card bg */
+.index-page-container .card.bg-dark .card-header { background-color: rgba(0,0,0,0.1); border-bottom: 1px solid var(--card-border); font-weight: 500; }
+.index-page-container .range-value-display { min-width: 2em; display: inline-block; text-align: center; background-color: var(--input-bg); border: 1px solid var(--input-border); padding: 0.1rem 0.4rem; border-radius: 0.2rem; font-size: 0.9em; }
+/* Game selection table on index */
+.index-page-container .game-selection-table-wrapper { border: 1px solid var(--card-border); border-radius: 6px; overflow: hidden; }
+.index-page-container .game-selection-table { margin-bottom: 0 !important; }
+.index-page-container .game-selection-table thead { background-color: rgba(0,0,0,0.2); }
+.index-page-container .game-selection-table th { border-bottom-width: 1px !important; border-color: var(--card-border) !important; font-weight: 600; color: var(--text-muted); padding: 0.75rem; }
+.index-page-container .game-selection-table tbody tr:hover { background-color: rgba(255, 255, 255, 0.04); } /* Less intense hover */
+.index-page-container .game-selection-table td { border-color: var(--card-border) !important; vertical-align: middle; padding: 0.6rem 0.75rem; }
+.index-page-container .game-selection-table .custom-control-input { transform: scale(1.1); cursor: pointer; }
+.index-page-container .game-selection-table label { cursor: pointer; margin-bottom: 0; }
+.index-page-container .game-weight-input { background-color: var(--input-bg) !important; color: var(--text-light) !important; border-color: var(--input-border) !important; width: 70px !important; }
+.index-page-container .modes-btn { color: var(--text-muted); border-color: var(--input-border); }
+.index-page-container .modes-btn:hover { color: var(--text-light); background-color: var(--input-border); border-color: var(--input-border); }
+/* Result Area */
+#challengeResultWrapper { opacity: 0; transition: opacity 0.5s ease-in-out; }
+#challengeResultWrapper.visible { opacity: 1; }
+.index-page-container .result-card { background-color: var(--card-bg-lighter); border: 1px solid var(--card-border); color: var(--text-light); text-align: left; box-shadow: 0 5px 15px rgba(0,0,0,0.4); } /* Stronger shadow */
+.index-page-container .result-card h4, .result-card h6 { color: var(--text-light); margin-top: 1rem; margin-bottom: 0.5rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--card-border); }
+.index-page-container .result-card p { margin-bottom: 0.5rem; line-height: 1.6; }
+.index-page-container .share-result-display .alert { background-color: var(--input-bg); border-color: var(--accent-color); color: var(--text-light); }
+.index-page-container .share-result-display .alert-link { color: var(--accent-color); font-weight: bold; word-break: break-all; }
+
+/* --- Challenge View Page Specific Styles --- */
+/* Info Card */
+.challenge-view-page .info-card .card-title { font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.75rem; color: var(--text-light); }
+.challenge-view-page .info-card .text-muted { color: var(--text-muted) !important; }
+.challenge-view-page .info-card code { font-size: 0.9em; background-color: var(--input-bg); color: var(--text-light); padding: 0.2em 0.5em; border-radius: 0.2rem; }
+.challenge-view-page .info-card .card-body { font-size: 0.95rem; }
+/* Rules Card */
+.challenge-view-page .rules-card .card-body { font-size: 0.95rem; }
+.challenge-view-page .challenge-rules-list h6 { font-weight: bold; color: var(--text-light); margin-bottom: 0.75rem; padding-bottom: 0.3rem; border-bottom: 1px dashed rgba(255, 255, 255, 0.2); }
+.challenge-view-page .challenge-rules-list ul { padding-left: 0; list-style: none; margin-bottom: 1.5rem; }
+.challenge-view-page .challenge-rules-list li { padding-left: 1.5em; margin-bottom: 0.5rem; position: relative; }
+/* Custom bullets */
+.challenge-view-page .challenge-rules-list li::before { content: ''; position: absolute; left: 0; top: 0.4em; width: 0.5em; height: 0.5em; border-radius: 50%; background-color: var(--text-muted); }
+.challenge-view-page .challenge-rules-list li.normal-win::before { background-color: var(--info-color); } /* Blue for normal */
+.challenge-view-page .challenge-rules-list li.b2b-segment::before { background-color: var(--accent-secondary-color); } /* Orange/Yellow for B2B */
+.challenge-view-page .challenge-rules-list span.win-count { display: inline-block; min-width: 2.5em; font-weight: bold; color: #dee2e6; margin-right: 0.5em; }
+.challenge-view-page .challenge-rules-list span.win-name { color: var(--text-light); }
+.challenge-view-page .challenge-rules-list hr { border-color: rgba(255, 255, 255, 0.15); margin: 1.5rem 0; }
+.challenge-view-page .challenge-rules-list ul ul { margin-top: 0.5rem; padding-left: 1.5em; list-style: none; }
+.challenge-view-page .challenge-rules-list ul ul li { margin-bottom: 0.3rem; padding-left: 0; position: relative; }
+.challenge-view-page .challenge-rules-list ul ul li::before { content: '-'; position: absolute; left: -1.2em; top: 0.05em; color: var(--text-muted); font-weight: bold; }
+/* Group Card Styles (Shared with My Challenges via .list-card) */
+.list-card, .group-card { background-color: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-light); height: 100%; display: flex; flex-direction: column; transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out; box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
+.list-card .card-body, .group-card .card-body { flex-grow: 1; overflow-y: auto; max-height: 450px; padding: 1rem; }
+.list-card .card-title, .group-card .card-title { color: var(--text-light); border-bottom: 1px solid var(--card-border); padding-bottom: 0.75rem; margin-bottom: 1rem; font-weight: 500; }
+.list-card .card-footer, .group-card .card-footer { background-color: transparent; border-top: 1px solid var(--card-border); min-height: 58px; display: flex; align-items: center; justify-content: center; padding: 0.5rem; } /* Transparent footer */
+/* Hover for Other/Non-Active Cards */
+#otherGroupsContainer .group-card-wrapper:hover .card.group-card,
+.my-challenges-page .challenge-list-item:hover .card.list-card,
+.my-challenges-page .local-challenge-item:hover .card.list-card {
+  transform: translateY(-5px) scale(1.01); border-color: var(--accent-color); /* Blue border on hover */
+  box-shadow: 0 6px 15px var(--accent-glow); /* Blue glow */
+}
+/* Styling for Joined Group Card */
+#myGroupContainer .group-card-wrapper { width: 100%; max-width: 700px; margin-left: auto; margin-right: auto; }
+#myGroupContainer .card.group-card { border: 2px solid var(--accent-color); box-shadow: 0 0 15px var(--accent-glow); transform: scale(1.01); } /* Blue border/glow */
+/* Progress Items */
+.progress-item .form-check-input { cursor: pointer; transform: scale(1.2); margin-right: 0.5rem; vertical-align: middle; transition: transform 0.1s ease-in-out; }
+.progress-item:hover .form-check-input:not(:disabled) { transform: scale(1.3); box-shadow: 0 0 5px var(--accent-glow); } /* Blue glow on hover */
+.progress-item label { cursor: pointer; margin-left: 0.3rem; display: inline-block; vertical-align: middle; transition: color 0.2s ease; }
+.progress-item:hover label { color: var(--link-color); } /* Light blue label hover */
+.progress-item.completed label { text-decoration: line-through; opacity: 0.6; font-style: italic; color: var(--text-muted); }
+.progress-item { margin-bottom: 0.5rem; transition: opacity 0.3s ease, background-color 0.2s ease; padding: 0.2rem 0.4rem; border-radius: 0.2rem; }
+.progress-item:hover:not(.completed) { background-color: rgba(0, 123, 255, 0.08); } /* Blueish background hover */
+.progress-item[style*="opacity: 0.6"] { opacity: 0.6; }
+.progress-item.error-flash { background-color: rgba(220, 53, 69, 0.2); border-radius: 0.25rem; transition: background-color 0.5s ease-out; }
+/* Player Names Section */
+.player-names-section { background-color: rgba(0, 0, 0, 0.15); padding: 1rem; border-radius: 0.25rem; margin-top: 1rem; }
+.player-names-section h6 { font-weight: bold; color: var(--text-light) !important; }
+.player-name-input { background-color: var(--input-bg) !important; color: var(--text-light) !important; border-color: var(--input-border) !important; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.player-name-input:focus { border-color: var(--accent-color); box-shadow: 0 0 0 0.2rem var(--accent-glow); } /* Blue focus */
+.player-name-input::placeholder { color: var(--text-muted); font-style: italic; }
+.player-name-error { min-height: 1.2em; }
+/* Penalty Display */
+.active-penalty-display { background-color: rgba(220, 53, 69, 0.1); border-radius: 0.25rem; padding: 0.75rem 1rem; margin-top: 1rem !important; border: 1px solid rgba(220, 53, 69, 0.3); }
+.active-penalty-display h6 { margin-bottom: 0.25rem !important; color: var(--danger-color); font-weight: bold; }
+.active-penalty-display p { color: var(--warning-color) !important; /* Yellow/Orange text for penalty */ font-family: monospace; font-size: 0.95em; margin-bottom: 0.5rem !important; }
+.clear-penalty-btn { font-size: 0.8em; padding: 0.1rem 0.4rem; }
+/* Progress Bar */
+.progress { background-color: #495057; border-radius: .25rem; height: 10px; }
+.progress-bar { background-color: var(--accent-color); /* Blue progress bar */ color: var(--text-light); font-weight: bold; transition: width 0.6s ease; }
+.progress-bar:not(.progress-bar-animated) { animation: none !important; }
+
+/* --- My Challenges Page Specific Styles --- */
+.my-challenges-page .list-card { /* Use shared list-card style */ }
+.my-challenges-page .list-card .card-footer { /* Specific footer style if needed */ }
+
+/* --- Games/Penalties Config Pages --- */
+.config-page-container .nav-tabs .nav-link { color: var(--text-muted); border-color: transparent; border-bottom-color: var(--card-border); border-radius: 0.25rem 0.25rem 0 0; }
+.config-page-container .nav-tabs .nav-link.active { color: var(--text-light); background-color: var(--card-bg); border-color: var(--card-border) var(--card-border) var(--card-bg); font-weight: 500; }
+.config-page-container .nav-tabs .nav-link:hover:not(.active) { border-color: var(--card-border); background-color: rgba(255,255,255,0.03); }
+.config-page-container .tab-content { border: 1px solid var(--card-border); border-top: none; padding: 1.5rem; background-color: var(--card-bg); border-radius: 0 0 0.25rem 0.25rem; }
+.config-page-container .table { background-color: var(--card-bg-lighter); }
+.config-page-container .table th, .config-page-container .table td { border-color: var(--card-border); }
+.config-page-container .table thead th { background-color: rgba(0,0,0,0.15); }
+.config-page-container .table-hover tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+/* Modal text color */
+.modal-content { color: var(--text-dark) !important; }
+

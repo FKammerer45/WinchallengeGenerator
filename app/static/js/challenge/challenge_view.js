@@ -1,6 +1,6 @@
 // static/js/challenge/challenge_view.js
 // Main orchestrator for the unified challenge view page (challenge.html).
-// Handles state, user interactions, API calls, and coordinates UI updates.
+// Handles state, user interactions, API calls, coordinates UI updates, and timer.
 
 import { apiFetch } from '../utils/api.js';
 import { setLoading, showError, escapeHtml } from '../utils/helpers.js';
@@ -11,6 +11,8 @@ import {
 } from './challenge_ui.js';
 import { getLocalChallengeById, updateLocalChallengeProgress } from './local_challenge_storage.js';
 import { updatePenaltyConfig } from './challenge_penalty.js';
+// Import timer initializer
+import { initializeTimer } from './challenge_timer.js';
 
 // --- Module-level State ---
 let challengeConfig = {
@@ -27,19 +29,28 @@ let myGroupContainerEl = null;
 let otherGroupsContainerEl = null;
 let statusDiv = null;
 
-// --- Constants for Column Classes ---
-const JOINED_GROUP_COL_CLASSES = ['col-md-8', 'col-lg-6', 'mx-auto', 'mb-4']; // Classes for the single joined group
-const OTHER_GROUP_COL_CLASSES = ['col-lg-4', 'col-md-6', 'mb-4']; // Standard grid classes for other groups
+// --- Constants ---
+const JOINED_GROUP_COL_CLASSES = ['col-md-8', 'col-lg-6', 'mx-auto', 'mb-4'];
+const OTHER_GROUP_COL_CLASSES = ['col-lg-4', 'col-md-6', 'mb-4'];
+const TIMER_ID = 'main';
 
-// --- Helper Functions --- (initializeConfigFromDOM, updateUserJoinedGroupState remain the same)
+// --- Helper Functions ---
+
+/**
+ * Reads configuration data from the hidden #challengeData div in the HTML
+ * and populates the challengeConfig object.
+ * @returns {boolean} True if initialization is successful, false otherwise.
+ */
 function initializeConfigFromDOM() {
     const dataEl = document.getElementById('challengeData');
-    statusDiv = document.getElementById('pageStatusDisplay');
+    statusDiv = document.getElementById('pageStatusDisplay'); // Assign statusDiv early
+
     if (!dataEl?.dataset) {
         console.error("CRITICAL: #challengeData element or its dataset is missing!");
         showError(statusDiv || document.body, "Initialization Error: Cannot read page data.", "danger");
         return false;
     }
+
     try {
         const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
         const structureJson = dataEl.dataset.challengeJson;
@@ -71,12 +82,13 @@ function initializeConfigFromDOM() {
             },
             isLoggedIn: dataEl.dataset.isLoggedIn === 'true'
         };
+
         if (!challengeConfig.id) throw new Error("Essential config 'challengeId' missing.");
         if (!challengeConfig.isLocal) {
-            if(!challengeConfig.urls.addGroup) console.warn("Add Group URL missing.");
-            if(!challengeConfig.urls.updateProgressBase) console.warn("Update Progress URL base missing.");
-            if(!challengeConfig.urls.joinLeaveBase) console.warn("Join/Leave URL base missing.");
-            if(!challengeConfig.urls.savePlayersBase) console.warn("Save Players URL base missing.");
+            if (!challengeConfig.urls.addGroup) console.warn("Add Group URL missing.");
+            if (!challengeConfig.urls.updateProgressBase) console.warn("Update Progress URL base missing.");
+            if (!challengeConfig.urls.joinLeaveBase) console.warn("Join/Leave URL base missing.");
+            if (!challengeConfig.urls.savePlayersBase) console.warn("Save Players URL base missing.");
         }
         return true;
     } catch (e) {
@@ -85,12 +97,18 @@ function initializeConfigFromDOM() {
         return false;
     }
 }
+
+/**
+ * Updates the userJoinedGroupId in the module state and the hidden DOM element.
+ * @param {number | null} newGroupId - The new group ID or null if leaving.
+ */
 function updateUserJoinedGroupState(newGroupId) {
     challengeConfig.userJoinedGroupId = newGroupId;
     const dataEl = document.getElementById('challengeData');
     if (dataEl) {
         dataEl.dataset.userJoinedGroupId = JSON.stringify(newGroupId);
     }
+    // Notify penalty module about potential player list changes
     if (typeof updatePenaltyConfig === 'function') {
         updatePenaltyConfig(challengeConfig);
     }
@@ -158,10 +176,9 @@ async function handleJoinGroupClick(event, joinButton) {
     try {
         await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
 
-        // --- FIX: Update classes BEFORE moving ---
+        // Update classes BEFORE moving
         cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
         cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
-        // --- End Fix ---
 
         // Move Card
         myGroupContainerEl.innerHTML = ''; // Clear placeholder/old
@@ -187,10 +204,11 @@ async function handleJoinGroupClick(event, joinButton) {
         console.error("Failed to join group:", error);
         showError(buttonContainer || statusDiv, `Error joining: ${error.message}`);
         setLoading(joinButton, false); // Reset button only on error
-        // --- FIX: Revert classes if move failed ---
-        cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
-        cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
-        // --- End Fix ---
+        // Revert classes if move failed
+        if (cardWrapper) {
+            cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
+            cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
+        }
     } finally { isProcessingClick = false; }
 }
 
@@ -204,8 +222,8 @@ async function handleLeaveGroupClick(event, leaveButton) {
     const buttonContainer = leaveButton.closest('.card-footer');
     const cardWrapper = leaveButton.closest('.group-card-wrapper');
     if (!cardWrapper || !otherGroupsContainerEl || !myGroupContainerEl) {
-         console.error("Cannot leave group: Missing card wrapper or target container.");
-         isProcessingClick = false; return;
+        console.error("Cannot leave group: Missing card wrapper or target container.");
+        isProcessingClick = false; return;
     }
 
     setLoading(leaveButton, true, 'Leaving...');
@@ -214,10 +232,9 @@ async function handleLeaveGroupClick(event, leaveButton) {
     try {
         await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
 
-        // --- FIX: Update classes BEFORE moving ---
+        // Update classes BEFORE moving
         cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
         cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
-        // --- End Fix ---
 
         // Move Card
         otherGroupsContainerEl.appendChild(cardWrapper);
@@ -237,15 +254,14 @@ async function handleLeaveGroupClick(event, leaveButton) {
         console.error("Failed to leave group:", error);
         showError(buttonContainer || statusDiv, `Error leaving: ${error.message}`);
         setLoading(leaveButton, false); // Reset button only on error
-         // --- FIX: Revert classes if move failed ---
-        cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
-        cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
-        // --- End Fix ---
+        // Revert classes if move failed
+        if (cardWrapper) {
+            cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
+            cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
+        }
     } finally { isProcessingClick = false; }
 }
 
-// --- handleProgressChange, handleSavePlayersClick, renderLocalChallengeView, handleClearPenaltyClick ---
-// remain the same as the previous corrected version (no changes needed here for layout)
 async function handleProgressChange(event) {
     if (!event.target.matches('.progress-checkbox')) return;
     const checkbox = event.target;
@@ -278,9 +294,10 @@ async function handleProgressChange(event) {
     }
 
     checkbox.disabled = true;
-    if(itemDiv) itemDiv.style.opacity = '0.6';
+    if (itemDiv) itemDiv.style.opacity = '0.6';
 
     try {
+        let currentGroupProgress = {};
         if (challengeConfig.isLocal) {
             challengeConfig.progressData = challengeConfig.progressData || {};
             if (isComplete) challengeConfig.progressData[progressKey] = true;
@@ -299,6 +316,23 @@ async function handleProgressChange(event) {
             if (itemData.segmentIndex) payload.segment_index = parseInt(itemData.segmentIndex, 10);
             await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
             if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
+            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === parseInt(groupId, 10));
+            if (groupIndex !== -1) {
+                // Update the progress state in the config object first
+                challengeConfig.initialGroups[groupIndex].progress = challengeConfig.initialGroups[groupIndex].progress || {};
+                if (isComplete) {
+                    challengeConfig.initialGroups[groupIndex].progress[progressKey] = true;
+                } else {
+                    delete challengeConfig.initialGroups[groupIndex].progress[progressKey];
+                }
+                currentGroupProgress = challengeConfig.initialGroups[groupIndex].progress;
+
+                // Now find the container and update the bar
+                const groupProgressBarContainer = document.getElementById(`progressBarContainer-${groupId}`);
+                if (groupProgressBarContainer && challengeConfig.coreChallengeStructure) {
+                    renderOrUpdateProgressBar(groupProgressBarContainer, challengeConfig.coreChallengeStructure, currentGroupProgress);
+                }
+            }
         }
     } catch (error) {
         console.error("Failed to update progress:", error);
@@ -315,9 +349,10 @@ async function handleProgressChange(event) {
     } finally {
         const canInteract = challengeConfig.isLocal || (challengeConfig.userJoinedGroupId === parseInt(groupId, 10));
         checkbox.disabled = !canInteract;
-        if(itemDiv) itemDiv.style.opacity = '1';
+        if (itemDiv) itemDiv.style.opacity = '1';
     }
 }
+
 async function handleSavePlayersClick(event, saveButton) {
     if (!saveButton || !saveButton.classList.contains('save-player-names-btn') || !challengeConfig.isMultigroup) {
         isProcessingClick = false; return;
@@ -365,25 +400,107 @@ async function handleSavePlayersClick(event, saveButton) {
         showError(errorContainer, `Error: ${error.message}`, 'danger');
     } finally { setLoading(saveButton, false); isProcessingClick = false; }
 }
+
+/**
+ * Renders the UI specifically for a local challenge, mimicking the shared challenge layout.
+ * @param {object} challenge - The local challenge data object from localStorage.
+ */
 function renderLocalChallengeView(challenge) {
     const displayContainer = document.getElementById('localChallengeDisplay');
-    if (!displayContainer) { showError(statusDiv || document.body, "UI Error: Cannot display local challenge.", "danger"); return; }
-    displayContainer.innerHTML = '';
+    if (!displayContainer) {
+        console.error("#localChallengeDisplay container is missing!");
+        showError(statusDiv || document.body, "UI Error: Cannot display local challenge.", "danger");
+        return;
+    }
+
+    displayContainer.innerHTML = ''; // Clear loading/previous content
+
     try {
-        const challengeData = challenge.challengeData || {}; const progressData = challenge.progressData || {};
-        const headerCard = document.createElement('div'); headerCard.className = 'mb-4 card bg-dark text-light shadow-sm';
-        headerCard.innerHTML = `<div class="card-header"><h2 class="h3 mb-0">${escapeHtml(challenge.name || 'Unnamed Local Challenge')}</h2></div><div class="card-body"><p class="text-muted small mb-0">Saved: ${challenge.createdAt ? new Date(challenge.createdAt).toLocaleString() : 'N/A'}<br><span class="d-inline-block mt-1">ID: <code class="user-select-all" style="font-size: 0.9em;">${escapeHtml(challenge.localId)}</code> (Local)</span></p></div>`;
-        displayContainer.appendChild(headerCard);
-        const detailsCard = document.createElement('div'); detailsCard.className = 'mb-4 card bg-dark text-light shadow-sm';
-        detailsCard.innerHTML = '<div class="card-header"><h3 class="mb-0 h5">Challenge Rules</h3></div>'; const detailsBody = document.createElement('div'); detailsBody.className = 'card-body challenge-rules-list'; detailsCard.appendChild(detailsBody); displayContainer.appendChild(detailsCard);
-        renderStaticChallengeDetailsJS(detailsBody, challengeData);
-        const progressBarContainer = document.createElement('div'); progressBarContainer.id = 'localProgressBarContainer'; progressBarContainer.className = 'mb-4'; displayContainer.appendChild(progressBarContainer);
-        renderOrUpdateProgressBar(progressBarContainer, challengeData, progressData);
-        const progressCard = document.createElement('div'); progressCard.className = 'mb-4 card bg-dark text-light shadow-sm';
-        progressCard.innerHTML = '<div class="card-header"><h3 class="mb-0 h5">Your Progress</h3></div>'; const progressBody = document.createElement('div'); progressBody.className = 'card-body'; progressBody.id = `progress-items-${challenge.localId}`; progressCard.appendChild(progressBody); displayContainer.appendChild(progressCard);
-        renderProgressItems(progressBody, challengeData, challenge.localId, progressData, true);
-    } catch (renderError) { console.error("Error during dynamic render of local challenge:", renderError); showError(displayContainer, "Error displaying challenge details.", "danger"); }
+        const challengeData = challenge.challengeData || {};
+        const progressData = challenge.progressData || {};
+
+        // --- Create Info/Rules Row ---
+        const infoRulesRow = document.createElement('div');
+        infoRulesRow.className = 'row mb-4';
+
+        // --- Create Info Card ---
+        const infoCol = document.createElement('div');
+        infoCol.className = 'col-lg-5 mb-4 mb-lg-0';
+        const infoCard = document.createElement('div');
+        infoCard.className = 'card h-100 bg-dark text-light shadow-sm challenge-info-card'; // Use same class as DB view
+        infoCard.innerHTML = `
+            <div class="card-header"><h3 class="h5 mb-0">Challenge Info</h3></div>
+            <div class="card-body d-flex flex-column">
+                <h4 class="card-title text-warning mb-3">${escapeHtml(challenge.name || 'Unnamed Local Challenge')}</h4>
+                <p class="card-text mb-2">
+                    <strong class="text-muted" style="min-width: 80px; display: inline-block;">Mode:</strong>
+                    Local Challenge
+                </p>
+                <p class="card-text mb-auto">
+                     <strong class="text-muted" style="min-width: 80px; display: inline-block;">Saved:</strong>
+                     ${challenge.createdAt ? new Date(challenge.createdAt).toLocaleString() : 'N/A'}
+                </p>
+                <div class="mt-3 pt-3 border-top border-secondary">
+                    <p class="card-text small mb-0">
+                        <strong class="text-muted">ID:</strong>
+                        <code class="user-select-all bg-secondary p-1 rounded" style="font-size: 0.9em;">${escapeHtml(challenge.localId)}</code> (Local)
+                    </p>
+                </div>
+            </div>`;
+        infoCol.appendChild(infoCard);
+        infoRulesRow.appendChild(infoCol);
+
+        // --- Create Rules Card ---
+        const rulesCol = document.createElement('div');
+        rulesCol.className = 'col-lg-7';
+        const rulesCard = document.createElement('div');
+        rulesCard.className = 'card h-100 bg-dark text-light shadow-sm challenge-rules-card'; // Use same class as DB view
+        const rulesHeader = document.createElement('div');
+        rulesHeader.className = 'card-header';
+        rulesHeader.innerHTML = '<h3 class="h5 mb-0">Challenge Rules</h3>';
+        const rulesBody = document.createElement('div');
+        rulesBody.className = 'card-body challenge-rules-body'; // Use same class as DB view
+        rulesCard.appendChild(rulesHeader);
+        rulesCard.appendChild(rulesBody);
+        renderStaticChallengeDetailsJS(rulesBody, challengeData); // Populate rules using UI helper
+        rulesCol.appendChild(rulesCard);
+        infoRulesRow.appendChild(rulesCol);
+
+        // Append Info/Rules Row to the main container
+        displayContainer.appendChild(infoRulesRow);
+
+        // --- Render Progress Bar (wrapped in a simple card) ---
+        const progressWrapperCard = document.createElement('div');
+        // Use standard card styling, maybe slightly less prominent than info/rules
+        progressWrapperCard.className = 'card bg-dark text-light mb-4 shadow-sm';
+        const progressBarContainer = document.createElement('div');
+        progressBarContainer.id = 'localProgressBarContainer'; // Specific ID for local bar
+        progressBarContainer.className = 'card-body p-2'; // Add padding inside card body
+        progressWrapperCard.appendChild(progressBarContainer);
+        displayContainer.appendChild(progressWrapperCard);
+        renderOrUpdateProgressBar(progressBarContainer, challengeData, progressData); // Populate bar
+
+        // --- Render Progress Items Card ---
+        const progressItemsCard = document.createElement('div');
+        progressItemsCard.className = 'mb-4 card bg-dark text-light shadow-sm'; // Standard card style
+        const progressItemsHeader = document.createElement('div');
+        progressItemsHeader.className = 'card-header';
+        progressItemsHeader.innerHTML = '<h3 class="mb-0 h5">Your Progress</h3>';
+        const progressItemsBody = document.createElement('div');
+        progressItemsBody.className = 'card-body';
+        progressItemsBody.id = `progress-items-${challenge.localId}`; // Unique ID for items container
+        progressItemsCard.appendChild(progressItemsHeader);
+        progressItemsCard.appendChild(progressItemsBody);
+        displayContainer.appendChild(progressItemsCard);
+        // Render checkboxes, passing true for isInteractive since local is always interactive
+        renderProgressItems(progressItemsBody, challengeData, challenge.localId, progressData, true);
+
+    } catch (renderError) {
+        console.error("Error during dynamic render of local challenge:", renderError);
+        showError(displayContainer, "Error displaying challenge details.", "danger");
+    }
 }
+
 async function handleClearPenaltyClick(event, clearButton) {
     if (!clearButton || !clearButton.classList.contains('clear-penalty-btn')) { isProcessingClick = false; return; }
     const groupId = parseInt(clearButton.dataset.groupId, 10);
@@ -431,6 +548,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!initializeConfigFromDOM()) { return; }
     // console.log(`Challenge Initialized: ${challengeConfig.isLocal ? "Local" : "DB"}, ID: ${challengeConfig.id}`); // Minimal log
 
+    // Initialize Timer
+    try {
+        initializeTimer(TIMER_ID); // Initialize timer using ID 'main'
+    } catch (timerError) {
+        console.error("Failed to initialize timer:", timerError);
+        showError(statusDiv, "Timer could not be initialized.", "warning");
+    }
+
     // --- Branch Logic: Local vs. Database Challenge ---
     if (challengeConfig.isLocal) {
         // --- LOCAL CHALLENGE ---
@@ -448,13 +573,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } else {
         // --- DATABASE CHALLENGE ---
-        // Assign group containers only if DB challenge
         myGroupContainerEl = document.getElementById('myGroupContainer');
         otherGroupsContainerEl = document.getElementById('otherGroupsContainer');
         if (!myGroupContainerEl || !otherGroupsContainerEl) {
-             console.error("Essential DB challenge elements missing (#myGroupContainer or #otherGroupsContainer)!");
-             showError(statusDiv || document.body, "Initialization Error: Page structure for shared challenge is incomplete.", "danger");
-             return;
+            console.error("Essential DB challenge elements missing (#myGroupContainer or #otherGroupsContainer)!");
+            showError(statusDiv || document.body, "Initialization Error: Page structure for shared challenge is incomplete.", "danger");
+            return;
         }
 
         const addGroupForm = document.getElementById('addGroupForm');
@@ -486,11 +610,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (challengeConfig.isMultigroup && buttonClasses.contains('leave-group-btn')) handleLeaveGroupClick(event, closestButton);
                 else if (challengeConfig.isMultigroup && buttonClasses.contains('save-player-names-btn')) handleSavePlayersClick(event, closestButton);
                 else if (buttonClasses.contains('clear-penalty-btn')) handleClearPenaltyClick(event, closestButton);
-                else isProcessingClick = false; // Reset if no action matched
+                else isProcessingClick = false;
             } catch (handlerError) {
                 console.error("Error occurred inside click event handler:", handlerError);
                 showError(statusDiv, "An unexpected error occurred processing your click.", "danger");
-                isProcessingClick = false; // Reset on error
+                isProcessingClick = false;
             }
         });
 

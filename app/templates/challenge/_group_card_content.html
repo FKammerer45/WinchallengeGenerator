@@ -9,9 +9,15 @@
 {% endif %}
 
 <div class="{{ wrapper_classes }}" data-group-id="{{ group.id }}">
-  <div class="card group-card h-100"> {# Use h-100 for consistent height #}
+  <div class="card group-card h-100 shadow-sm">
     <div class="card-body">
       <h5 class="card-title">{{ group.name | escape }}</h5>
+
+      {# *** ADDED: Placeholder div for the group-specific progress bar *** #}
+      <div id="progressBarContainer-{{ group.id }}" class="group-progress-bar-container mb-3">
+          {# JS will render the progress bar here #}
+      </div>
+      {# *** END ADDED *** #}
 
       {# Include progress checkboxes - passes the group dict and challenge object #}
       {% include 'challenge/_challenge_group_progress.html' ignore missing %}
@@ -35,7 +41,7 @@
 
     {# Footer for Join/Leave buttons (JS manages the button content/state) #}
     {% if is_multigroup %}
-    <div class="card-footer text-muted text-center join-leave-footer">
+    <div class="card-footer text-muted text-center join-leave-footer border-top border-secondary">
        {# Button content/state set dynamically by challenge_ui.js #}
     </div>
     {% endif %}
