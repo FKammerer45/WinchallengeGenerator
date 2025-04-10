@@ -282,3 +282,97 @@ a:hover { color: var(--link-hover-color); text-decoration: none; }
 /* Modal text color */
 .modal-content { color: var(--text-dark) !important; }
 
+/* --- Games/Penalties Config Pages --- */
+.config-page-container .nav-tabs {
+  border-bottom-color: var(--card-border); /* Match card border */
+}
+.config-page-container .nav-tabs .nav-link {
+  color: var(--text-muted);
+  border-color: transparent transparent var(--card-border) transparent; /* Bottom border only */
+  border-radius: 0.25rem 0.25rem 0 0;
+  padding: 0.6rem 1rem; /* Adjust padding */
+  font-weight: 500;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+.config-page-container .nav-tabs .nav-link.active {
+  color: var(--text-light);
+  background-color: var(--card-bg); /* Match tab content background */
+  border-color: var(--card-border) var(--card-border) var(--card-bg); /* Connect border */
+}
+.config-page-container .nav-tabs .nav-link:hover:not(.active) {
+  border-color: transparent transparent var(--input-border) transparent; /* Subtle hover border */
+  color: var(--text-light);
+}
+/* Style for the '+' add tab button */
+.config-page-container .nav-tabs #addTabBtn {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--success-color);
+}
+.config-page-container .nav-tabs #addTabBtn:hover {
+  color: #218838; /* Darker green */
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+/* Style for the tab content area */
+.config-page-container .tab-content {
+  border: 1px solid var(--card-border);
+  border-top: none; /* Remove top border as tabs handle it */
+  padding: 1.5rem;
+  background-color: var(--card-bg);
+  border-radius: 0 0 0.25rem 0.25rem;
+  min-height: 400px; /* Ensure minimum height */
+}
+/* Style for tables within config tabs */
+.config-page-container .table {
+  background-color: var(--card-bg-lighter); /* Slightly different background for table */
+  margin-bottom: 0; /* Remove default margin if inside tab-content */
+}
+.config-page-container .table th,
+.config-page-container .table td {
+  border-color: var(--card-border);
+  vertical-align: middle; /* Align content vertically */
+}
+.config-page-container .table thead th {
+  background-color: rgba(0,0,0,0.15); /* Darker header */
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.config-page-container .table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05); /* Subtle hover */
+  color: var(--text-light); /* Ensure text stays light */
+}
+
+/* Ensure modals use the dark theme variables */
+.modal-content {
+  background-color: var(--card-bg, #343a40);
+  color: var(--text-light, #f8f9fa);
+  border: 1px solid var(--card-border, #495057);
+}
+.modal-header {
+  background-color: rgba(0,0,0,0.1);
+  border-bottom: 1px solid var(--card-border, #495057);
+  color: var(--text-light, #f8f9fa);
+}
+.modal-header .close {
+   color: var(--text-light, #f8f9fa);
+   opacity: 0.8; text-shadow: none;
+}
+.modal-header .close:hover { opacity: 1; }
+.modal-body { color: var(--text-light); } /* Default text color */
+.modal-body .text-muted { color: var(--text-muted) !important; }
+.modal-body .bg-light { background-color: var(--card-bg-lighter) !important; } /* Override light bg if used */
+.modal-body label { color: var(--text-muted); } /* Muted labels */
+.modal-body .form-control { /* Ensure inputs are dark */
+  background-color: var(--input-bg) !important;
+  color: var(--text-light) !important;
+  border-color: var(--input-border) !important;
+}
+.modal-body .form-control:focus {
+  border-color: var(--input-focus-border) !important;
+  box-shadow: 0 0 0 0.2rem var(--input-focus-shadow) !important;
+}
+.modal-footer {
+  background-color: rgba(0,0,0,0.1);
+  border-top: 1px solid var(--card-border, #495057);
+}
