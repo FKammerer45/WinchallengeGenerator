@@ -3,69 +3,59 @@
 
 {% block head %}
 {{ super() }}
-{# Link to CSS file for index page specific styles (can be same as challenge_view or a new one) #}
+{# Base style.css is linked in base.html #}
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4"> {# Removed index-page-container class #}
+{# Added page-specific class for CSS targeting #}
+<div class="container mt-4 index-page-container">
   {# --- Page Header --- #}
-  <div class="text-center mb-5">
-    {# Use standard heading, maybe accent color if desired via CSS #}
-    <h1 class="display-4 mb-3">Win Challenge Generator</h1>
-    <p class="lead text-muted">Configure parameters and generate your next gaming challenge!</p>
+  <div class="text-center mb-5 pt-4">
+    <h1 class="display-4 page-title mb-3">Win Challenge Generator</h1>
+    <p class="lead text-secondary col-lg-8 mx-auto">Configure parameters and generate your next gaming challenge!</p>
   </div>
 
   <form id="challengeForm" method="post" action="{{ url_for('challenge_api.generate_challenge') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    {# --- FIELDSET 1: Data Sources & Challenge Options --- #}
-    {# Use standard Bootstrap card/border for grouping #}
-    <div class="card bg-dark border-secondary mb-4 shadow-sm">
+    {# --- Section 1: Source & Options --- #}
+    {# Use standard card, styled by style.css #}
+    <div class="card shadow-md mb-5">
       <div class="card-header h5">1. Source & Options</div>
       <div class="card-body">
         <div class="form-row">
-            {# Game Source Dropdown #}
             <div class="form-group col-md-6">
               <label for="gameSourceSelect">Game Entries Source Tab:</label>
-              {# Use standard custom-select #}
               <select id="gameSourceSelect" name="game_tab_id" class="form-control custom-select">
                 <option value="" disabled selected>Loading tabs...</option>
               </select>
-              <small class="form-text text-muted">Select the tab containing the games list.</small>
+              <small class="form-text text-secondary">Select the tab containing the games list.</small>
             </div>
-
-            {# Penalty Source Dropdown (Conditional) #}
             <div class="form-group col-md-6 d-none" id="penaltySourceContainer">
                 <label for="penaltySourceSelect">Penalty Source Tab:</label>
                 <select id="penaltySourceSelect" name="penalty_tab_id" class="form-control custom-select">
                    <option value="" disabled selected>Loading tabs...</option>
                 </select>
-               <small class="form-text text-muted">Select the tab containing the penalties list.</small>
+               <small class="form-text text-secondary">Select the tab containing the penalties list.</small>
            </div>
         </div>
-
-        {# Enable Penalties Checkbox - Use standard Bootstrap 4 custom checkbox #}
         <div class="custom-control custom-checkbox mt-2">
             <input type="checkbox" class="custom-control-input" id="enablePenalties" name="use_penalties" {% if request.form.get('use_penalties') %}checked{% endif %}>
             <label class="custom-control-label" for="enablePenalties">Enable Penalties on Game Loss?</label>
         </div>
-
-        {# Challenge Name Input #}
-        <div class="form-group mt-3">
+        <div class="form-group mt-4">
             <label for="challengeName">Challenge Name (Optional):</label>
-            {# Use standard form-control #}
             <input type="text" id="challengeName" name="challenge_name" class="form-control" placeholder="My Awesome Challenge" value="{{ request.form.get('challenge_name', '') }}">
-            <small class="form-text text-muted">Give your challenge a name (used when sharing).</small>
+            <small class="form-text text-secondary">Give your challenge a name (used when sharing).</small>
         </div>
       </div>
     </div>
 
-    {# --- FIELDSET 2: Mode, Players & Parameters --- #}
-    <div class="card bg-dark border-secondary mb-4 shadow-sm">
+    {# --- Section 2: Mode & Parameters --- #}
+    <div class="card shadow-md mb-5">
         <div class="card-header h5">2. Mode & Parameters</div>
         <div class="card-body">
-            {# Mode Selection Radios - Use standard Bootstrap 4 custom radios #}
-            <div class="form-group row mb-3 align-items-center">
+            <div class="form-group row mb-4 align-items-center"> {# Increased margin #}
                 <label class="col-sm-4 col-lg-3 col-form-label font-weight-bold">Challenge Mode:</label>
                 <div class="col-sm-8 col-lg-9">
                     <div class="custom-control custom-radio custom-control-inline">
@@ -75,14 +65,11 @@
                     <div class="custom-control custom-radio custom-control-inline">
                         <input class="custom-control-input mode-radio" type="radio" name="group_mode" id="modeMultiGroup" value="multi" {% if request.form.get('group_mode') == 'multi' %}checked{% endif %}>
                         <label class="custom-control-label" for="modeMultiGroup">Multigroup (Shareable)</label>
-                        {# Use standard text-warning #}
                         <small class="text-warning login-required-msg ml-2 d-none">(Login required)</small>
                     </div>
-                    <small class="form-text text-muted d-block mt-1">Single saves locally. Multigroup requires login.</small>
+                    <small class="form-text text-secondary d-block mt-1">Single saves locally. Multigroup requires login.</small>
                 </div>
             </div>
-
-            {# Number of Players & Conditional Max Groups #}
             <div class="form-row">
                 <div class="form-group col-md-6 col-lg-4">
                     <label for="numPlayers" class="font-weight-bold" id="numPlayersLabel">Number of Players:</label>
@@ -93,17 +80,14 @@
                         <option value="4" {% if request.form.get('num_players') == '4' %}selected{% endif %}>4</option>
                         <option value="5" {% if request.form.get('num_players') == '5' %}selected{% endif %}>5</option>
                     </select>
-                    <small class="form-text text-muted">Scales difficulty appropriately.</small>
+                    <small class="form-text text-secondary">Scales difficulty appropriately.</small>
                 </div>
-
                 <div class="form-group col-md-6 col-lg-4 d-none" id="maxGroupsContainer">
                     <label for="maxGroups">Max Groups (Multigroup):</label>
                     <input type="number" id="maxGroups" name="max_groups" class="form-control" value="{{ request.form.get('max_groups', 10) }}" min="1" max="50">
-                    <small class="form-text text-muted">Max groups allowed when shared.</small>
+                    <small class="form-text text-secondary">Max groups allowed when shared.</small>
                 </div>
             </div>
-
-            {# Difficulty & B2B Range Slider #}
             <div class="form-row mt-3 align-items-center">
                  <div class="form-group col-md-6 col-lg-4">
                      <label for="desiredDiff" class="font-weight-bold">Target Difficulty:</label>
@@ -111,77 +95,63 @@
                  </div>
                  <div class="form-group col-md-12 col-lg-8">
                      <label for="spinB2B" class="font-weight-bold">
-                       Back-to-Back Probability: <output class="badge badge-secondary ml-2">{{ request.form.get('raw_b2b', 1) }}</output>
+                       Back-to-Back Probability: <output class="badge badge-secondary ml-2 range-value-display">{{ request.form.get('raw_b2b', 1) }}</output>
                      </label>
-                     {# Use standard custom-range #}
-                     <input type="range" id="spinB2B" name="raw_b2b" class="custom-range" min="0" max="10" step="1" value="{{ request.form.get('raw_b2b', 1) }}" oninput="this.previousElementSibling.querySelector('output').value = this.value">
-                     <div class="d-flex justify-content-between w-100 px-1">
-                         <small class="text-muted">None</small>
-                         <small class="text-muted">High</small>
-                     </div>
+                     <input type="range" id="spinB2B" name="raw_b2b" class="custom-range" min="0" max="10" step="1" value="{{ request.form.get('raw_b2b', 1) }}" oninput="this.previousElementSibling.querySelector('output').textContent = this.value">
+                     <div class="d-flex justify-content-between w-100 px-1"> <small class="text-secondary">None</small> <small class="text-secondary">High</small> </div>
                  </div>
              </div>
         </div>
     </div>
 
-
-    {# --- FIELDSET 3: Select Games & Modes --- #}
-    <div class="card bg-dark border-secondary mb-4 shadow-sm">
+    {# --- Section 3: Select Games & Modes --- #}
+    <div class="card shadow-md mb-5">
         <div class="card-header h5">3. Select Games & Modes</div>
-        <div class="card-body p-0"> {# Remove card body padding for full-width table #}
-            <div class="table-responsive"> {# Keep responsive wrapper #}
-                 {# Use standard dark table #}
-                 <table class="table table-dark table-hover table-sm mb-0">
-                    <thead class="thead-light"> {# Use light header for contrast #}
-                        <tr>
-                            <th style="width:45%;">Game</th>
-                            <th style="width:15%;">Weight</th>
-                            <th style="width:40%;">Allowed Modes</th>
-                        </tr>
+        <div class="card-body p-0"> {# Remove padding for full-width table wrapper #}
+            <div class="table-responsive game-selection-table-wrapper">
+                 <table class="table table-hover table-sm mb-0 game-selection-table"> {# Removed table-dark #}
+                    <thead> {# Thead styled by CSS #}
+                        <tr> <th style="width:45%;">Game</th> <th style="width:15%;">Weight</th> <th style="width:40%;">Allowed Modes</th> </tr>
                     </thead>
                     <tbody id="gamesSelectionTbody">
-                        <tr><td colspan="3" class="text-center text-muted py-4">Select Game Source Tab above...</td></tr>
+                        <tr><td colspan="3" class="text-center text-secondary py-4">Select Game Source Tab above...</td></tr>
                     </tbody>
                  </table>
             </div>
         </div>
-        <div class="card-footer bg-dark text-muted small"> {# Add footer for help text #}
-            Check games to include. Adjust weights (higher = more likely). Click 'Modes' to filter.
-        </div>
+        <div class="card-footer text-secondary small"> Check games to include. Adjust weights. Click 'Modes' to filter. </div>
     </div>
 
     {# --- Form Error Display --- #}
     <div id="formErrorDisplay" class="alert alert-danger text-center" style="display: none;"></div>
 
     {# --- Submit Button --- #}
-    {# Use btn-warning for accent color #}
-    <button type="submit" class="btn btn-warning btn-lg btn-block mt-4 mb-5 shadow">
+    {# Use btn-warning for the secondary accent color #}
+    <button type="submit" class="btn btn-warning btn-lg btn-block mt-4 mb-5 shadow-lg generate-btn">
         <span class="spinner-border spinner-border-sm" style="display: none;"></span>
         <span>Generate Challenge</span>
     </button>
   </form>
 
   {# --- Result Section --- #}
-  <hr class="my-5 border-secondary">
-  <div id="challengeResultWrapper" class="mb-5" style="display:none;"> {# Hidden initially #}
+  <hr class="my-5">
+  <div id="challengeResultWrapper" class="mb-5" style="display:none;">
       <h2 class="mb-4 text-light text-center">Generated Challenge</h2>
-      {# Result content injected here by JS - Use standard card #}
-      <div id="challengeResult" class="card bg-dark border-secondary p-4 mb-3 shadow-lg">
-        <p class="text-center text-muted">Loading result...</p>
+      {# Apply glass effect to result card #}
+      <div id="challengeResult" class="card p-4 mb-3 shadow-lg result-card glass-effect">
+        <p class="text-center text-secondary">Loading result...</p>
       </div>
-      {# Action buttons centered #}
       <div class="result-actions text-center mt-4">
           {% if current_user.is_authenticated %}
-            {# Use btn-info or btn-warning #}
-            <button id="shareChallengeBtn" class="btn btn-info btn-lg mx-2" style="display:none;">
+            {# Use btn-info (mapped to primary blue) #}
+            <button id="shareChallengeBtn" class="btn btn-info btn-lg mx-2 action-btn" style="display:none;">
                 <span class="spinner-border spinner-border-sm"></span>
                 <span>Share Challenge</span>
             </button>
           {% endif %}
-          <a href="#" id="viewLocalChallengeBtn" class="btn btn-secondary btn-lg mx-2" style="display:none;" role="button" target="_blank">View Locally Saved Challenge</a>
+          <a href="#" id="viewLocalChallengeBtn" class="btn btn-secondary btn-lg mx-2 action-btn" style="display:none;" role="button" target="_blank">View Locally Saved Challenge</a>
       </div>
-      {# Share link / status appears here - Use standard alert #}
-      <div id="shareResult" class="mt-3" style="display:none;"></div>
+      <div id="shareResult" class="mt-3 share-result-display" style="display:none;"></div>
   </div>
 
 </div> {# End container #}
@@ -196,7 +166,6 @@
 {% endblock %}
 
 {% block scripts %}
-{{ super() }} {# Include base scripts (jQuery, Bootstrap) #}
-{# Load main JS module entry point for this page #}
+{{ super() }}
 <script type="module" src="{{ url_for('static', filename='js/challenge/challenge.js') }}"></script>
 {% endblock %}

@@ -4,117 +4,83 @@
 
 {% block head %}
     {{ super() }}
+    {# Base style.css is linked in base.html #}
+    {# Optional: Add page-specific style if needed #}
+    <style> body { background-color: var(--base-bg, #030712); } </style>
 {% endblock %}
 
 
 {% block content %}
-<div class="container mt-4">
-    <h1 class="mb-4 text-center my-challenges-title">My Challenges</h1>
+{# Added page specific class #}
+<div class="container mt-4 my-challenges-page">
+    <h1 class="mb-4 page-title">My Challenges</h1>
 
-    {# Container for status messages (like delete success/error) #}
-    <div id="deleteStatus" class="mb-3"></div>
+    {# Container for status messages #}
+    <div id="deleteStatus" class="mb-4"></div>
 
-    {# --- Section for Challenges Saved to Account (Collapsible) --- #}
-    <div class="card shadow-sm challenge-section-card">
-        <div class="card-header" id="headingAccount" data-toggle="collapse" data-target="#accountChallengesCollapse" aria-expanded="true" aria-controls="accountChallengesCollapse">
-            <h3 class="mb-0">
-                {# Button styled as a link, contains title and text indicator span #}
-                <button class="btn btn-link text-light p-0 btn-collapse-toggle d-flex justify-content-between align-items-center w-100" type="button" aria-expanded="true">
-                    <span>Saved to Account</span>
-                    {# *** REMOVED SVG, Added SPAN for CSS indicator *** #}
-                    <span class="collapse-indicator"></span>
-                </button>
-            </h3>
-        </div>
-
-        <div id="accountChallengesCollapse" class="collapse show" aria-labelledby="headingAccount">
-            <div class="card-body">
-                <div id="myChallengesContainer"> {# Container for the row #}
-                    {% if current_user.is_authenticated %}
-                        {% if user_challenges %}
-                            <div class="row"> {# The row for the cards #}
-                                {% for challenge in user_challenges %}
-                                    <div class="col-md-6 col-lg-4 mb-4 challenge-list-item">
-                                        {# --- Standard Challenge Card Structure --- #}
-                                        <div class="card challenge-card h-100">
-                                            <a href="{{ url_for('main.challenge_view', challenge_id=challenge.public_id) }}" class="card-body-link" target="_blank" title="View Challenge Details">
-                                                <div class="card-body">
-                                                    <h5 class="card-title">{{ challenge.name or "Unnamed Challenge" }}</h5>
-                                                    <h6 class="card-subtitle mb-2 text-muted">
-                                                        ID: <code style="font-size: 0.9em;">{{ challenge.public_id[:8] }}...</code> (Shared)
-                                                    </h6>
-                                                    <p class="card-text small">
-                                                        Created: {{ challenge.created_at.strftime('%Y-%m-%d %H:%M') if challenge.created_at else 'N/A' }}<br>
-                                                        Max Groups: {{ challenge.max_groups }}
-                                                    </p>
-                                                </div>
-                                             </a>
-                                             <div class="card-footer text-right">
-                                                 <button class="btn btn-sm btn-outline-danger delete-challenge-btn"
-                                                         data-public-id="{{ challenge.public_id }}"
-                                                         data-challenge-name="{{ (challenge.name or 'Unnamed Challenge') | escape }}"
-                                                         title="Delete this shared challenge">
-                                                     <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                                                     <span>Delete</span>
-                                                 </button>
-                                             </div>
-                                        </div>
-                                        {# --- End Card Structure --- #}
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p class="empty-section-message">No challenges saved to your account yet.</p>
-                        {% endif %}
-                    {% else %}
-                         <p class="empty-section-message">
-                             <a href="{{ url_for('auth.login', next=request.path) }}">Log in</a> to view challenges saved to your account.
-                         </p>
-                    {% endif %}
-                </div>
+    {# --- Section for Challenges Saved to Account --- #}
+    <h3 class="mb-4 section-heading">Saved to Account</h3>
+    <div id="myChallengesContainer">
+        {% if current_user.is_authenticated and user_challenges %}
+            <div class="row">
+                {% for challenge in user_challenges %}
+                    <div class="col-md-6 col-lg-4 mb-4 challenge-list-item">
+                        {# *** Use list-card and glass-effect classes *** #}
+                        <div class="card list-card h-100 glass-effect">
+                            <a href="{{ url_for('main.challenge_view', challenge_id=challenge.public_id) }}" class="card-body-link text-light" style="text-decoration: none;">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ challenge.name or "Unnamed Challenge" }}</h5>
+                                    <h6 class="card-subtitle mb-2 text-secondary">
+                                        ID: <code style="font-size: 0.9em;">{{ challenge.public_id[:8] }}...</code> (Shared)
+                                    </h6>
+                                    <p class="card-text small text-secondary">
+                                        Created: {{ challenge.created_at.strftime('%Y-%m-%d %H:%M') if challenge.created_at else 'N/A' }}<br>
+                                        Max Groups: {{ challenge.max_groups }}
+                                    </p>
+                                </div>
+                             </a>
+                             <div class="card-footer text-right">
+                                 <button class="btn btn-sm btn-outline-danger delete-challenge-btn"
+                                         data-public-id="{{ challenge.public_id }}"
+                                         data-challenge-name="{{ (challenge.name or 'Unnamed Challenge') | escape }}">
+                                     <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                                     <span>Delete</span>
+                                 </button>
+                             </div>
+                        </div>
+                    </div>
+                {% endfor %}
             </div>
-        </div>
+        {% elif current_user.is_authenticated and not user_challenges %}
+             {# Message handled by JS #}
+        {% endif %}
     </div>
     {# --- End Account Challenges Section --- #}
 
 
-    {# --- Section for Locally Saved Challenges (Collapsible) --- #}
-    <div class="card shadow-sm challenge-section-card">
-         <div class="card-header" id="headingLocal" data-toggle="collapse" data-target="#localChallengesCollapse" aria-expanded="true" aria-controls="localChallengesCollapse">
-             <h3 class="mb-0">
-                 <button class="btn btn-link text-light p-0 btn-collapse-toggle d-flex justify-content-between align-items-center w-100" type="button" aria-expanded="true">
-                     <span>Saved Locally (This Browser Only)</span>
-                     {# *** REMOVED SVG, Added SPAN for CSS indicator *** #}
-                     <span class="collapse-indicator"></span>
-                 </button>
-             </h3>
-        </div>
-         <div id="localChallengesCollapse" class="collapse show" aria-labelledby="headingLocal">
-            <div class="card-body">
-                {# Container where JS will add local challenge cards #}
-                <div id="localChallengesContainer" class="row">
-                    {# Initial placeholder - JS will replace this #}
-                    <div class="col-12"><p class="text-muted empty-section-message">Loading local challenges...</p></div>
-                </div>
-            </div>
-        </div>
+    {# --- Section for Locally Saved Challenges --- #}
+    <hr class="my-5"> {# Increased margin #}
+    <h3 class="mb-4 section-heading">Saved Locally (This Browser Only)</h3>
+    <div id="localChallengesContainer" class="row">
+        {# JS populates this with .local-challenge-item divs containing .list-card.glass-effect #}
+        <div class="col-12"><p class="text-secondary">Loading local challenges...</p></div>
     </div>
      {# --- End Local Challenges Section --- #}
 
 
-    {# Message shown only if BOTH sections end up empty (handled by JS) #}
+    {# Message shown only if BOTH DB and Local lists end up empty #}
      <div id="noChallengesMessageContainer" class="col-12 d-none">
-          <p class="text-muted text-center py-5">You have no challenges saved.</p>
+          <p class="text-secondary text-center py-5">You have no challenges saved either to your account or locally in this browser.</p>
      </div>
 
 
 </div> {# End container #}
 
-{# Data div for JS #}
+{# Data div for my_challenges.js #}
 <div id="myData" style="display: none;" aria-hidden="true"
     data-is-authenticated="{{ current_user.is_authenticated | lower }}"
     data-csrf-token="{{ csrf_token() }}"
-    data-view-local-url="/challenge/" {# Base URL for local challenges #}
+    data-view-local-url="/challenge/"
 ></div>
 {% endblock %}
 

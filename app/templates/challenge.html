@@ -13,13 +13,14 @@ Challenge Not Found
 
 {% block head %}
 {{ super() }}
+{# Base style.css is linked in base.html #}
 {% endblock %}
 
 
 {% block content %}
-{# Add body class based on mode for potential CSS targeting #}
+{# Add page-specific class and mode class #}
 {% set body_class = 'single-group-mode' if not is_multigroup else 'multi-group-mode' %}
-<div class="container mt-4 {{ body_class }}">
+<div class="container mt-4 challenge-view-page {{ body_class }}">
 
   {# --- Hidden Data Div for JavaScript --- #}
   {% if is_local or shared_challenge %}
@@ -49,18 +50,12 @@ Challenge Not Found
   <div id="challengeViewContainer">
 
     {# General status message area - ALWAYS RENDERED #}
-    <div id="pageStatusDisplay" class="mb-3"></div>
-
-    {# --- *** FIX: Corrected include syntax for timer *** --- #}
-    {% with timer_id='main' %}
-      {% include 'challenge/_challenge_timer.html' ignore missing %}
-    {% endwith %}
-    {# --- *** END FIX *** --- #}
+    <div id="pageStatusDisplay" class="mb-4"></div>
 
     {% if is_local %}
     {# --- Local Challenge View (Rendered entirely by JS) --- #}
     <div id="localChallengeDisplay">
-      <h1 class="text-center text-muted">Loading Local Challenge...</h1>
+      <h1 class="text-center text-secondary">Loading Local Challenge...</h1>
       <div class="d-flex justify-content-center mt-3">
         <div class="spinner-border text-light" role="status"><span class="sr-only">Loading...</span></div>
       </div>
@@ -70,42 +65,25 @@ Challenge Not Found
     {# --- Database Challenge View --- #}
 
     {# Row for Challenge Info and Rules Cards #}
-    <div class="row mb-4">
-      <div class="col-lg-5 mb-4 mb-lg-0"> {# Info Card Column #}
-        <div class="card h-100 bg-dark text-light shadow-sm challenge-info-card">
+    <div class="row mb-5">
+      <div class="col-lg-5 mb-4 mb-lg-0"> {# Info Card #}
+        {# Apply glass effect #}
+        <div class="card h-100 shadow-md info-card glass-effect">
           <div class="card-header"><h3 class="h5 mb-0">Challenge Info</h3></div>
-          <div class="card-body d-flex flex-column">
-            <h4 class="card-title text-warning mb-3">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h4>
-            <p class="card-text mb-2">
-              <strong class="text-muted" style="min-width: 80px; display: inline-block;">Mode:</strong>
-              {% if is_multigroup %}
-                Multigroup (Max {{ shared_challenge.max_groups }}) | {{ num_players_per_group }} Player{{ 's' if num_players_per_group != 1 else '' }}/Group
-              {% else %}
-                Single Group
-              {% endif %}
-            </p>
-            <p class="card-text mb-auto">
-              <strong class="text-muted" style="min-width: 80px; display: inline-block;">Creator:</strong>
-              {{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}
-            </p>
-            <div class="mt-3 pt-3 border-top border-secondary">
-                <p class="card-text small mb-0">
-                  <strong class="text-muted">ID:</strong>
-                  <code class="user-select-all bg-secondary p-1 rounded" style="font-size: 0.9em;">{{ shared_challenge.public_id }}</code>
-                </p>
-                {% if is_multigroup %}
-                <p class="card-text small mt-1">
-                    <a href="{{ request.url }}" class="text-info">Copy Share Link</a>
-                </p>
-                {% endif %}
-            </div>
+          <div class="card-body">
+            <h4 class="card-title text-secondary-accent">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h4> {# Use secondary accent #}
+            <p class="card-text small mb-1"><strong class="text-secondary">ID:</strong> <code class="user-select-all">{{ shared_challenge.public_id }}</code></p>
+            <p class="card-text small mb-1"><strong class="text-secondary">Created by:</strong> {{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</p>
+            <p class="card-text small mb-3"><strong class="text-secondary">Mode:</strong> {% if is_multigroup %}Multigroup (Max {{ shared_challenge.max_groups }}) | Players/Group: {{ num_players_per_group }}{% else %}Single Group{% endif %}</p>
+            <p class="card-text small font-italic text-secondary">{% if is_multigroup %}Share URL to join!{% else %}Track progress below.{% endif %}</p>
           </div>
         </div>
       </div>
-      <div class="col-lg-7"> {# Rules Card Column #}
-        <div class="card h-100 bg-dark text-light shadow-sm challenge-rules-card">
+      <div class="col-lg-7"> {# Rules Card #}
+         {# Apply glass effect #}
+        <div class="card h-100 shadow-md rules-card glass-effect">
           <div class="card-header"><h3 class="h5 mb-0">Challenge Rules</h3></div>
-          <div class="card-body challenge-rules-body">
+          <div class="card-body challenge-rules-list">
             {% set c = shared_challenge.challenge_data %}
             {% include 'challenge/_challenge_details.html' ignore missing %}
           </div>
@@ -115,12 +93,13 @@ Challenge Not Found
 
     {# Penalty Section (Conditional) #}
     {% if shared_challenge.penalty_info %}
-    <div id="penaltySectionContainer" class="mb-4 card bg-secondary text-light">
-      <div class="card-header">
-        <h3 class="mb-0 d-inline">Penalties</h3>
-        <button class="btn btn-sm btn-outline-light float-right" type="button" data-toggle="collapse"
-                data-target="#penaltyBody" aria-expanded="true" aria-controls="penaltyBody">
-          Toggle View
+    {# Use standard opaque card for better contrast with wheels? Or glass? Let's try standard. #}
+    <div id="penaltySectionContainer" class="mb-5 card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="h5 mb-0">Penalties</h3>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+                data-target="#penaltyBody" aria-expanded="true" aria-controls="penaltyBody" title="Toggle Penalty Section">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-expand" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708"/></svg>
         </button>
       </div>
       <div class="card-body collapse show" id="penaltyBody">
@@ -134,82 +113,80 @@ Challenge Not Found
     {% endif %}
 
     {# --- Group Management & Display Section --- #}
-    <hr class="my-4 border-secondary">
-    <h2 class="mb-3 text-light">{% if is_multigroup %}Groups & Progress{% else %}Your Progress{% endif %}</h2>
+    <hr class="my-5">
+    <h2 class="mb-4 text-light text-center">{% if is_multigroup %}Groups & Progress{% else %}Your Progress{% endif %}</h2>
 
     {# Create Group Form (Only for Multigroup) #}
     {% if is_multigroup %}
-    <div class="mb-4 card bg-dark border-secondary text-light">
-      <div class="card-body">
-        <h4 class="card-title text-warning">Create or Join Group</h4>
+    {# Use standard opaque card for form readability #}
+    <div class="mb-5 card shadow-md">
+      <div class="card-body p-4">
+        <h4 class="card-title text-secondary-accent text-center mb-4">Create or Join Group</h4> {# Pink accent #}
         <form id="addGroupForm" class="form" novalidate>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="form-row align-items-center">
-            <div class="col-sm-8 col-md-9 mb-2 mb-sm-0">
+          <div class="form-row align-items-center justify-content-center">
+            <div class="col-sm-7 col-md-7 mb-2 mb-sm-0">
               <label for="groupNameInput" class="sr-only">Group Name</label>
-              <input type="text" class="form-control form-control-lg bg-secondary text-light border-secondary"
+              <input type="text" class="form-control form-control-lg" {# Styled by style.css #}
                      id="groupNameInput" name="group_name" placeholder="Enter group name to create" required maxlength="80">
             </div>
             <div class="col-sm-4 col-md-3">
+              {# Use success (green) button #}
               <button type="submit" id="addGroupBtn" class="btn btn-success btn-lg btn-block">
                 <span class="spinner-border spinner-border-sm" style="display: none;"></span>
                 <span>Create Group</span>
               </button>
             </div>
           </div>
-          <small id="groupLimitInfo" class="form-text text-muted mt-2">Groups: <span id="currentGroupCount">{{ initial_groups | length }}</span> / <span id="maxGroupCount">{{ shared_challenge.max_groups }}</span></small>
+          <div class="text-center">
+             <small id="groupLimitInfo" class="form-text text-secondary mt-2">Groups: <span id="currentGroupCount">{{ initial_groups | length }}</span> / <span id="maxGroupCount">{{ shared_challenge.max_groups }}</span></small>
+          </div>
         </form>
-        <div id="addGroupError" class="text-danger mt-2 font-weight-bold" style="display: none;"></div>
+        <div id="addGroupError" class="text-danger mt-2 font-weight-bold text-center" style="display: none;"></div>
       </div>
     </div>
     {% endif %}
 
     {# --- "Your Group" Section Container --- #}
-    <div id="myGroupContainer" class="mb-4">
+    <div id="myGroupContainer" class="mb-5">
       {% if not is_local and user_joined_group_id is not none %}
-        <h4 class="text-warning mb-3">Your Group</h4>
+        <h4 class="text-primary-accent mb-3 text-center">Your Group</h4> {# Blue accent #}
         {% for group_data in initial_groups if group_data.id == user_joined_group_id %}
-          {# Include the group card partial, passing context #}
+          {# Include the partial, passing context #}
           {% with group=group_data, challenge=shared_challenge, is_member=True, is_multigroup=is_multigroup, num_players_per_group=num_players_per_group %}
             {% include 'challenge/_group_card_content.html' ignore missing %}
           {% endwith %}
         {% endfor %}
-        <hr class="border-secondary"> {# Separator after "Your Group" #}
+        <hr class="mt-5"> {# Separator after "Your Group" #}
       {% endif %}
     </div>
     {# --- End "Your Group" Section --- #}
 
 
     {# --- "Other Groups" Section --- #}
-    <h4 class="text-info mb-3 {% if not is_multigroup %}d-none{% endif %}">
+    <h4 class="text-primary-accent mb-4 text-center {% if not is_multigroup %}d-none{% endif %}"> {# Blue accent #}
       {% if user_joined_group_id is none %}Available Groups{% else %}Other Available Groups{% endif %}
     </h4>
     <div id="otherGroupsContainer" class="row justify-content-center">
       {% if not is_local and initial_groups %}
         {% for group_data in initial_groups if group_data.id != user_joined_group_id %}
-           {# Include the group card partial, passing context #}
+           {# Include the partial, passing context #}
            {% with group=group_data, challenge=shared_challenge, is_member=False, is_multigroup=is_multigroup, num_players_per_group=num_players_per_group %}
              {% include 'challenge/_group_card_content.html' ignore missing %}
            {% endwith %}
         {% endfor %}
       {% endif %}
-      {# Message shown if no other groups exist #}
-      {% if not is_local and initial_groups and (initial_groups | rejectattr('id', 'equalto', user_joined_group_id) | list | length == 0) %}
-         <div class="col-12">
-             <p class="text-light text-center py-3">No other groups available.</p>
-         </div>
-      {% endif %}
     </div>
     {# --- End "Other Groups" Section --- #}
 
-    {# Message shown if no groups exist at all (JS manages visibility) #}
+    {# Message shown if no groups exist #}
     <div id="noGroupsMessageContainer" class="col-12 {% if initial_groups %}d-none{% endif %}">
-      <p class="text-muted text-center py-5">No groups yet.{% if is_multigroup %} Create one above!{% endif %}</p>
+      <p class="text-secondary text-center py-5">No groups available.{% if is_multigroup %} Create one above!{% endif %}</p>
     </div>
 
     {% else %} {# Error loading challenge #}
       {% if not is_local %}
-        <div class="alert alert-danger">Error: Challenge details could not be loaded.</div>
+        <div class="alert alert-danger glass-effect">Error: Challenge details could not be loaded.</div>
       {% endif %}
     {% endif %} {# End if is_local / elif shared_challenge #}
 
@@ -219,32 +196,27 @@ Challenge Not Found
 {# --- Template for New Group Cards (Used by JS) --- #}
 {% if is_multigroup %}
 <template id="groupCardTemplate">
+  {# Apply standard column classes here #}
   <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="">
-    <div class="card group-card h-100">
+    {# Add glass-effect class to the card created by JS #}
+    <div class="card group-card h-100 glass-effect">
       <div class="card-body">
         <h5 class="card-title"></h5> {# JS sets name #}
-        <div id="progressBarContainer-" class="group-progress-bar-container mb-3"> {# ID will be completed by JS #}
-            {# JS will render the progress bar here #}
-        </div>
+        <div id="progressBarContainer-" class="group-progress-bar-container mb-3"> {# Placeholder for progress bar #} </div>
         <div class="group-progress-container">
-          <p class="text-muted small">Loading progress...</p> {# Placeholder #}
+          <p class="text-secondary small">Loading progress...</p> {# Placeholder #}
         </div>
-        {# Placeholder for Player Names section #}
-        <div class="player-names-section mt-3 border-top border-secondary pt-3" style="display: none;">
-          <h6 class="text-light small mb-2">Group Players (Max {{ num_players_per_group | default(1) }}):</h6>
-          <div class="player-name-inputs"></div> {# JS renders inputs here #}
-          <div class="player-name-error text-danger small mt-1"></div> {# JS shows errors here #}
-          {# JS adds save button here #}
+        <div class="player-names-section mt-3 border-top pt-3" style="display: none;">
+          <h6 class="small mb-2">Group Players (Max {{ num_players_per_group | default(1) }}):</h6>
+          <div class="player-name-inputs"></div>
+          <div class="player-name-error text-danger small mt-1"></div>
         </div>
-         {# Placeholder for Active Penalty display #}
-        <div class="active-penalty-display mt-2 border-top border-secondary pt-2 mx-3 mb-2" data-group-id="" style="display: none;">
-             <h6 class="text-danger small mb-1">Active Penalty:</h6>
-             <p class="mb-0 text-warning small penalty-text-content"></p>
-             {# JS adds clear button here if needed #}
+        <div class="active-penalty-display mt-2 border-top pt-2 mx-0 mb-2" data-group-id="" style="display: none;"> {# Adjusted margin/padding #}
+             <h6 class="small mb-1">Active Penalty:</h6>
+             <p class="mb-0 small penalty-text-content"></p>
         </div>
       </div>
-      {# Footer where JS adds Join/Leave/Login button #}
-      <div class="card-footer text-muted text-center join-leave-footer"></div>
+      <div class="card-footer text-center join-leave-footer"></div> {# Footer for JS buttons #}
     </div>
   </div>
 </template>
@@ -255,7 +227,7 @@ Challenge Not Found
 
 
 {% block scripts %}
-{{ super() }} {# Include scripts from base.html #}
+{{ super() }} {# Include base scripts (jQuery, Bootstrap) #}
 
 {# --- Conditionally Load Penalty-Related Scripts --- #}
 {% set might_have_penalties = (shared_challenge and shared_challenge.penalty_info) or is_local %}
@@ -276,10 +248,7 @@ Challenge Not Found
   <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_penalty.js') }}"></script>
 {% endif %}
 
-{# *** ADDED: Load the Timer Module *** #}
-<script type="module" src="{{ url_for('static', filename='js/challenge/challenge_timer.js') }}"></script>
-
-{# --- Main View Orchestrator Module (Loads Last) --- #}
+{# --- Main View Orchestrator Module --- #}
 <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_view.js') }}"></script>
-
 {% endblock %}
+

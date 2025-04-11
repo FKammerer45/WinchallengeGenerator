@@ -2,57 +2,54 @@
 {# Displays the STATIC structure of normal and b2b win requirements #}
 {# Expects: c (challenge_data object, containing 'normal' and/or 'b2b') #}
 
-{% if c %} {# Check if challenge data 'c' was passed #}
-<div class="challenge-details-static"> {# Outer container #}
+{% if c %}
+<div class="challenge-rules-body">
 
-  {# Normal Wins Section - Added class 'normal-wins-list' #}
-  {% if c.normal and c.normal.items()|length > 0 %}
-    <h6 class="rules-subtitle text-info">Normal Wins Required:</h6>
-    <ul class="list-unstyled rules-list normal-wins-list">
-      {% for key, info in c.normal.items()|sort %}
-        {# Added class 'normal-win-item' #}
-        <li class="rules-list-item normal-win-item">
-            <span class="win-count">{{ info.count }}x</span>
-            <span class="win-name">{{ key | escape }}</span>
-        </li>
-      {% endfor %}
-    </ul>
+  {# Normal Wins Section - Displays List #}
+  {% if c.normal %}
+  <h6 class="rules-subtitle text-info">Normal Wins Required:</h6> {# Use info color (blue) #}
+  <ul class="rules-list">
+    {% for key, info in c.normal.items()|sort %}
+    {# *** ADDED CLASS: normal-win-item *** #}
+    <li class="rules-list-item normal-win-item">
+        <span class="win-count">{{ info.count }}x</span>
+        <span class="win-name">{{ key | escape }}</span>
+         <small class="text-secondary"> (Diff: {{ "%.2f"|format(info.diff|float) if info.diff is defined else 'N/A' }})</small>
+    </li>
+    {% endfor %}
+  </ul>
   {% endif %}
 
-  {# Back-to-Back Wins Section - Added class 'b2b-wins-list' #}
-  {% if c.b2b and c.b2b|length > 0 %}
-    {% if c.normal and c.normal.items()|length > 0 %}
-      <hr class="rules-separator">
-    {% endif %}
-    <h6 class="rules-subtitle text-warning">Back-to-Back Segments Required:</h6>
-    <ul class="list-unstyled rules-list b2b-wins-list">
-      {% for seg in c.b2b %}
-        {% set outer_loop_index = loop.index %}
-        {# Added class 'b2b-segment-item' #}
-        <li class="rules-list-item b2b-segment-item">
-          <strong class="segment-title">Segment {{ outer_loop_index }}</strong>
-          <small class="segment-info text-muted">({{ seg.length }} wins)</small>:
-          {# List wins within the segment - Added class 'b2b-segment-detail-list' #}
-          <ul class="list-unstyled b2b-segment-detail-list">
-            {% for key, count in seg.group.items()|sort %}
-              {# Added class 'b2b-win-item' #}
-              <li class="b2b-win-item">
-                  <span class="win-count">{{ count }}x</span>
-                  <span class="win-name">{{ key | escape }}</span>
-              </li>
-            {% endfor %}
-          </ul>
+  {# Back-to-Back Wins Section - Displays List #}
+  {% if c.b2b %}
+  {% if c.normal %}<hr class="rules-separator">{% endif %}
+  <h6 class="rules-subtitle text-secondary-accent">Back-to-Back Segments Required:</h6> {# Use secondary accent (pink) #}
+  <ul class="rules-list">
+    {% for seg in c.b2b %}
+    {% set outer_loop_index = loop.index %}
+     {# *** ADDED CLASS: b2b-segment-item *** #}
+    <li class="rules-list-item b2b-segment-item">
+      <strong>Segment {{ outer_loop_index }}</strong> <small class="text-secondary">({{ seg.length }} wins, Diff: {{ "%.2f"|format(seg.seg_diff|float) }})</small>:
+      <ul class="b2b-segment-detail-list">
+        {% for key, count in seg.group.items()|sort %}
+         {# *** ADDED CLASS: b2b-win-item *** #}
+        <li class="b2b-win-item">
+            <span class="win-count">{{ count }}x</span>
+            <span class="win-name">{{ key | escape }}</span>
         </li>
-      {% endfor %}
-    </ul>
+        {% endfor %}
+      </ul>
+    </li>
+    {% endfor %}
+  </ul>
   {% endif %}
 
   {# Fallback if no win data is present in 'c' #}
-  {% if not (c.normal and c.normal.items()|length > 0) and not (c.b2b and c.b2b|length > 0) %}
-    <p class="text-muted">Challenge structure details missing or empty.</p>
+  {% if not c.normal and not c.b2b %}
+  <p class="text-secondary">Challenge structure details missing or empty.</p>
   {% endif %}
 
-</div> {# End challenge-details-static #}
+</div> {# End challenge-rules-body #}
 {% else %}
-<p class="text-danger">Error: Challenge data ('c') not provided to details partial.</p>
-{% endif %} {# End if c #}
+<p class="text-danger">Error: Challenge data ('c') not provided to _challenge_details.html partial.</p>
+{% endif %}

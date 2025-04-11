@@ -1,20 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Penalties Configuration{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-  <h2>Penalties Configuration</h2>
-  <p class="text-muted">Manage sets of penalties. Double-click a tab name (except Default) to rename it locally.</p>
+{% block head %}
+    {{ super() }}
+    {# Base style.css is linked in base.html #}
+    <style> body { background-color: var(--base-bg, #030712); } </style>
+{% endblock %}
 
+{% block content %}
+{# Added config-page-container class for CSS targeting #}
+<div class="container mt-4 config-page-container">
+  <h2 class="mb-4 page-title">Penalties Configuration</h2>
+  <p class="text-secondary mb-4">Manage sets of penalties used in challenges. Double-click a tab name (except Default) to rename it locally.</p>
+
+  {# Script variables needed by JS #}
   <script>
     const isLoggedIn = {{ current_user.is_authenticated| tojson }};
-    const csrfToken = "{{ csrf_token() }}";
+    const csrfToken = "{{ csrf_token() }}"; // Needed for API calls via extensions
   </script>
 
+  {# Confirmation Modal for Loading Defaults #}
   <div class="modal fade" id="confirmLoadDefaultPenaltiesModal" tabindex="-1" role="dialog"
     aria-labelledby="confirmLoadDefaultPenaltiesModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
-      <div class="modal-content text-dark">
+      <div class="modal-content"> {# Style handled by style.css #}
         <div class="modal-header">
           <h5 class="modal-title" id="confirmLoadDefaultPenaltiesModalLabel">Load Default Penalties</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -26,45 +35,65 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-          <button type="button" id="confirmLoadDefaultPenaltiesBtn" class="btn btn-primary">Yes, Load</button>
+          <button type="button" id="confirmLoadDefaultPenaltiesBtn" class="btn btn-primary">Yes, Load</button> {# Blue accent #}
         </div>
       </div>
     </div>
   </div>
 
+  {# --- Top Button Row (Conditional) --- #}
   {% if current_user.is_authenticated %}
-  <div class="mb-3 d-flex flex-wrap">
-    <button id="savePenaltyTabBtn" class="btn btn-success mr-2 mb-2" title="Save the currently active penalty tab to your account (Not Implemented)">Save Current Tab</button>
-    <button id="deletePenaltyTabBtn" class="btn btn-danger mr-2 mb-2" title="Delete the currently active penalty tab (Not Implemented)">Delete Current Tab</button>
-    <button id="loadSavedPenaltyTabsBtn" class="btn btn-info mr-2 mb-2" title="Load all penalty tabs saved to your account (Not Implemented)">Load Saved Tabs</button>
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+      <div>
+        {# Use modern button classes from style.css #}
+        <button id="savePenaltyTabBtn" class="btn btn-success btn-sm mr-2 mb-2" title="Save the currently active penalty tab to your account">Save Current Tab</button>
+        <button id="deletePenaltyTabBtn" class="btn btn-danger btn-sm mr-2 mb-2" title="Delete the currently active penalty tab">Delete Current Tab</button>
+        <button id="loadSavedPenaltyTabsBtn" class="btn btn-info btn-sm mr-2 mb-2" title="Load all penalty tabs saved to your account">Load Saved Tabs</button>
+      </div>
+       <small class="text-secondary mb-2">You can save up to 5 tabs.</small>
     </div>
   {% endif %}
+  {# --- End Top Button Row --- #}
 
-  <ul class="nav nav-tabs" id="penaltiesTab" role="tablist">
+  {# --- Tabs Navigation --- #}
+  <ul class="nav nav-tabs mb-0" id="penaltiesTab" role="tablist"> {# style.css handles styling #}
     <li class="nav-item">
        <a class="nav-link active" id="default-penalty-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
-        aria-selected="true" title="This tab cannot be renamed or deleted. Double-click other tabs to rename.">Default</a>
+        aria-selected="true" title="This tab cannot be renamed or deleted.">Default</a>
     </li>
+    {# JS inserts other tabs here #}
     <li class="nav-item">
       <a class="nav-link" href="#" id="addPenaltyTabBtn" role="tab" title="Add New Penalty Tab">+</a>
     </li>
-     </ul>
+  </ul>
+  {# --- End Tabs Navigation --- #}
 
-  <div class="tab-content mt-3" id="penaltiesTabContent">
+  {# --- Tab Content --- #}
+  <div class="tab-content" id="penaltiesTabContent"> {# style.css handles border/padding/bg #}
+    {# Default Tab Pane #}
     <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-penalty-tab">
-       <button id="loadDefaultPenaltiesBtn" class="btn btn-warning mb-3" title="Load default penalties from the database into this local tab">Load Defaults From DB</button>
-       <div class="my-3">
-         <button class="btn btn-primary insertPenaltyBtn" data-tab="default" title="Add a new penalty to this local tab">Insert New Penalty</button>
-      </div>
-      {% include "penalties/penalties_table.html" %}
+       {# Action buttons within tab #}
+       <div class="d-flex justify-content-start my-3">
+           {# Use warning (yellow/orange) accent #}
+           <button id="loadDefaultPenaltiesBtn" class="btn btn-warning mr-2" title="Load default penalties from the database into this local tab">Load Defaults From DB</button>
+           {# Use primary (blue) accent #}
+           <button class="btn btn-primary insertPenaltyBtn" data-tab="default" title="Add a new penalty to this local tab">Insert New Penalty</button>
+       </div>
+       {# Include table structure #}
+       {% include "penalties/penalties_table.html" %}
     </div>
-     </div>
+     {# JS inserts other tab panes here #}
+  </div>
+  {# --- End Tab Content --- #}
 
+  {# Include Modals #}
   {% include "penalties/penalties_modals.html" %}
+  {# Fallback CSRF #}
   <input type="hidden" name="csrf_token_field" value="{{ csrf_token() }}">
-</div>
+</div> {# End Container #}
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script type="module" src="{{ url_for('static', filename='js/penalties/penalties.js') }}"></script>
 {% endblock %}

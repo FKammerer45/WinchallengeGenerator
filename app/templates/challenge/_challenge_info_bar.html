@@ -1,17 +1,30 @@
 {# templates/challenge/_challenge_info_bar.html #}
-{# Displays player names and penalty status for a challenge #}
+{# Displays player names and penalty status using modern theme #}
 {# Expects: players (list), penalty_tab_id (str or None) #}
 
-<div class="alert alert-secondary small p-2 mb-3 challenge-info-bar">
-  {% if players %}
-      <strong>Players:</strong> {{ players | join(', ') | escape }}
-  {% else %}
-      <strong>Players:</strong> N/A
-  {% endif %}
-  <strong class="ml-3">|</strong> {# Separator #}
-  {% if penalty_tab_id %}
-      <strong class="ml-3">Penalties:</strong> Enabled <span class="text-muted">(Source: {{ penalty_tab_id | escape }})</span>
-  {% else %}
-      <strong class="ml-3">Penalties:</strong> Disabled
-  {% endif %}
+{# Apply glass effect and custom padding/margins #}
+<div class="p-3 mb-4 rounded-md glass-effect info-bar shadow-sm">
+  <span class="info-item">
+      <strong class="text-secondary mr-2">Players:</strong>
+      <span class="text-primary">
+          {% if players %}
+              {{ players | join(', ') | escape }}
+          {% else %}
+              N/A
+          {% endif %}
+      </span>
+  </span>
+
+  {# Use a subtle separator #}
+  <span class="mx-3 text-secondary opacity-50">|</span>
+
+  <span class="info-item">
+      <strong class="text-secondary mr-2">Penalties:</strong>
+      {% if penalty_tab_id %}
+          <span class="text-success font-weight-bold">Enabled</span>
+          <span class="text-secondary ml-2">(Source: {{ penalty_tab_id | escape }})</span>
+      {% else %}
+          <span class="text-danger">Disabled</span>
+      {% endif %}
+  </span>
 </div>

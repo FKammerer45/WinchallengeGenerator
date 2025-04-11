@@ -1,6 +1,9 @@
+{# templates/penalties/penalties_modals.html #}
+
+{# Modal for Inserting a New Penalty Entry #}
 <div class="modal fade" id="newPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="newPenaltyModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
-      <div class="modal-content text-dark">
+      <div class="modal-content"> {# style.css handles theme #}
         <div class="modal-header">
           <h5 class="modal-title" id="newPenaltyModalLabel">Insert New Penalty</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -8,8 +11,8 @@
           </button>
         </div>
         <div class="modal-body">
-          <div id="newPenaltyAlert"></div>
-          <form id="newPenaltyForm">
+          <div id="newPenaltyAlert"></div> {# For JS alerts #}
+          <form id="newPenaltyForm" novalidate> {# Added novalidate #}
             <div class="form-group">
               <label for="newPenaltyName">Penalty Name</label>
               <input type="text" class="form-control" id="newPenaltyName" name="name" placeholder="e.g., Inverted Mouse" required>
@@ -25,16 +28,18 @@
           </form>
         </div>
         <div class="modal-footer">
+          {# Use primary (blue) accent #}
           <button type="button" id="saveNewPenaltyBtn" class="btn btn-primary">Save</button>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
     </div>
-  </div>
-  
-  <div class="modal fade" id="editPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="editPenaltyModalLabel" aria-hidden="true">
+</div>
+
+{# Modal for Editing/Deleting an Existing Penalty Entry #}
+<div class="modal fade" id="editPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="editPenaltyModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
-      <div class="modal-content text-dark">
+      <div class="modal-content"> {# style.css handles theme #}
         <div class="modal-header">
           <h5 class="modal-title" id="editPenaltyModalLabel">Edit Penalty</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -42,8 +47,8 @@
           </button>
         </div>
         <div class="modal-body">
-           <div id="editPenaltyAlert"></div>
-          <form id="editPenaltyForm">
+           <div id="editPenaltyAlert"></div> {# For JS alerts #}
+          <form id="editPenaltyForm" novalidate> {# Added novalidate #}
             <input type="hidden" id="editPenaltyEntryId" name="entry_id">
             <div class="form-group">
               <label for="editPenaltyName">Penalty Name</label>
@@ -60,10 +65,12 @@
           </form>
         </div>
         <div class="modal-footer">
+          {# Use primary (blue) accent #}
           <button type="button" id="updatePenaltyBtn" class="btn btn-primary">Save Changes</button>
+          {# Use danger (red) accent #}
           <button type="button" id="deletePenaltyBtn" class="btn btn-danger">Delete Penalty</button>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
     </div>
-  </div>
+</div>

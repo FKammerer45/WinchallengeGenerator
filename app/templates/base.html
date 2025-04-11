@@ -6,10 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Win Challenge Generator{% endblock %}</title>
 
-  {# Bootstrap CSS #}
+  {# Bootstrap CSS (Keep for grid system and base components) #}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  {# --- Google Fonts --- #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  {# --- End Google Fonts --- #}
+
   {# --- Link the single main stylesheet --- #}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
   {# Google reCAPTCHA Script #}
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 
@@ -17,13 +26,16 @@
   {% block head %}{% endblock %}
 </head>
 
-<body>
+{# Add flex classes for potential sticky footer #}
+<body class="d-flex flex-column min-vh-100">
   {# --- Flashed Messages --- #}
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
   <div id="flash-messages" class="container mt-2">
     {% for category, message in messages %}
-    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+    {# Use custom theme colors for alerts #}
+    {% set alert_class = 'alert-' + category if category in ['success', 'danger', 'warning', 'info'] else 'alert-secondary' %}
+    <div class="alert {{ alert_class }} alert-dismissible fade show glass-effect" role="alert" style="border-left-width: 4px;">
       {{ message | safe }}
       <button type="button" class="close" data-dismiss="alert" aria-label="Close">
         <span aria-hidden="true">&times;</span>
@@ -34,69 +46,57 @@
   {% endif %}
   {% endwith %}
 
-  {# --- Navbar --- #}
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm"> {# Added shadow #}
-    <a class="navbar-brand font-weight-bold" href="{{ url_for('main.index') }}">Win Challenge</a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
-      aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      {# --- Main Navigation Links (Left) --- #}
-      <ul class="navbar-nav mr-auto">
-        {# Use request.endpoint to highlight the active page #}
-        <li class="nav-item {{ 'active' if request.endpoint == 'main.index' else '' }}">
-            <a class="nav-link" href="{{ url_for('main.index') }}">Home</a>
-        </li>
-        <li class="nav-item {{ 'active' if request.endpoint == 'main.games_config' else '' }}">
-            <a class="nav-link" href="{{ url_for('main.games_config') }}">Games</a>
-        </li>
-        <li class="nav-item {{ 'active' if request.endpoint == 'main.penalties_config' else '' }}">
-            <a class="nav-link" href="{{ url_for('main.penalties_config') }}">Penalties</a>
-        </li>
-        <li class="nav-item {{ 'active' if request.endpoint == 'main.my_challenges_view' else '' }}">
-            <a class="nav-link" href="{{ url_for('main.my_challenges_view') }}">My Challenges</a>
-        </li>
-      </ul>
-
-      {# --- Auth Links (Right) --- #}
-      <ul class="navbar-nav">
-        {% if current_user.is_authenticated %}
-          {# --- Logged In: User Dropdown --- #}
-          <li class="nav-item dropdown">
-            {# Dropdown Toggle: Username #}
-            <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-              Hi, {{ current_user.username }}
-            </a>
-            {# Dropdown Menu #}
-            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarUserDropdown">
-              <a class="dropdown-item" href="{{ url_for('auth.change_password') }}">Change Password</a>
-              <a class="dropdown-item text-danger" href="{{ url_for('auth.confirm_delete_account') }}">Delete Account</a>
-              <div class="dropdown-divider"></div>
-              <a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a>
-            </div>
-          </li>
-          {# --- End User Dropdown --- #}
-        {% else %}
-          {# --- Logged Out: Login/Register Button --- #}
-          <li class="nav-item">
-            {# Use outline accent color #}
-            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('auth.login') }}">Login / Register</a>
-          </li>
-        {% endif %}
-      </ul>
-    </div>
+  {# --- Navbar with Glass Effect --- #}
+  {# Add glass-effect class, JS will add/remove navbar-scrolled #}
+  <nav class="navbar navbar-expand-lg navbar-dark glass-effect" id="mainNavbar">
+    <div class="container"> {# Wrap navbar content in container #}
+        <a class="navbar-brand" href="{{ url_for('main.index') }}">Win Challenge</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+          aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          {# --- Main Navigation Links (Left) --- #}
+          <ul class="navbar-nav mr-auto">
+            <li class="nav-item {{ 'active' if request.endpoint == 'main.index' else '' }}"> <a class="nav-link" href="{{ url_for('main.index') }}">Home</a> </li>
+            <li class="nav-item {{ 'active' if request.endpoint == 'main.games_config' else '' }}"> <a class="nav-link" href="{{ url_for('main.games_config') }}">Games</a> </li>
+            <li class="nav-item {{ 'active' if request.endpoint == 'main.penalties_config' else '' }}"> <a class="nav-link" href="{{ url_for('main.penalties_config') }}">Penalties</a> </li>
+            <li class="nav-item {{ 'active' if request.endpoint == 'main.my_challenges_view' else '' }}"> <a class="nav-link" href="{{ url_for('main.my_challenges_view') }}">My Challenges</a> </li>
+          </ul>
+          {# --- Auth Links (Right) --- #}
+          <ul class="navbar-nav">
+            {% if current_user.is_authenticated %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Hi, {{ current_user.username }}
+                </a>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarUserDropdown">
+                  <a class="dropdown-item" href="{{ url_for('auth.change_password') }}">Change Password</a>
+                  <a class="dropdown-item text-danger" href="{{ url_for('auth.confirm_delete_account') }}">Delete Account</a>
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a>
+                </div>
+              </li>
+            {% else %}
+              <li class="nav-item">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('auth.login') }}">Login / Register</a> {# Pink outline button #}
+              </li>
+            {% endif %}
+          </ul>
+        </div>{# End collapse #}
+    </div> {# End container #}
   </nav>
 
   {# --- Main Content Block --- #}
-  <main class="container my-4 flex-grow-1">
+  {# flex-grow-1 pushes footer down #}
+  <main class="container my-4 my-lg-5 flex-grow-1"> {# Added my-lg-5 for more top/bottom space on larger screens #}
     {% block content %}{% endblock %}
   </main>
 
-  {# --- Footer (Optional) --- #}
-  <footer class="footer mt-auto py-3 bg-dark text-muted text-center small">
+  {# --- Footer --- #}
+  <footer class="footer mt-auto py-3 text-muted text-center small" style="background-color: rgba(3, 7, 18, 0.5);"> {# Match dark base bg slightly transparent #}
       <div class="container">
-          <span>Win Challenge Generator &copy; {{ now().year if now else '' }}</span> {# Added check for now #}
+          <span>Win Challenge Generator &copy; {{ now().year if now else '' }}</span>
       </div>
   </footer>
 
@@ -104,6 +104,28 @@
   {# --- Base Scripts --- #}
   <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  {# --- Navbar Scroll Effect Script --- #}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const navbar = document.getElementById('mainNavbar');
+      if (navbar) {
+        const scrollThreshold = 50; // Pixels to scroll before adding class
+        const addRemoveClass = () => {
+          if (window.scrollY >= scrollThreshold) {
+            navbar.classList.add('navbar-scrolled');
+          } else {
+            navbar.classList.remove('navbar-scrolled');
+          }
+        };
+        // Add listener
+        window.addEventListener('scroll', addRemoveClass, { passive: true });
+        // Initial check in case page loads already scrolled
+        addRemoveClass();
+      }
+    });
+  </script>
+
   {# --- Block for page-specific scripts --- #}
   {% block scripts %}{% endblock %}
 </body>
