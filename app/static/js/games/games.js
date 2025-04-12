@@ -1,10 +1,8 @@
 // static/js/games/games.js
 // Main orchestrator for the Games Configuration page
 
-// *** FIX: Import removeLocalGameEntry from localStorageUtils ***
 import { getLocalTabs, getLocalEntries, initLocalStorage, removeLocalGameEntry } from "./localStorageUtils.js";
 import { createNewTab, createTabFromLocalData } from "./tabManagement.js";
-// handleUpdateGame reads editable mode name now
 import { renderGamesForTab, handleSaveNewGame, handleUpdateGame } from "./entryManagement.js";
 import {
     attachSaveTabHandler,
@@ -13,8 +11,11 @@ import {
     attachLoadDefaultEntriesHandler,
     attachDeleteTabHandler // For deleting TABS
  } from "./gamesExtensions.js";
-// Import escapeHtml and showError
 import { escapeHtml, showError } from "../utils/helpers.js";
+
+// --- Flags to prevent attaching modal listeners multiple times ---
+let newGameListenerAttached = false;
+let editGameListenersAttached = false;
 
 // Wait for the DOM to load
 document.addEventListener("DOMContentLoaded", () => {
@@ -38,20 +39,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Attach Core Event Listeners ---
 
+    // Add Tab Button
     const addTabBtn = document.getElementById("addTabBtn");
-    if (addTabBtn) { addTabBtn.addEventListener("click", (e) => { e.preventDefault(); try { createNewTab(); } catch (tabError) { console.error("Error creating new tab:", tabError); alert("Failed to create new tab."); } }); }
-    else { console.error("Add Tab button ('addTabBtn') not found."); }
+    if (addTabBtn) {
+        addTabBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            try { createNewTab(); } catch (tabError) { console.error("Error creating new tab:", tabError); alert("Failed to create new tab."); }
+        });
+    } else { console.error("Add Tab button ('addTabBtn') not found."); }
 
+    // "Insert New Entry" Button Click (Delegated)
+    // This listener *only* sets context and triggers the modal show
     document.addEventListener("click", (e) => {
         if (e.target?.classList.contains("insertGameBtn")) {
             const tabId = e.target.getAttribute("data-tab");
-            window.currentTargetTab = tabId;
-             try { $('#newGameModal').modal('show'); }
+            window.currentTargetTab = tabId; // Set global context
+             try {
+                 // Clear any previous alerts in the modal
+                 const alertContainer = document.getElementById("newGameAlert");
+                 if(alertContainer) alertContainer.innerHTML = '';
+                 // Show the modal
+                 $('#newGameModal').modal('show');
+            }
              catch (modalError) { console.error("Error showing new game modal:", modalError); alert("Could not open the new game form."); }
         }
     });
 
-     // Double-click on table rows for editing (event delegation)
+     // Double-click on Table Row for Editing (Delegated)
+     // This listener *only* prepares data, populates HTML, and triggers the modal show
     document.addEventListener("dblclick", (e) => {
         const targetRow = e.target.closest("tr");
         if (targetRow && targetRow.dataset.gameName && targetRow.dataset.entryIds && targetRow.parentElement?.classList.contains("gamesTable")) {
@@ -69,12 +84,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 const gameNameDisplay = document.getElementById("editGameNameDisplay");
                 const gameNameHidden = document.getElementById("editGameNameHidden");
                 const modesContainer = document.getElementById("editGameModesContainer");
-                const alertContainer = document.getElementById("editGameAlert"); // Alert div inside modal
+                const alertContainer = document.getElementById("editGameAlert");
 
-                if (!modal || !gameNameDisplay || !gameNameHidden || !modesContainer || !alertContainer) { console.error("Edit modal elements are missing."); alert("Error opening edit form."); return; }
+                if (!modal || !gameNameDisplay || !gameNameHidden || !modesContainer || !alertContainer) {
+                    console.error("Edit modal core elements are missing! Cannot proceed with edit.");
+                    alert("Error opening edit form - missing elements.");
+                    return;
+                }
 
                 modesContainer.innerHTML = '<p class="text-muted">Loading modes...</p>';
-                alertContainer.innerHTML = ''; // Clear alerts
+                alertContainer.innerHTML = '';
                 gameNameDisplay.textContent = gameName;
                 gameNameHidden.value = gameName;
 
@@ -90,7 +109,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 let modesHtml = '';
                 originalEntries.sort((a, b) => (a.gameMode || '').localeCompare(b.gameMode || '')).forEach((entry, index) => {
                     const displayMode = escapeHtml(entry.gameMode || '');
-                    // *** FIX: Removed bg-light, ensure button text is "Delete" ***
                     modesHtml += `
                         <div class="edit-mode-section border rounded p-3 mb-3 position-relative" data-entry-id="${entry.id}">
                             <button type="button" class="btn btn-sm btn-outline-danger delete-single-mode-btn position-absolute" title="Delete this mode"
@@ -115,6 +133,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 modesContainer.innerHTML = modesHtml;
 
+                // *** Do NOT attach listeners here anymore ***
+
+                // Show the modal
                 try { $('#editGameModal').modal('show'); }
                 catch(modalError) { console.error("Error showing edit game modal:", modalError); }
 
@@ -122,59 +143,75 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Listener for deleting a single mode within the edit modal
-    const editModalBody = document.querySelector("#editGameModal .modal-body");
-    if (editModalBody) {
-        editModalBody.addEventListener('click', (e) => {
-            if (e.target?.classList.contains('delete-single-mode-btn')) {
-                const button = e.target;
-                const entryId = button.dataset.entryId;
-                const modeName = button.dataset.modeName || 'this mode';
-                const section = button.closest('.edit-mode-section');
-                const currentTab = window.currentTargetTab;
-                // *** FIX: Get alert container reference *inside* the handler ***
-                const alertContainer = document.getElementById("editGameAlert");
+    // --- FIX: Attach Modal Listeners using Bootstrap Events ---
 
-                console.log(`Delete button clicked: entryId=${entryId}, modeName=${modeName}, currentTab=${currentTab}`);
+    // Listener for when the NEW game modal is fully shown
+    $('#newGameModal').on('shown.bs.modal', function () {
+        if (!newGameListenerAttached) {
+            const saveNewGameBtn = document.getElementById("saveNewGameBtn");
+            if (saveNewGameBtn) {
+                saveNewGameBtn.addEventListener("click", handleSaveNewGame);
+                newGameListenerAttached = true;
+                console.log("Attached listener to saveNewGameBtn via shown.bs.modal.");
+            } else {
+                console.error("Save New Game button ('saveNewGameBtn') not found inside shown.bs.modal handler.");
+            }
+        }
+    });
 
-                // Check alertContainer again here
-                if (!entryId || !section || !currentTab || !alertContainer) {
-                    console.error("Cannot delete mode: Missing required elements or context.");
-                    // Use showError with the specific alert container if possible
-                    showError(alertContainer || document.body, "Could not delete mode due to an internal error.", "danger");
-                    return;
-                }
+    // Listener for when the EDIT game modal is fully shown
+     $('#editGameModal').on('shown.bs.modal', function () {
+         if (!editGameListenersAttached) {
+            const updateGameBtn = document.getElementById("updateGameBtn");
+            if (updateGameBtn) {
+                updateGameBtn.addEventListener("click", handleUpdateGame);
+                console.log("Attached listener to updateGameBtn via shown.bs.modal.");
+            } else {
+                console.error("Update Game button ('updateGameBtn') not found inside shown.bs.modal handler.");
+            }
 
-                if (confirm(`Are you sure you want to delete the mode "${modeName}"?`)) {
-                    try {
-                        // *** FIX: Call removeLocalGameEntry (imported correctly now) ***
-                        removeLocalGameEntry(currentTab, entryId);
-                        section.remove(); // Remove the section from the modal DOM
-                        console.log(`Removed entry ${entryId} from localStorage and modal.`);
-                        // *** FIX: Use showError with the modal's alert container ***
-                        showError(alertContainer, `Mode "${escapeHtml(modeName)}" deleted locally. Save changes in the modal footer to finalize other edits or Cancel to discard all changes.`, "warning");
-                    } catch (deleteError) {
-                         console.error(`Error removing local game entry ${entryId}:`, deleteError);
-                         // *** FIX: Use showError with the modal's alert container ***
-                         showError(alertContainer, `Failed to delete mode "${escapeHtml(modeName)}".`, "danger");
-                    }
+            const editModalBody = document.querySelector("#editGameModal .modal-body");
+            if (editModalBody) {
+                editModalBody.addEventListener('click', handleDeleteSingleMode); // Use named function
+                console.log("Attached listener to editModalBody for delete via shown.bs.modal.");
+            } else {
+                 console.error("Could not find edit modal body to attach delete listener inside shown.bs.modal handler.");
+            }
+            editGameListenersAttached = true; // Set flag after attempting both
+         }
+     });
+
+    // Define named function for delete handler (can be defined outside DOMContentLoaded if preferred)
+    function handleDeleteSingleMode(e) {
+        if (e.target?.classList.contains('delete-single-mode-btn')) {
+            const button = e.target;
+            const entryId = button.dataset.entryId;
+            const modeName = button.dataset.modeName || 'this mode';
+            const section = button.closest('.edit-mode-section');
+            const currentTab = window.currentTargetTab;
+            const alertContainer = document.getElementById("editGameAlert");
+
+            if (!entryId || !section || !currentTab || !alertContainer) {
+                console.error("Cannot delete mode: Missing required elements or context.");
+                showError(alertContainer || document.body, "Could not delete mode due to an internal error.", "danger");
+                return;
+            }
+
+            if (confirm(`Are you sure you want to delete the mode "${modeName}"?`)) {
+                try {
+                    removeLocalGameEntry(currentTab, entryId);
+                    section.remove();
+                    showError(alertContainer, `Mode "${escapeHtml(modeName)}" deleted locally. Save changes or Cancel to discard.`, "warning");
+                } catch (deleteError) {
+                     console.error(`Error removing local game entry ${entryId}:`, deleteError);
+                     showError(alertContainer, `Failed to delete mode "${escapeHtml(modeName)}".`, "danger");
                 }
             }
-        });
-    } else {
-        console.error("Could not find edit modal body to attach delete listener.");
+        }
     }
 
-
-    // --- Attach Modal Button Handlers ---
-    const saveNewGameBtn = document.getElementById("saveNewGameBtn");
-    if (saveNewGameBtn) { saveNewGameBtn.addEventListener("click", handleSaveNewGame); }
-    else { console.error("Save New Game button ('saveNewGameBtn') not found."); }
-
-    const updateGameBtn = document.getElementById("updateGameBtn");
-    if (updateGameBtn) { updateGameBtn.addEventListener("click", handleUpdateGame); }
-    else { console.error("Update Game button ('updateGameBtn') not found."); }
     // --- Attach Extension Handlers ---
+    // These target static elements or use delegation from document, safe to attach here
     try {
         if (typeof isLoggedIn !== 'undefined' && isLoggedIn) {
              attachSaveTabHandler();

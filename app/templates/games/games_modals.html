@@ -1,73 +1,78 @@
-{# templates/penalties/penalties_modals.html #}
+{# Confirmation Modal for Loading Defaults #}
+<div class="modal fade" id="confirmLoadDefaultModal" tabindex="-1" role="dialog" aria-labelledby="confirmLoadDefaultModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content"> {# Style handled by style.css #}
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmLoadDefaultModalLabel">Load Default Entries</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to load the default entries from the database? This will override entries currently in your local 'Default' tab.
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelLoadDefaultBtn" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmLoadDefaultBtn" class="btn btn-primary">Yes, Load</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-{# Modal for Inserting a New Penalty Entry #}
-<div class="modal fade" id="newPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="newPenaltyModalLabel" aria-hidden="true">
+
+{# Modal for Inserting a New Game Entry #}
+<div class="modal fade" id="newGameModal" tabindex="-1" role="dialog" aria-labelledby="newGameModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
-      <div class="modal-content"> {# style.css handles theme #}
+      <div class="modal-content"> {# Style handled by style.css #}
         <div class="modal-header">
-          <h5 class="modal-title" id="newPenaltyModalLabel">Insert New Penalty</h5>
+          <h5 class="modal-title" id="newGameModalLabel">Insert New Game Entry</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
         <div class="modal-body">
-          <div id="newPenaltyAlert"></div> {# For JS alerts #}
-          <form id="newPenaltyForm">
-            <div class="form-group">
-              <label for="newPenaltyName">Penalty Name</label>
-              <input type="text" class="form-control" id="newPenaltyName" name="name" placeholder="e.g., Inverted Mouse" required>
-            </div>
-            <div class="form-group">
-              <label for="newProbability">Probability (0.0 to 1.0)</label>
-              <input type="number" class="form-control" id="newProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.2" required>
-            </div>
-            <div class="form-group">
-              <label for="newDescription">Description (Optional)</label>
-              <textarea class="form-control" id="newDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea>
-            </div>
+          <form id="newGameForm" novalidate>
+            <div id="newGameAlert"></div> {# For JS alerts #}
+            <div class="form-group"> <label for="newGameName">Game</label> <input type="text" class="form-control" id="newGameName" name="Spiel" placeholder="Game Name" list="existingGames" required> <datalist id="existingGames"> {% for g in existing_games %} <option value="{{ g }}"> {% endfor %} </datalist> </div>
+            <div class="form-group"> <label for="newGameMode">Game Mode</label> <input type="text" class="form-control" id="newGameMode" name="Spielmodus" placeholder="Game Mode (e.g., Ranked, Casual)" required> </div>
+            <div class="form-group"> <label for="newDifficulty">Difficulty (0.0 to 10.0)</label> <input type="number" class="form-control" id="newDifficulty" name="Schwierigkeit" min="0" max="10" step="0.1" placeholder="e.g., 7.5" required> </div>
+            <div class="form-group"> <label for="newPlayers">Number of Players (1 to 99)</label> <input type="number" class="form-control" id="newPlayers" name="Spieleranzahl" min="1" max="99" step="1" placeholder="e.g., 5" required> </div>
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" id="saveNewPenaltyBtn" class="btn btn-primary">Save</button> {# Blue accent #}
+          {# *** Ensure this ID is correct *** #}
+          <button type="button" id="saveNewGameBtn" class="btn btn-primary">Save New Entry</button>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
     </div>
-</div>
+  </div>
 
-{# Modal for Editing/Deleting an Existing Penalty Entry #}
-<div class="modal fade" id="editPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="editPenaltyModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content"> {# style.css handles theme #}
+  {# Modal for Editing Game Modes (Redesigned) #}
+  <div class="modal fade" id="editGameModal" tabindex="-1" role="dialog" aria-labelledby="editGameModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content"> {# Style handled by style.css #}
         <div class="modal-header">
-          <h5 class="modal-title" id="editPenaltyModalLabel">Edit Penalty</h5>
+          <h5 class="modal-title" id="editGameModalLabel">Edit Game Modes for: <span id="editGameNameDisplay" class="font-weight-bold"></span></h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
-        <div class="modal-body">
-           <div id="editPenaltyAlert"></div> {# For JS alerts #}
-          <form id="editPenaltyForm">
-            <input type="hidden" id="editPenaltyEntryId" name="entry_id">
-            <div class="form-group">
-              <label for="editPenaltyName">Penalty Name</label>
-              <input type="text" class="form-control" id="editPenaltyName" name="name" placeholder="e.g., Inverted Mouse" required>
-            </div>
-            <div class="form-group">
-              <label for="editProbability">Probability (0.0 to 1.0)</label>
-              <input type="number" class="form-control" id="editProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.2" required>
-            </div>
-            <div class="form-group">
-              <label for="editDescription">Description (Optional)</label>
-              <textarea class="form-control" id="editDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea>
+        <div class="modal-body"> {# *** Ensure this has class="modal-body" *** #}
+          <form id="editGameForm" novalidate>
+            <div id="editGameAlert"></div> {# For JS alerts #}
+            <input type="hidden" id="editGameNameHidden" name="game_name">
+            {# Container where JS injects inputs #}
+            <div id="editGameModesContainer">
+                <p class="text-muted">Loading modes...</p>
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" id="updatePenaltyBtn" class="btn btn-primary">Save Changes</button> {# Blue accent #}
-          <button type="button" id="deletePenaltyBtn" class="btn btn-danger">Delete Penalty</button> {# Red accent #}
+           {# *** Ensure this ID is correct *** #}
+          <button type="button" id="updateGameBtn" class="btn btn-primary">Save Changes</button>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
     </div>
-</div>
+  </div>
