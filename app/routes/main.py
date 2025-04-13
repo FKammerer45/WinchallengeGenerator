@@ -3,36 +3,44 @@ import logging
 import uuid
 from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app
 from flask_login import current_user
-from app.database import SessionLocal # Use SessionLocal context manager
-from app.models import SharedChallenge, ChallengeGroup, User
+# Import db instance from app
+from app import db 
+# Import necessary models
+from app.models import SharedChallenge, ChallengeGroup, User 
+# Removed: from app.database import SessionLocal # No longer needed
+
+# Import SQLAlchemy functions/helpers if needed (like desc, selectinload, etc.)
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import desc
 
 logger = logging.getLogger(__name__)
-main_bp = Blueprint('main', __name__)
+# Rename blueprint to 'main' for consistency with common registration patterns
+main = Blueprint('main', __name__)
 
 
-@main_bp.route("/")
+@main.route("/")
 def index():
     """Renders the main page (challenge generation form)."""
     logger.debug("Rendering index page.")
-    return render_template("index.html", game_vars={})
+    # Pass any necessary context for the template
+    return render_template("index.html", game_vars={}) # Assuming game_vars might be used
 
-@main_bp.route("/games")
+@main.route("/games")
 def games_config():
     """Renders the games configuration page."""
     logger.debug("Rendering games config page.")
     # Pass empty lists/dicts initially, JS will populate from localStorage/API
     return render_template("games/games.html", games=[], existing_games=[], game_vars={})
 
-@main_bp.route("/penalties")
+@main.route("/penalties")
 def penalties_config():
     """Renders the penalties configuration page."""
     logger.debug("Rendering penalties config page shell.")
+    # Pass any necessary context for the template
     return render_template("penalties.html")
 
 # --- My Challenges Page ---
-@main_bp.route("/my_challenges")
+@main.route("/my_challenges")
 def my_challenges_view():
     """Displays DB challenges for logged-in users OR prepares shell for JS local view."""
     logger.debug(f"Request received for /my_challenges...")
@@ -40,17 +48,22 @@ def my_challenges_view():
     is_authenticated = current_user.is_authenticated
 
     if is_authenticated:
-        logger.debug(f"... by authenticated user {current_user.username}")
+        logger.debug(f"... by authenticated user {current_user.username} (ID: {current_user.id})")
         try:
-            # Use context manager for session handling
-            with SessionLocal() as session:
-                user_challenges = session.query(SharedChallenge)\
+            # Use db.session directly for database operations
+            user_challenges = db.session.query(SharedChallenge)\
                 .filter(SharedChallenge.creator_id == current_user.id)\
                 .order_by(desc(SharedChallenge.created_at))\
                 .options(selectinload(SharedChallenge.groups))\
                 .all()
-                logger.info(f"Found {len(user_challenges)} DB challenges for user {current_user.username}")
+            logger.info(f"Found {len(user_challenges)} DB challenges for user {current_user.username}")
+            
+            # Note: No explicit commit needed for read operations.
+            # Flask-SQLAlchemy typically handles session lifecycle per request.
+
         except Exception as e:
+            # Rollback in case of error during query/processing
+            db.session.rollback() 
             logger.exception(f"Error fetching DB challenges for user {current_user.username}")
             flash("Could not load your saved challenges due to a server error.", "danger")
             user_challenges = [] # Ensure it's an empty list on error
@@ -64,7 +77,7 @@ def my_challenges_view():
         )
 
 # --- Unified Challenge View Route ---
-@main_bp.route("/challenge/<string:challenge_id>")
+@main.route("/challenge/<string:challenge_id>")
 def challenge_view(challenge_id):
     """
     Renders the view for DB or Local challenges.
@@ -76,20 +89,18 @@ def challenge_view(challenge_id):
     shared_challenge = None
     initial_groups_data = None # Will hold data prepared for template
     user_joined_group_id = None
+    is_multigroup = False # Default
+    num_players_per_group = 1 # Default
 
     if challenge_id.startswith("local_"):
         is_local = True
         logger.debug(f"Identified as local challenge ID: {challenge_id}")
         # For local challenges, JS handles loading data and rendering
         # Pass minimal necessary info
-        num_players_per_group = 1 # Not relevant for local, but provide default
-        is_multigroup = False
 
     else:
         # --- Database Challenge Logic ---
         is_local = False
-        is_multigroup = False # Default
-        num_players_per_group = 1 # Default
 
         # Validate UUID format
         try:
@@ -100,67 +111,68 @@ def challenge_view(challenge_id):
 
         logger.debug(f"Attempting to load DB challenge: {challenge_id}")
         try:
-            with SessionLocal() as session:
-                # Query challenge with related data
-                shared_challenge = session.query(SharedChallenge).options(
-                    selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members),
-                    joinedload(SharedChallenge.creator)
-                ).filter(SharedChallenge.public_id == challenge_id).first()
+            # Use db.session directly for database operations
+            # Query challenge with related data efficiently loaded
+            shared_challenge = db.session.query(SharedChallenge).options(
+                selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members), # Load groups and their members
+                joinedload(SharedChallenge.creator) # Load the creator user
+            ).filter(SharedChallenge.public_id == challenge_id).first()
 
-                if not shared_challenge:
-                    logger.warning(f"DB Challenge {challenge_id} not found.")
-                    abort(404)
+            if not shared_challenge:
+                logger.warning(f"DB Challenge {challenge_id} not found.")
+                abort(404)
 
-                # --- *** FIX: Refresh group objects to get latest state *** ---
-                logger.debug(f"Refreshing group data for challenge {challenge_id}...")
-                refreshed_groups = []
-                for group in shared_challenge.groups:
-                    try:
-                        session.refresh(group)
-                        refreshed_groups.append(group)
-                        # Log the progress data *after* refresh
-                        # logger.debug(f"  Group ID {group.id} refreshed. Progress: {group.progress_data}")
-                    except Exception as refresh_err:
-                        # Log error but continue if possible
-                        logger.error(f"Failed to refresh group {group.id}: {refresh_err}")
-                        refreshed_groups.append(group) # Append original if refresh fails? Or skip? Let's append original.
-                # --- *** END FIX *** ---
+            # Refresh group objects to ensure latest state within this session
+            # This is useful if other requests might have modified groups concurrently
+            # although less critical if you just loaded them. Can be intensive.
+            logger.debug(f"Refreshing group data for challenge {challenge_id}...")
+            refreshed_groups = []
+            for group in shared_challenge.groups:
+                try:
+                    db.session.refresh(group) # Use db.session.refresh
+                    refreshed_groups.append(group)
+                    # logger.debug(f"  Group ID {group.id} refreshed. Progress: {group.progress_data}")
+                except Exception as refresh_err:
+                    logger.error(f"Failed to refresh group {group.id}: {refresh_err}")
+                    # Decide how to handle refresh failure: append original or skip?
+                    refreshed_groups.append(group) # Append original for now
 
-                # Use the potentially refreshed group objects from the list
-                shared_challenge.groups = refreshed_groups # Update the relationship list if needed elsewhere
+            # Update the challenge's groups attribute to the list of (potentially) refreshed objects
+            # This ensures subsequent code uses the most up-to-date objects available in the session
+            shared_challenge.groups = refreshed_groups 
 
-                # Get challenge config values from the loaded object
-                is_multigroup = shared_challenge.max_groups > 1
-                num_players_per_group = shared_challenge.num_players_per_group
+            # Get challenge config values from the loaded object
+            is_multigroup = shared_challenge.max_groups > 1
+            num_players_per_group = shared_challenge.num_players_per_group
 
-                # Determine user membership in any group of this challenge
-                if current_user.is_authenticated:
-                    for group in shared_challenge.groups: # Use refreshed groups
-                        if any(member.id == current_user.id for member in group.members):
-                            user_joined_group_id = group.id
-                            break # Found the group user is in
+            # Determine user membership in any group of this challenge
+            if current_user.is_authenticated:
+                for group in shared_challenge.groups: # Iterate over the refreshed list
+                    # Check if current_user is in the members list loaded via selectinload
+                    if any(member.id == current_user.id for member in group.members):
+                        user_joined_group_id = group.id
+                        break # Found the group user is in
 
-                # Prepare data specifically for the template, using refreshed group data
-                initial_groups_data = [
-                     {
-                        "id": g.id,
-                        "name": g.group_name,
-                        "progress": g.progress_data or {}, # Use refreshed progress data
-                        "member_count": len(g.members),
-                        "player_names": g.player_names or [],
-                        "active_penalty_text": g.active_penalty_text or ""
-                     }
-                     # Iterate over the refreshed groups list obtained earlier
-                     for g in shared_challenge.groups
-                ]
-                logger.debug(f"Prepared initial_groups_data with {len(initial_groups_data)} groups.")
+            # Prepare data specifically for the template, using refreshed group data
+            initial_groups_data = [
+                {
+                    "id": g.id,
+                    "name": g.group_name,
+                    "progress": g.progress_data or {}, # Use refreshed progress data
+                    "member_count": len(g.members), # Count loaded members
+                    "player_names": g.player_names or [],
+                    "active_penalty_text": g.active_penalty_text or ""
+                }
+                # Iterate over the refreshed groups list
+                for g in shared_challenge.groups 
+            ]
+            logger.debug(f"Prepared initial_groups_data with {len(initial_groups_data)} groups.")
 
         except Exception as db_err:
-            # Handle potential database errors during query or refresh
+            # Rollback in case of any error during DB operations or processing
+            db.session.rollback() 
             logger.exception(f"Database error loading challenge {challenge_id}: {db_err}")
-            # Show a generic error page or flash message
             flash("Failed to load challenge details due to a database error.", "danger")
-            # Render a minimal error state or redirect? Let's abort for now.
             abort(500) # Internal Server Error
 
     # Render the single template, passing calculated/fetched data
@@ -168,7 +180,7 @@ def challenge_view(challenge_id):
         return render_template(
             "challenge.html",
             # Pass the main challenge object (needed for some template logic)
-            shared_challenge=shared_challenge,
+            shared_challenge=shared_challenge, 
             # Pass specific variables needed by template/JS data attributes
             challenge_id=challenge_id,
             is_local=is_local,
@@ -180,5 +192,4 @@ def challenge_view(challenge_id):
     except Exception as render_error:
         logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")
         abort(500)
-
 

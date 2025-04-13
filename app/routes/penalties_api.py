@@ -4,54 +4,50 @@ import json
 from flask import Blueprint, jsonify, current_app, request
 from flask_login import login_required, current_user
 
-# Import DB session and the Penalty model
-from app.database import get_db_session
-from app.models import Penalty
-
-
-# from app.models import SavedPenaltyTab # Keep for future implementation
+# Import db instance from app
+from app import db 
+# Import necessary models
+from app.models import Penalty, SavedPenaltyTab 
 
 logger = logging.getLogger(__name__)
 
-penalties_api_bp = Blueprint('penalties_api', __name__, url_prefix='/api/penalties')
+# Define the blueprint - RENAME VARIABLE to penalties_api
+# Removed url_prefix here, assumes it's set during registration in __init__.py
+penalties_api = Blueprint('penalties_api', __name__) 
 
-
-# Define limits
+# Define limits (consider moving these to config if they vary by environment)
 MAX_SAVED_PENALTY_TABS = 5
 MAX_PENALTIES_PER_TAB = 100
 
-# --- End Seed Data ---
-
-@penalties_api_bp.route("/load_defaults", methods=["GET"])
+# Update decorator to use the new blueprint name
+@penalties_api.route("/load_defaults", methods=["GET"]) 
 def load_default_penalties():
     """
     API endpoint to load all penalties currently stored in the database's
-    'penalties' table. It no longer automatically seeds the table.
+    'penalties' table.
     """
-    logger.debug("Request received for /api/penalties/load_defaults (loading from DB only)")
+    logger.debug("Request received for /api/penalties/load_defaults")
     try:
-        with get_db_session() as db_session:
-            penalties_orm = db_session.query(Penalty).order_by(Penalty.name).all()
-            penalties_dict = [penalty.to_dict() for penalty in penalties_orm]
+        # Use db.session directly
+        penalties_orm = db.session.query(Penalty).order_by(Penalty.name).all()
+        penalties_dict = [penalty.to_dict() for penalty in penalties_orm]
 
-            if not penalties_orm:
-                logger.info("No penalties found in the database table.")
-            else:
-                 logger.info(f"Loaded {len(penalties_dict)} penalties from database.")
+        if not penalties_orm:
+            logger.info("No penalties found in the database table.")
+        else:
+            logger.info(f"Loaded {len(penalties_dict)} penalties from database.")
 
-        # Return the list (which might be empty if DB table is empty)
         return jsonify({"penalties": penalties_dict})
 
     except Exception as e:
+        db.session.rollback() # Rollback on error
         logger.exception("Error loading penalties from database:")
         return jsonify({"error": "Failed to load penalties due to a server error."}), 500
 
-
-
-
 # --- Implemented Tab Endpoints ---
 
-@penalties_api_bp.route("/save_tab", methods=["POST"])
+# Update decorator to use the new blueprint name
+@penalties_api.route("/save_tab", methods=["POST"]) 
 @login_required
 def save_penalty_tab():
     """API: Save or update a specific user penalty tab configuration."""
@@ -77,15 +73,13 @@ def save_penalty_tab():
         logger.warning("User %s: Missing or empty tab name for penalty tab ID: %s", current_user.id, client_tab_id)
         return jsonify({"error": "Tab name cannot be empty."}), 400
     if not isinstance(penalties, list):
-         logger.warning("User %s: Invalid 'penalties' format for tab ID: %s", current_user.id, client_tab_id)
-         return jsonify({"error": "'penalties' field must be a list."}), 400
+        logger.warning("User %s: Invalid 'penalties' format for tab ID: %s", current_user.id, client_tab_id)
+        return jsonify({"error": "'penalties' field must be a list."}), 400
     if len(penalties) > MAX_PENALTIES_PER_TAB:
-         logger.warning("User %s: Exceeded max penalties per tab (%d) for tab ID: %s", current_user.id, MAX_PENALTIES_PER_TAB, client_tab_id)
-         return jsonify({"error": f"Cannot save tab with more than {MAX_PENALTIES_PER_TAB} penalties."}), 400
-    # Optional: Deeper validation of each penalty object in the list
+        logger.warning("User %s: Exceeded max penalties per tab (%d) for tab ID: %s", current_user.id, MAX_PENALTIES_PER_TAB, client_tab_id)
+        return jsonify({"error": f"Cannot save tab with more than {MAX_PENALTIES_PER_TAB} penalties."}), 400
 
     try:
-        # Serialize penalty list to JSON string
         penalties_json_string = json.dumps(penalties)
     except TypeError as e:
         logger.error("User %s: Failed to serialize penalties to JSON for tab ID %s: %s", current_user.id, client_tab_id, e)
@@ -93,62 +87,66 @@ def save_penalty_tab():
 
     # --- Database Interaction ---
     try:
-        with get_db_session() as db_session:
-            # Find existing saved tab
-            saved_tab = db_session.query(SavedPenaltyTab).filter_by(
-                user_id=current_user.id, client_tab_id=client_tab_id
-            ).first()
+        # Use db.session directly
+        saved_tab = db.session.query(SavedPenaltyTab).filter_by(
+            user_id=current_user.id, client_tab_id=client_tab_id
+        ).first()
 
-            if saved_tab:
-                # Update existing tab
-                logger.debug("User %s: Updating existing SavedPenaltyTab (ID: %s) for client_tab_id %s", current_user.id, saved_tab.id, client_tab_id)
-                saved_tab.tab_name = tab_name.strip() # Ensure stripped name
-                saved_tab.penalties_json = penalties_json_string
-                # timestamp should auto-update if model default is lambda
-            else:
-                # Create new tab, check limit first
-                current_saved_count = db_session.query(SavedPenaltyTab).filter_by(user_id=current_user.id).count()
-                if current_saved_count >= MAX_SAVED_PENALTY_TABS:
-                    logger.warning("User %s: Reached max saved penalty tabs limit (%d).", current_user.id, MAX_SAVED_PENALTY_TABS)
-                    return jsonify({"error": f"You have reached the maximum number of saved penalty tabs ({MAX_SAVED_PENALTY_TABS})."}), 400
+        if saved_tab:
+            # Update existing tab
+            logger.debug("User %s: Updating existing SavedPenaltyTab (ID: %s) for client_tab_id %s", current_user.id, saved_tab.id, client_tab_id)
+            saved_tab.tab_name = tab_name.strip()
+            saved_tab.penalties_json = penalties_json_string
+            # timestamp should auto-update if model default is lambda
+        else:
+            # Create new tab, check limit first
+            current_saved_count = db.session.query(SavedPenaltyTab).filter_by(user_id=current_user.id).count()
+            if current_saved_count >= MAX_SAVED_PENALTY_TABS:
+                logger.warning("User %s: Reached max saved penalty tabs limit (%d).", current_user.id, MAX_SAVED_PENALTY_TABS)
+                return jsonify({"error": f"You have reached the maximum number of saved penalty tabs ({MAX_SAVED_PENALTY_TABS})."}), 400
 
-                logger.debug("User %s: Creating new SavedPenaltyTab for client_tab_id %s", current_user.id, client_tab_id)
-                saved_tab = SavedPenaltyTab(
-                    user_id=current_user.id,
-                    client_tab_id=client_tab_id,
-                    tab_name=tab_name.strip(), # Ensure stripped name
-                    penalties_json=penalties_json_string
-                )
-                db_session.add(saved_tab)
-        # Commit happens automatically
+            logger.debug("User %s: Creating new SavedPenaltyTab for client_tab_id %s", current_user.id, client_tab_id)
+            new_tab = SavedPenaltyTab( # Renamed variable to avoid confusion
+                user_id=current_user.id,
+                client_tab_id=client_tab_id,
+                tab_name=tab_name.strip(),
+                penalties_json=penalties_json_string
+            )
+            db.session.add(new_tab)
+        
+        # Commit the changes (add or update)
+        db.session.commit() 
 
         logger.info("User %s: Successfully saved penalty tab data for client_tab_id %s.", current_user.id, client_tab_id)
         return jsonify({"status": "ok"})
 
     except Exception as e:
+        db.session.rollback() # Rollback on any exception during DB interaction
         logger.error("User %s: Failed to save penalty tab data for client_tab_id %s.", current_user.id, client_tab_id, exc_info=True)
         return jsonify({"error": "Failed to save penalty tab due to a server error."}), 500
 
-
-@penalties_api_bp.route("/load_tabs", methods=["GET"])
+# Update decorator to use the new blueprint name
+@penalties_api.route("/load_tabs", methods=["GET"]) 
 @login_required
 def load_saved_penalty_tabs():
     """API: Load all saved penalty tabs for the current user."""
     logger.debug("User %s: Request received for /api/penalties/load_tabs", current_user.id)
     try:
-        with get_db_session() as db_session:
-            saved_tabs_orm = db_session.query(SavedPenaltyTab).filter_by(user_id=current_user.id).all()
-            # Format using model's to_dict, keyed by client_tab_id
-            tabs_data = { tab.client_tab_id: tab.to_dict() for tab in saved_tabs_orm }
+        # Use db.session directly
+        saved_tabs_orm = db.session.query(SavedPenaltyTab).filter_by(user_id=current_user.id).all()
+        # Format using model's to_dict, keyed by client_tab_id
+        tabs_data = { tab.client_tab_id: tab.to_dict() for tab in saved_tabs_orm }
 
         logger.info(f"User %s: Loaded {len(tabs_data)} saved penalty tabs.", current_user.id)
         return jsonify(tabs_data) # Return dict directly
+        
     except Exception as e:
+        db.session.rollback() # Rollback on error
         logger.exception("User %s: Failed to load saved penalty tabs.", current_user.id)
         return jsonify({"error": "Failed to load saved penalty tabs due to a server error."}), 500
 
-
-@penalties_api_bp.route("/delete_tab", methods=["POST"])
+# Update decorator to use the new blueprint name
+@penalties_api.route("/delete_tab", methods=["POST"]) 
 @login_required
 def delete_saved_penalty_tab():
     """API: Delete a specific saved penalty tab for the current user."""
@@ -165,21 +163,23 @@ def delete_saved_penalty_tab():
         return jsonify({"error": "The 'default' penalty tab cannot be deleted."}), 400
 
     try:
-        with get_db_session() as db_session:
-            tab_to_delete = db_session.query(SavedPenaltyTab).filter_by(
-                user_id=current_user.id, client_tab_id=client_tab_id
-            ).first()
+        # Use db.session directly
+        tab_to_delete = db.session.query(SavedPenaltyTab).filter_by(
+            user_id=current_user.id, client_tab_id=client_tab_id
+        ).first()
 
-            if tab_to_delete:
-                db_session.delete(tab_to_delete)
-                logger.info("User %s: SavedPenaltyTab for client_tab_id %s deleted.", current_user.id, client_tab_id)
-                # Commit happens automatically
-                return jsonify({"status": "ok"})
-            else:
-                logger.warning("User %s: SavedPenaltyTab for client_tab_id %s not found for deletion.", current_user.id, client_tab_id)
-                # Return success even if not found, as the desired state (not existing) is achieved
-                return jsonify({"status": "ok", "message": "Penalty tab not found in database (already deleted or never saved)."})
+        if tab_to_delete:
+            db.session.delete(tab_to_delete)
+            db.session.commit() # Commit the deletion
+            logger.info("User %s: SavedPenaltyTab for client_tab_id %s deleted.", current_user.id, client_tab_id)
+            return jsonify({"status": "ok"})
+        else:
+            logger.warning("User %s: SavedPenaltyTab for client_tab_id %s not found for deletion.", current_user.id, client_tab_id)
+            # Return success even if not found, as the desired state (not existing) is achieved
+            return jsonify({"status": "ok", "message": "Penalty tab not found (already deleted or never saved)."})
 
     except Exception as e:
+        db.session.rollback() # Rollback on error during delete/commit
         logger.error("User %s: Failed to delete penalty tab data for client_tab_id %s.", current_user.id, client_tab_id, exc_info=True)
         return jsonify({"error": "Failed to delete penalty tab due to a server error."}), 500
+

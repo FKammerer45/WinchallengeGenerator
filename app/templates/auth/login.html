@@ -5,10 +5,17 @@
 {% block content %}
 <div class="container mt-4">
   <h2>Login</h2>
-  <form method="post" action="{{ url_for('auth.login') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="form-group">
+  {# Display flashed messages if any #}
+  {% include '_flash_messages.html' ignore missing %} {# Added ignore missing #}
+
+  <form method="post" action="{{ url_for('auth.login') }}">
+    {# Keep CSRF token if your app uses it (e.g., via Flask-WTF) #}
+    {# If not using Flask-WTF forms, you might need to generate/validate this differently #}
+    {# Assuming Flask-WTF or similar provides csrf_token() globally #}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
+
+    <div class="form-group mb-3"> {# Added mb-3 for spacing #}
       <label for="username">Username:</label>
       <input
         type="text"
@@ -19,7 +26,7 @@
         placeholder="Enter your username">
     </div>
 
-    <div class="form-group">
+    <div class="form-group mb-3"> {# Added mb-3 for spacing #}
       <label for="password">Password:</label>
       <input
         type="password"
@@ -30,9 +37,18 @@
         placeholder="Enter your password">
     </div>
 
-    <div class="form-group">
-      <div class="g-recaptcha" data-sitekey="{{ RECAPTCHA_PUBLIC_KEY }}"></div>
+    {# --- reCAPTCHA Integration --- #}
+    {# Conditionally render if enabled and key is provided #}
+    {% if recaptcha_enabled and recaptcha_public_key %}
+    <div class="form-group mb-3 d-flex justify-content-center"> {# Added mb-3 and centering #}
+        {# Use the correct variable name passed from the route #}
+        <div class="g-recaptcha" data-sitekey="{{ recaptcha_public_key }}"></div>
     </div>
+    {% elif recaptcha_enabled and not recaptcha_public_key %}
+         {# Optional: Display a warning if enabled but key missing #}
+         <p class="text-danger small mb-3">reCAPTCHA is enabled but the site key is missing.</p> {# Bootstrap danger color #}
+    {% endif %}
+    {# --- End reCAPTCHA Integration --- #}
 
     <button type="submit" class="btn btn-primary">Login</button>
   </form>
@@ -45,4 +61,9 @@
 {% endblock %}
 
 {% block scripts %}
-  {% endblock %}
+  {{ super() if super }} {# Include scripts from base template if needed #}
+  {# Conditionally load reCAPTCHA script if enabled and key is present #}
+  {% if recaptcha_enabled and recaptcha_public_key %}
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  {% endif %}
+{% endblock %}
