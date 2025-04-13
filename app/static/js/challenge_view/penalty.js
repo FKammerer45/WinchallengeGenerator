@@ -6,7 +6,7 @@ import { getLocalPenalties } from "../penalties/penaltyLocalStorageUtils.js";
 // Import shared helper functions
 import { escapeHtml, showError } from '../utils/helpers.js'; // Use showError instead of local displayStatus
 import { apiFetch } from '../utils/api.js';
-import { updatePenaltyDisplay } from './challenge_ui.js';
+import { updatePenaltyDisplay } from './ui.js';
 // --- Library Checks ---
 let winwheelLoaded = true;
 if (typeof Winwheel === 'undefined') {

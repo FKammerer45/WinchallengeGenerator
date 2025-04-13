@@ -1,55 +1,31 @@
 {% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %} {# Optional: Import macro #}
 
 {% block title %}Confirm Account Deletion{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-  <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-      <div class="card border-danger">
-        <div class="card-header bg-danger text-white">
-          <h2 class="h4 mb-0">Confirm Account Deletion</h2>
-        </div>
-        <div class="card-body">
-          <p class="text-danger font-weight-bold">Warning: This action is permanent and cannot be undone!</p>
-          <p>Deleting your account will remove:</p>
-          <ul>
-            <li>Your user profile (username and hashed password).</li>
-            <li>All your saved Game Tabs.</li>
-            <li>All your saved Penalty Tabs (if implemented).</li>
-            <li>All your accepted Challenges (if linked to users).</li>
-          </ul>
-          <p>Are you absolutely sure you want to proceed?</p>
+    <h2>Confirm Account Deletion</h2>
 
-          <hr>
+    {# Display flashed messages #}
+    {% include '_flash_messages.html' ignore missing %}
 
-           {# Display flashed messages specific to this form #}
-          {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-              {% for category, message in messages %}
-              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message | safe }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-              </div>
-              {% endfor %}
-            {% endif %}
-          {% endwith %}
-
-          <form method="post" action="{{ url_for('auth.delete_account') }}" id="deleteAccountForm">
-             {# Add CSRF token #}
-             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-             <div class="form-group">
-               <label for="password">Enter your current password to confirm:</label>
-               <input type="password" class="form-control" id="password" name="password" required>
-             </div>
-
-             <button type="submit" class="btn btn-danger btn-block">Yes, Delete My Account Permanently</button>
-             <a href="{{ url_for('main.index') }}" class="btn btn-secondary btn-block mt-2">Cancel</a>
-          </form>
-        </div>
-      </div>
+    <div class="alert alert-danger" role="alert">
+        <strong>Warning!</strong> Are you sure you want to permanently delete your account? 
+        This action cannot be undone. All your saved tabs and challenge data will be lost.
     </div>
-  </div>
+
+    <form method="POST" action="{{ url_for('auth.delete_account') }}">
+        {{ form.hidden_tag() }} {# CSRF token #}
+
+        <p>To confirm, please enter your current password:</p>
+        
+        <div class="mb-3">
+            {{ render_field(form.password, class="form-control", placeholder="Enter your current password") }}
+        </div>
+
+        {{ form.submit(class="btn btn-danger") }} {# Use danger button style #}
+        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Cancel</a> {# Add a cancel button #}
+    </form>
 </div>
 {% endblock %}

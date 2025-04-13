@@ -230,25 +230,24 @@ Challenge Not Found
 {{ super() }} {# Include base scripts (jQuery, Bootstrap) #}
 
 {# --- Conditionally Load Penalty-Related Scripts --- #}
-{% set might_have_penalties = (shared_challenge and shared_challenge.penalty_info) or is_local %}
-{% if might_have_penalties %}
+
   <script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
   <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
-{% endif %}
+
 
 {# --- Core Challenge View Modules --- #}
 <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/challenge/local_challenge_storage.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/challenge/challenge_ui.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/utils/local_storage.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/ui.js') }}"></script>
 
 {# --- Conditionally Load Penalty Logic Module --- #}
 {% if might_have_penalties %}
-  <script type="module" src="{{ url_for('static', filename='js/challenge/challenge_penalty.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/penalites/penalty.js') }}"></script>
 {% endif %}
 
 {# --- Main View Orchestrator Module --- #}
-<script type="module" src="{{ url_for('static', filename='js/challenge/challenge_view.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/main.js') }}"></script>
 {% endblock %}
 

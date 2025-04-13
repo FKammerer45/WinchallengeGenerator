@@ -167,5 +167,6 @@
 
 {% block scripts %}
 {{ super() }}
-<script type="module" src="{{ url_for('static', filename='js/challenge/challenge.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_generator/form.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_generator/share.js') }}"></script>
 {% endblock %}

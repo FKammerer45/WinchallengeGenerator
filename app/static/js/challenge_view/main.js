@@ -8,11 +8,11 @@ import {
     updateGroupCountDisplay, renderProgressItems, addGroupToDOM,
     updateUIAfterMembershipChange, renderOrUpdateProgressBar,
     renderStaticChallengeDetailsJS, updatePenaltyDisplay, renderPlayerNameInputs
-} from './challenge_ui.js';
-import { getLocalChallengeById, updateLocalChallengeProgress } from './local_challenge_storage.js';
-import { updatePenaltyConfig } from './challenge_penalty.js';
+} from './ui.js';
+import { getLocalChallengeById, updateLocalChallengeProgress } from '../utils/local_storage.js';
+import { updatePenaltyConfig } from './penalty.js';
 // Import timer initializer
-import { initializeTimer } from './challenge_timer.js';
+import { initializeTimer } from './timer.js';
 
 // --- Module-level State ---
 let challengeConfig = {

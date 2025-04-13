@@ -1,9 +1,9 @@
 // static/js/my_challenges.js
 // Handles interactions on the "My Challenges" page (my_challenges.html)
 
-import { getLocalChallenges, deleteLocalChallenge } from './local_challenge_storage.js';
-import { apiFetch } from '../utils/api.js';
-import { setLoading, escapeHtml, showError } from '../utils/helpers.js';
+import { getLocalChallenges, deleteLocalChallenge } from './utils/local_storage.js';
+import { apiFetch } from './utils/api.js';
+import { setLoading, escapeHtml, showError } from './utils/helpers.js';
 
 // --- DOM Element References ---
 let accountChallengesRow = null; // The row inside the account collapse body

@@ -6,15 +6,14 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - copy_project.py
   - filetree.py
   - run.py
+  - seed_defaults.py
 
 ./app/
   - __init__.py
-  - database.py
   - models.py
 
 ./app/modules/
   - __init__.py
-  - auth.py
   - challenge_generator.py
   - game_management.py
   - game_preferences.py
@@ -22,6 +21,7 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - recaptcha.py
 
 ./app/routes/
+  - auth.py
   - challenge_api.py
   - games_api.py
   - main.py
@@ -36,6 +36,7 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - challenge_form.js
   - challenge_penalty.js
   - challenge_share.js
+  - challenge_timer.js
   - challenge_ui.js
   - challenge_view.js
   - local_challenge_storage.js
@@ -81,6 +82,7 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - _challenge_info_bar.html
   - _challenge_penalty_section.html
   - _challenge_timer.html
+  - _group_card_content.html
 
 ./app/templates/games/
   - games.html
@@ -88,96 +90,6 @@ Filtered File List (.py, .html, .js) under: C:\Users\kamme\OneDrive\Desktop\codi
   - games_table.html
 
 ./app/templates/penalties/
-  - penalties_modals.html
-  - penalties_table.html
-
-./winchallange generator_Code_Copy/
-  - config.py
-  - copy_project.py
-  - filetree.py
-  - run.py
-
-./winchallange generator_Code_Copy/app/
-  - __init__.py
-  - database.py
-  - models.py
-
-./winchallange generator_Code_Copy/app/modules/
-  - __init__.py
-  - auth.py
-  - challenge_generator.py
-  - game_management.py
-  - game_preferences.py
-  - image_utils.py
-  - recaptcha.py
-
-./winchallange generator_Code_Copy/app/routes/
-  - challenge_api.py
-  - games_api.py
-  - main.py
-  - penalties_api.py
-  - tabs_api.py
-
-./winchallange generator_Code_Copy/app/static/js/
-  - app.js
-
-./winchallange generator_Code_Copy/app/static/js/challenge/
-  - challenge.js
-  - challenge_form.js
-  - challenge_penalty.js
-  - challenge_share.js
-  - challenge_ui.js
-  - challenge_view.js
-  - local_challenge_storage.js
-  - my_challenges.js
-
-./winchallange generator_Code_Copy/app/static/js/games/
-  - entryManagement.js
-  - games.js
-  - gamesExtensions.js
-  - localStorageUtils.js
-  - tabManagement.js
-
-./winchallange generator_Code_Copy/app/static/js/libs/
-  - Winwheel.min.js
-
-./winchallange generator_Code_Copy/app/static/js/penalties/
-  - penalties.js
-  - penaltyEntryManagement.js
-  - penaltyExtensions.js
-  - penaltyLocalStorageUtils.js
-  - penaltyTabManagement.js
-
-./winchallange generator_Code_Copy/app/static/js/utils/
-  - api.js
-  - helpers.js
-
-./winchallange generator_Code_Copy/app/templates/
-  - base.html
-  - challenge.html
-  - index.html
-  - my_challenges.html
-  - penalties.html
-
-./winchallange generator_Code_Copy/app/templates/auth/
-  - change_password.html
-  - confirm_delete.html
-  - login.html
-  - register.html
-
-./winchallange generator_Code_Copy/app/templates/challenge/
-  - _challenge_details.html
-  - _challenge_group_progress.html
-  - _challenge_info_bar.html
-  - _challenge_penalty_section.html
-  - _challenge_timer.html
-
-./winchallange generator_Code_Copy/app/templates/games/
-  - games.html
-  - games_modals.html
-  - games_table.html
-
-./winchallange generator_Code_Copy/app/templates/penalties/
   - penalties_modals.html
   - penalties_table.html
 

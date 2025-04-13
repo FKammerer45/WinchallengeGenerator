@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 # Import logic functions
 from app.modules.challenge_generator import generate_challenge_logic
 from app.modules.game_preferences import initialize_game_vars
-
+from app import csrf
 # Import db instance from app
 from app import db 
 # Import necessary models
@@ -148,39 +148,68 @@ def generate_challenge():
 
 # --- /share endpoint ---
 # Update decorator to use the new blueprint name
+# --- /share endpoint ---
 @challenge_api.route("/share", methods=["POST"]) 
-@login_required
+@csrf.exempt # Keep exempt for this API endpoint called by fetch
+@login_required # Keep login required
 def share_challenge():
     """
     Creates a persistent SharedChallenge, now with a limit per user
     and saves the intended number of players per group.
     """
-    logger.info(f"'/api/challenge/share' endpoint called by user {current_user.username}")
+    # Removed the temporary manual login check - @login_required handles it
+    logger.info(f"--- Share endpoint called by user {current_user.username} ---")
+    
     MAX_CHALLENGES_PER_USER = current_app.config.get('MAX_CHALLENGES_PER_USER', 10)
-    data = request.get_json()
+    
+    # --- Get and Log Parsed Data ---
+    try:
+        # force=True can sometimes help if content-type isn't exactly application/json
+        data = request.get_json(force=True) 
+    except Exception as json_err:
+        logger.error(f"Failed to parse request JSON: {json_err}")
+        return jsonify({"error": "Invalid JSON data received."}), 400
 
-    # Validate payload structure
-    if not data or not isinstance(data.get('challenge_data'), dict) or \
-       ('normal' not in data['challenge_data'] and 'b2b' not in data['challenge_data']):
-        return jsonify({"error": "Invalid or missing challenge data structure."}), 400
+    # Optional: Add back logging if needed for further debugging
+    # logger.debug(f"Parsed JSON data: {data}") 
+
+    # --- Validate payload structure ---
+    error_msg = None
+    if not data:
+        error_msg = "No JSON data received or failed to parse." 
+    elif not isinstance(data.get('challenge_data'), dict):
+         error_msg = "'challenge_data' is missing or not an object."
+    elif 'normal' not in data['challenge_data'] and 'b2b' not in data['challenge_data']:
+         error_msg = "'challenge_data' must contain at least 'normal' or 'b2b' key."
+
+    if error_msg:
+        logger.warning(f"Share validation failed: {error_msg}. Payload: {data}")
+        return jsonify({"error": error_msg}), 400
+    # --- End Validation ---
 
     challenge_data = data.get('challenge_data')
     penalty_info = data.get('penalty_info') # Optional
     name = data.get('name', None) # Optional
-    max_groups = int(data.get('max_groups', 1)) # Default to 1 if not multigroup/passed
-    num_players_per_group = int(data.get('num_players_per_group', 1)) # Default to 1
-    # Basic validation
-    if max_groups < 1: max_groups = 1
-    if num_players_per_group < 1: num_players_per_group = 1
+
+    # --- Robust Type Conversion and Validation ---
+    try:
+        max_groups = int(data.get('max_groups', 1)) 
+        num_players_per_group = int(data.get('num_players_per_group', 1)) 
+        if max_groups < 1: max_groups = 1
+        if num_players_per_group < 1: num_players_per_group = 1
+    except (ValueError, TypeError) as conv_err:
+         logger.warning(f"Invalid numeric value for max_groups or num_players_per_group: {conv_err}. Data: {data}")
+         return jsonify({"error": "Invalid value for max_groups or num_players_per_group."}), 400
+    # --- End Type Conversion ---
 
     try:
-        # Use db.session directly
         # Check user challenge limit
         current_challenge_count = db.session.query(func.count(SharedChallenge.id))\
             .filter(SharedChallenge.creator_id == current_user.id)\
             .scalar()
         if current_challenge_count >= MAX_CHALLENGES_PER_USER:
-            return jsonify({"error": f"Max challenges ({MAX_CHALLENGES_PER_USER}) reached."}), 403
+            logger.warning(f"User {current_user.username} reached challenge limit ({MAX_CHALLENGES_PER_USER}).")
+            return jsonify({"error": f"Max challenges ({MAX_CHALLENGES_PER_USER}) reached."}), 403 # Use 403 Forbidden
 
         logger.debug(f"User {current_user.username} has {current_challenge_count} challenges. Limit is {MAX_CHALLENGES_PER_USER}. Proceeding.")
 
@@ -190,8 +219,8 @@ def share_challenge():
             public_id=public_id,
             creator_id=current_user.id,
             name=name,
-            challenge_data=challenge_data,
-            penalty_info=penalty_info,
+            challenge_data=challenge_data, 
+            penalty_info=penalty_info,     
             max_groups=max_groups,
             num_players_per_group=num_players_per_group
         )
@@ -217,6 +246,10 @@ def share_challenge():
         db.session.rollback() # Rollback on unexpected error
         logger.exception(f"Unexpected error sharing challenge for user {current_user.username}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
+
+
+
+
 
 
 # --- /<public_id>/groups endpoint ---

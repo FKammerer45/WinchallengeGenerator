@@ -1,0 +1,20 @@
+{# Macro to render a WTForms field with Bootstrap styling and errors #}
+{% macro render_field(field, label_visible=true) %}
+  <div class="form-group mb-3">
+    {% if label_visible and field.label %}
+      {{ field.label(class="form-label") }}
+    {% endif %}
+    
+    {# Add is-invalid class to field if errors exist #}
+    {% set field_class = kwargs.pop('class', '') + (' is-invalid' if field.errors else '') %}
+    {{ field(class=field_class, **kwargs) }}
+    
+    {% if field.errors %}
+      <div class="invalid-feedback">
+        {% for error in field.errors %}
+          <span>{{ error }}</span><br>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endmacro %}
