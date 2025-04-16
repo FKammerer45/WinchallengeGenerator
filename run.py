@@ -1,6 +1,7 @@
 # run.py
 import os
 from app import create_app, db
+from app.commands import register_commands 
 # Import models needed for shell context or potential startup tasks
 # Corrected imports based on app/models.py
 from app.models import (
@@ -18,7 +19,7 @@ from app.models import (
 # Create the Flask app instance using the factory function
 # It will automatically detect FLASK_ENV or default to 'development'
 app = create_app(os.getenv('FLASK_ENV')) 
-
+register_commands(app)
 # If you are using Flask-Migrate, uncomment the following lines:
 # from flask_migrate import Migrate
 # migrate = Migrate(app, db)

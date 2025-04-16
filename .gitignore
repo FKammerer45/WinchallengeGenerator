@@ -1,4 +1,6 @@
-challenge_result.jpg
+./venv
 *.pyc
 .env
 notes.md
+seed_defaults.py
+dev.db
