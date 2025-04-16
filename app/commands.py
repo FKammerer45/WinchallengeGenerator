@@ -1,10 +1,14 @@
 # /srv/myflaskapp/WinchallengeGenerator/app/commands.py
 import click
+import logging # Import logging
 from flask.cli import with_appcontext
 
 # Import db instance and models from your app package
 from . import db 
 from .models import GameEntry, Penalty
+
+# Setup logger for this module
+logger = logging.getLogger(__name__)
 
 # --- Define Default Data --- 
 # (You can keep this here, or move it to a separate data file and import it)
@@ -50,20 +54,21 @@ DEFAULT_GAMES = [
     # Add more games as needed
 ]
 
+# --- CORRECTED DEFAULT_PENALTIES list ---
 DEFAULT_PENALTIES = [
-    {'name': 'Hydration Check', 'description': 'Take a good sip of water!'},
-    {'name': 'Posture Check', 'description': 'Sit up straight, shoulders back!'},
-    {'name': 'Quick Stretch', 'description': 'Stretch your arms, neck, or back for 10 seconds.'},
-    {'name': 'Compliment Teammate', 'description': 'Give a genuine compliment to a teammate (in voice or chat).'},
-    {'name': 'Compliment Opponent', 'description': 'Acknowledge a good play by an opponent (in chat).'},
-    {'name': 'Deep Breath', 'description': 'Take 3 slow, deep breaths.'},
-    {'name': 'Laugh it Off', 'description': 'Force a smile or a chuckle, even if tilted.'},
-    {'name': 'Positive Affirmation', 'description': 'Say one positive thing about your own gameplay out loud.'},
-    {'name': 'Clean Your Space', 'description': 'Quickly tidy one small thing near your keyboard/mouse.'},
-    {'name': 'Stand Up', 'description': 'Briefly stand up from your chair.'},
-    # Add more penalties
+    {'name': 'Hydration Check', 'description': 'Take a good sip of water!', 'probability': 1.0},
+    {'name': 'Posture Check', 'description': 'Sit up straight, shoulders back!', 'probability': 1.0},
+    {'name': 'Quick Stretch', 'description': 'Stretch your arms, neck, or back for 10 seconds.', 'probability': 1.0},
+    {'name': 'Compliment Teammate', 'description': 'Give a genuine compliment to a teammate (in voice or chat).', 'probability': 1.0},
+    {'name': 'Compliment Opponent', 'description': 'Acknowledge a good play by an opponent (in chat).', 'probability': 1.0},
+    {'name': 'Deep Breath', 'description': 'Take 3 slow, deep breaths.', 'probability': 1.0},
+    {'name': 'Laugh it Off', 'description': 'Force a smile or a chuckle, even if tilted.', 'probability': 1.0},
+    {'name': 'Positive Affirmation', 'description': 'Say one positive thing about your own gameplay out loud.', 'probability': 1.0},
+    {'name': 'Clean Your Space', 'description': 'Quickly tidy one small thing near your keyboard/mouse.', 'probability': 1.0},
+    {'name': 'Stand Up', 'description': 'Briefly stand up from your chair.', 'probability': 1.0},
+    # Add more penalties with 'probability'
 ]
-# --- End Default Data ---
+# --- End Correction ---
 
 
 # Define the CLI command using click decorators
@@ -71,7 +76,7 @@ DEFAULT_PENALTIES = [
 @with_appcontext # Ensures the command runs within the Flask application context
 def seed_db_command():
     """Populates the database with default game entries and penalties."""
-    print("Seeding database...")
+    logger.info("Seeding database...") # Use logger
     
     try:
         # Seed Games
@@ -87,43 +92,48 @@ def seed_db_command():
         
         if games_to_add:
             db.session.add_all(games_to_add)
-            print(f"Adding {len(games_to_add)} new default game entries.")
+            logger.info(f"Adding {len(games_to_add)} new default game entries.")
         else:
-            print("Default game entries already seem to exist or none provided.")
+            logger.info("Default game entries already seem to exist or none provided.")
 
         # Seed Penalties
         # Check existing to avoid duplicates
         existing_penalties = { p.name for p in db.session.query(Penalty).with_entities(Penalty.name).all() }
         penalties_to_add = []
         for penalty_data in DEFAULT_PENALTIES:
-             if penalty_data['name'] not in existing_penalties:
+             # Check if name exists AND ensure probability is included
+             if penalty_data['name'] not in existing_penalties and 'probability' in penalty_data:
                  penalties_to_add.append(Penalty(**penalty_data))
                  existing_penalties.add(penalty_data['name']) # Add to set
+             elif penalty_data['name'] not in existing_penalties:
+                 logger.warning(f"Skipping penalty '{penalty_data['name']}' because it's missing 'probability' in seed data.")
+
 
         if penalties_to_add:
             db.session.add_all(penalties_to_add)
-            print(f"Adding {len(penalties_to_add)} new default penalties.")
+            logger.info(f"Adding {len(penalties_to_add)} new default penalties.")
         else:
-             print("Default penalties already seem to exist or none provided.")
+             logger.info("Default penalties already seem to exist or none provided.")
 
         # Commit changes if anything was added
         if games_to_add or penalties_to_add:
             db.session.commit()
-            print("Database seeding committed.")
+            logger.info("Database seeding committed.")
         else:
-            print("No new default data needed.")
+            logger.info("No new default data needed.")
 
     except Exception as e:
         db.session.rollback() # Rollback on error
-        print(f"Error seeding database: {e}")
+        logger.error(f"Error seeding database: {e}", exc_info=True) # Log error with traceback
+        print(f"Error seeding database: {e}") # Also print for immediate feedback
     finally:
-        # It's good practice to remove the session in CLI commands
-        # although Flask-SQLAlchemy often handles this.
-        # db.session.remove() 
+        # db.session.remove() # Optional
         pass
+    print("Database seeding finished.") # Keep print for CLI feedback
 
 # Function to register command(s) with the Flask app
 def register_commands(app):
     app.cli.add_command(seed_db_command)
     # Add other custom commands here if you create more
     # app.cli.add_command(another_command)
+

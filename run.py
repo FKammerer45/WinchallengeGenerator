@@ -20,9 +20,8 @@ from app.models import (
 # It will automatically detect FLASK_ENV or default to 'development'
 app = create_app(os.getenv('FLASK_ENV')) 
 register_commands(app)
-# If you are using Flask-Migrate, uncomment the following lines:
-# from flask_migrate import Migrate
-# migrate = Migrate(app, db)
+
+
 
 # Define context for the Flask shell (`flask shell`)
 # Makes it easier to work with the database and models interactively
@@ -43,17 +42,7 @@ def make_shell_context():
         # 'user_challenge_group_membership_table': user_challenge_group_membership 
     }
 
-# Define custom CLI commands (Optional)
-# Example: A command to seed default data
-@app.cli.command("seed")
-def seed_data():
-    """Seeds the database with default data."""
-    print("Seeding database...")
-    # Example: Call seeding functions within app context
-    # from seed_defaults import seed_initial_data # Make sure this exists and is importable
-    # with app.app_context(): 
-    #     seed_initial_data(db) 
-    print("Database seeding complete (implement actual logic).")
+
 
 # Main execution block when script is run directly
 if __name__ == '__main__':
