@@ -112,7 +112,6 @@ export function handleSaveNewGame() {
     const difficulty = parseFloat(diffInput?.value);
     const numberOfPlayers = parseInt(playersInput?.value);
 
-    showGameFormAlert("", "info", "newGameAlert"); // Clear previous alerts
 
     let errors = [];
     if (!game) errors.push("Game name is required.");

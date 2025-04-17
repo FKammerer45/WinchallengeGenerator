@@ -163,11 +163,29 @@
                                 </td>
                             </tr>
                         </tbody>
+                        <tfoot>
+                            <tr id="showMoreGamesRow" class="d-none">
+                              <td colspan="3" class="text-center py-2">
+                                <button type="button"
+                                        id="showLessGamesBtn"
+                                        class="btn btn-outline-secondary btn-sm mr-2 d-none">
+                                  ▲ Show less
+                                </button>
+                          
+                                <button type="button"
+                                        id="showMoreGamesBtn"
+                                        class="btn btn-outline-primary btn-sm">
+                                  ▼ Show more
+                                </button>
+                              </td>
+                            </tr>
+                          </tfoot>
+
+
                     </table>
                 </div>
             </div>
-            <div class="card-footer text-secondary small"> Check games to include. Adjust weights. Click 'Modes' to
-                filter. </div>
+
         </div>
 
         {# --- Form Error Display --- #}
