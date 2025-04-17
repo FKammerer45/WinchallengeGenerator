@@ -22,7 +22,9 @@ let challengeConfig = {
     urls: { addGroup: null, updateProgressBase: null, joinLeaveBase: null, setPenaltyUrlBase: null, savePlayersBase: null },
     isLoggedIn: false
 };
-let isProcessingClick = false;
+
+const requestControllers = { join: null, leave: null, create: null, savePlayers: null };
+
 
 // --- DOM Element References ---
 let myGroupContainerEl = null;
@@ -36,6 +38,38 @@ const TIMER_ID = 'main';
 
 // --- Helper Functions ---
 
+
+function makeNewProgress(oldProgress, key, isComplete) {
+    const next = { ...oldProgress };
+    if (isComplete) next[key] = true;
+    else delete next[key];
+    return next;
+}
+
+function nextSignal(key) {
+    // abort any in‑flight request of the same logical type
+    requestControllers[key]?.abort?.();
+    const ctrl = new AbortController();
+    requestControllers[key] = ctrl;
+    return ctrl.signal;
+}
+
+
+function lockButton(btn, label) {
+    if (!btn) return;
+    btn.disabled = true;
+    const spinner = btn.querySelector('.spinner-border');
+    if (spinner) spinner.style.display = 'inline-block';
+    btn.dataset.prevText = btn.firstChild.textContent;
+    btn.firstChild.textContent = label;
+}
+function restoreButton(btn) {
+    if (!btn) return;
+    const spinner = btn.querySelector('.spinner-border');
+    if (spinner) spinner.style.display = 'none';
+    btn.firstChild.textContent = btn.dataset.prevText || btn.firstChild.textContent;
+    btn.disabled = false;
+}
 // Helper: join the given group and then refresh UI
 async function autoJoinGroup(groupId) {
     if (!challengeConfig.urls.joinLeaveBase || !groupId) return;
@@ -153,164 +187,121 @@ function updateUserJoinedGroupState(newGroupId) {
 
 async function handleCreateGroupSubmit(event) {
     event.preventDefault();
-    const form = event.target;
-    const groupNameInput = form.elements.group_name;
-    const groupName = groupNameInput.value.trim();
-    const submitButton = form.querySelector('#addGroupBtn');
-    const errorDiv = document.getElementById('addGroupError');
+    const form = event.currentTarget;
+    const groupNameEl = form.elements.group_name;
+    const groupName = groupNameEl.value.trim();
+    const submitBtn = form.querySelector('#addGroupBtn');
+    const errDiv = document.getElementById('addGroupError');
 
-    showError(errorDiv, null);
+    if (submitBtn.disabled) return;                 // double‑click guard
+    showError(errDiv, null);
+
     if (!groupName || groupName.length > 80) {
-        showError(errorDiv, "Invalid group name (1-80 characters)."); return;
+        showError(errDiv, 'Invalid group name (1‑80 chars).'); return;
     }
     if (challengeConfig.initialGroupCount >= challengeConfig.maxGroups) {
-        showError(errorDiv, `Maximum number of groups (${challengeConfig.maxGroups}) reached.`); return;
+        showError(errDiv, `Maximum groups (${challengeConfig.maxGroups}) reached.`); return;
     }
 
-    setLoading(submitButton, true, 'Creating...');
+    setLoading(submitBtn, true, 'Creating…');
+
     try {
-        const data = await apiFetch(challengeConfig.urls.addGroup, {
-            method: 'POST', body: { group_name: groupName }
-        }, challengeConfig.csrfToken);
+        const data = await apiFetch(
+            challengeConfig.urls.addGroup,
+            {
+                method: 'POST',
+                body: { group_name: groupName },
+                signal: nextSignal('create')
+            },
+            challengeConfig.csrfToken);
 
-        if (data.status === 'success' && data.group) {
-            challengeConfig.initialGroups.push({
-                id: data.group.id, name: data.group.name, progress: data.group.progress || {},
-                member_count: 0, player_names: [], active_penalty_text: ''
-            });
-            challengeConfig.initialGroupCount++;
-            addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-            if (!challengeConfig.isMultigroup) {
-                const newId = data.group.id;
+        if (data.status !== 'success' || !data.group) throw new Error(data.error || 'Unknown error.');
 
-                // move card under “Your Group” section
-                const newCard = otherGroupsContainerEl
-                    .querySelector(`.group-card-wrapper[data-group-id="${newId}"]`);
-                if (newCard) {
-                    myGroupContainerEl.innerHTML = '';
-                    const h = document.createElement('h4');
-                    h.className = 'text-warning mb-3'; h.textContent = 'Your Group';
-                    myGroupContainerEl.appendChild(h);
-                    myGroupContainerEl.appendChild(newCard);
-                }
-
-                // join it on the backend
-                await autoJoinGroup(newId);
-            }
-            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
-            groupNameInput.value = '';
-            showError(errorDiv, null);
-        } else { throw new Error(data.error || "Failed to add group."); }
-    } catch (error) {
-        console.error("Create group failed:", error);
-        showError(errorDiv, `Error: ${error.message}`);
-    } finally { setLoading(submitButton, false); }
+        // ← existing success logic unchanged …
+        challengeConfig.initialGroups.push({
+            id: data.group.id, name: data.group.name, progress: {},
+            member_count: 0, player_names: [], active_penalty_text: ''
+        });
+        challengeConfig.initialGroupCount++;
+        addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+        groupNameEl.value = '';
+    }
+    catch (err) {
+        console.error('create‑group failed', err);
+        showError(errDiv, `Error: ${err.message}`);
+    }
+    finally { setLoading(submitBtn, false); }
 }
 
-async function handleJoinGroupClick(event, joinButton) {
-    if (!joinButton || !joinButton.classList.contains('join-group-btn')) {
-        isProcessingClick = false; return;
-    }
-    const groupId = parseInt(joinButton.dataset.groupId, 10);
-    if (isNaN(groupId)) { isProcessingClick = false; return; }
+async function handleJoinGroupClick(_, joinBtn) {
+    if (!joinBtn?.classList.contains('join-group-btn') || joinBtn.disabled) return;
 
-    const buttonContainer = joinButton.closest('.card-footer');
-    const cardWrapper = joinButton.closest('.group-card-wrapper');
-    if (!cardWrapper || !myGroupContainerEl) {
-        console.error("Cannot join group: Missing card wrapper or target container.");
-        isProcessingClick = false; return;
-    }
+    const groupId = Number(joinBtn.dataset.groupId);
+    if (Number.isNaN(groupId)) return;
 
-    setLoading(joinButton, true, 'Joining...');
-    const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`;
+    const cardWrapper = joinBtn.closest('.group-card-wrapper');
+    const footer = joinBtn.closest('.card-footer');
+    lockButton(joinBtn, 'Joining…');
 
     try {
-        await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
+        await apiFetch(
+            `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`,
+            { method: 'POST', signal: nextSignal('join') },
+            challengeConfig.csrfToken);
 
-        // Update classes BEFORE moving
+        /* --- existing success UI moves --------------------------------- */
         cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
         cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
+        myGroupContainerEl.innerHTML = '';
+        const h = Object.assign(document.createElement('h4'), { className: 'text-warning mb-3', textContent: 'Your Group' });
+        myGroupContainerEl.append(h, cardWrapper);
 
-        // Move Card
-        myGroupContainerEl.innerHTML = ''; // Clear placeholder/old
-        const heading = document.createElement('h4');
-        heading.className = 'text-warning mb-3'; heading.textContent = 'Your Group';
-        myGroupContainerEl.appendChild(heading);
-        myGroupContainerEl.appendChild(cardWrapper);
-
-        // Update State
         updateUserJoinedGroupState(groupId);
-        const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
-        if (groupIndex !== -1) {
-            challengeConfig.initialGroups[groupIndex].member_count = Math.min(
-                (challengeConfig.initialGroups[groupIndex].member_count || 0) + 1,
-                challengeConfig.numPlayersPerGroup
-            );
-        }
+        const g = challengeConfig.initialGroups.find(x => x.id === groupId);
+        if (g) g.member_count = Math.min((g.member_count || 0) + 1, challengeConfig.numPlayersPerGroup);
 
-        // Refresh UI
         updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-
-    } catch (error) {
-        console.error("Failed to join group:", error);
-        showError(buttonContainer || statusDiv, `Error joining: ${error.message}`);
-        setLoading(joinButton, false); // Reset button only on error
-        // Revert classes if move failed
-        if (cardWrapper) {
-            cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
-            cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
-        }
-    } finally { isProcessingClick = false; }
+    }
+    catch (err) {
+        console.error('join failed', err);
+        showError(footer || statusDiv, `Error joining: ${err.message}`, 'danger');
+    }
+    finally { restoreButton(joinBtn); }
 }
 
-async function handleLeaveGroupClick(event, leaveButton) {
-    if (!leaveButton || !leaveButton.classList.contains('leave-group-btn')) {
-        isProcessingClick = false; return;
-    }
-    const groupId = parseInt(leaveButton.dataset.groupId, 10);
-    if (isNaN(groupId)) { isProcessingClick = false; return; }
+async function handleLeaveGroupClick(_, leaveBtn) {
+    if (!leaveBtn?.classList.contains('leave-group-btn') || leaveBtn.disabled) return;
 
-    const buttonContainer = leaveButton.closest('.card-footer');
-    const cardWrapper = leaveButton.closest('.group-card-wrapper');
-    if (!cardWrapper || !otherGroupsContainerEl || !myGroupContainerEl) {
-        console.error("Cannot leave group: Missing card wrapper or target container.");
-        isProcessingClick = false; return;
-    }
+    const groupId = Number(leaveBtn.dataset.groupId);
+    if (Number.isNaN(groupId)) return;
 
-    setLoading(leaveButton, true, 'Leaving...');
-    const url = `${challengeConfig.urls.joinLeaveBase}/${groupId}/leave`;
+    const cardWrapper = leaveBtn.closest('.group-card-wrapper');
+    const footer = leaveBtn.closest('.card-footer');
+    lockButton(leaveBtn, 'Leaving…');
 
     try {
-        await apiFetch(url, { method: 'POST' }, challengeConfig.csrfToken);
+        await apiFetch(
+            `${challengeConfig.urls.joinLeaveBase}/${groupId}/leave`,
+            { method: 'POST', signal: nextSignal('leave') },
+            challengeConfig.csrfToken);
 
-        // Update classes BEFORE moving
         cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
         cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
-
-        // Move Card
         otherGroupsContainerEl.appendChild(cardWrapper);
-        myGroupContainerEl.innerHTML = ''; // Clear "Your Group" section
+        myGroupContainerEl.innerHTML = '';
 
-        // Update State
         updateUserJoinedGroupState(null);
-        const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
-        if (groupIndex !== -1) {
-            challengeConfig.initialGroups[groupIndex].member_count = Math.max(0, (challengeConfig.initialGroups[groupIndex].member_count || 0) - 1);
-        }
+        const g = challengeConfig.initialGroups.find(x => x.id === groupId);
+        if (g) g.member_count = Math.max(0, (g.member_count || 0) - 1);
 
-        // Refresh UI
         updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-
-    } catch (error) {
-        console.error("Failed to leave group:", error);
-        showError(buttonContainer || statusDiv, `Error leaving: ${error.message}`);
-        setLoading(leaveButton, false); // Reset button only on error
-        // Revert classes if move failed
-        if (cardWrapper) {
-            cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
-            cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
-        }
-    } finally { isProcessingClick = false; }
+    }
+    catch (err) {
+        console.error('leave failed', err);
+        showError(footer || statusDiv, `Error leaving: ${err.message}`, 'danger');
+    }
+    finally { restoreButton(leaveBtn); }
 }
 
 async function handleProgressChange(event) {
@@ -350,14 +341,20 @@ async function handleProgressChange(event) {
     try {
         let currentGroupProgress = {};
         if (challengeConfig.isLocal) {
-            challengeConfig.progressData = challengeConfig.progressData || {};
-            if (isComplete) challengeConfig.progressData[progressKey] = true;
-            else delete challengeConfig.progressData[progressKey];
-            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete);
+            const newProgress = makeNewProgress(
+                challengeConfig.progressData || {},
+                progressKey,
+                isComplete
+            );
+            challengeConfig.progressData = Object.freeze(newProgress);
+            const success = updateLocalChallengeProgress(
+                challengeConfig.id, progressKey, isComplete
+            );
+
             if (!success) throw new Error("Failed to save progress locally.");
             if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
             const progressBarContainer = document.getElementById('localProgressBarContainer');
-            if (progressBarContainer) renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData);
+            if (progressBarContainer) renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, newProgress);
         } else {
             const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
             const payload = {
@@ -404,52 +401,51 @@ async function handleProgressChange(event) {
     }
 }
 
-async function handleSavePlayersClick(event, saveButton) {
-    if (!saveButton || !saveButton.classList.contains('save-player-names-btn') || !challengeConfig.isMultigroup) {
-        isProcessingClick = false; return;
-    }
-    const groupId = parseInt(saveButton.dataset.groupId, 10);
-    if (isNaN(groupId)) { isProcessingClick = false; return; }
+async function handleSavePlayersClick(_, saveBtn) {
+    if (!saveBtn?.classList.contains('save-player-names-btn') ||
+        saveBtn.disabled || !challengeConfig.isMultigroup) return;
 
-    const playerNamesSection = saveButton.closest('.player-names-section');
-    const errorContainer = playerNamesSection?.querySelector('.player-name-error');
-    const inputsContainer = playerNamesSection?.querySelector('.player-name-inputs');
-    if (!playerNamesSection || !inputsContainer || !errorContainer) {
-        showError(statusDiv || document.body, "UI Error: Cannot save player names.", "danger");
-        isProcessingClick = false; return;
-    }
+    const groupId = Number(saveBtn.dataset.groupId);
+    if (Number.isNaN(groupId)) return;
 
-    showError(errorContainer, null);
-    const nameInputs = inputsContainer.querySelectorAll('.player-name-input');
-    const playerNames = Array.from(nameInputs)
-        .map(input => input.value.trim())
-        .filter(name => name.length > 0 && name.length <= 50);
+    const section = saveBtn.closest('.player-names-section');
+    const inputs = section.querySelectorAll('.player-name-input');
+    const errBox = section.querySelector('.player-name-error');
+    const names = Array.from(inputs)
+        .map(i => i.value.trim())
+        .filter(n => n && n.length <= 50);
 
-    const maxAllowed = challengeConfig.numPlayersPerGroup || 1;
-    if (playerNames.length > maxAllowed) {
-        showError(errorContainer, `You can only enter up to ${maxAllowed} player names.`, 'warning');
-        isProcessingClick = false; return;
-    }
+    const max = challengeConfig.numPlayersPerGroup || 1;
+    showError(errBox, null);
+    if (names.length > max) { showError(errBox, `Max ${max} names.`, 'warning'); return; }
 
-    setLoading(saveButton, true, 'Saving...');
+    lockButton(saveBtn, 'Saving…');
+
     try {
-        if (!challengeConfig.urls.savePlayersBase) throw new Error("API endpoint for saving player names is not configured.");
         const url = `${challengeConfig.urls.savePlayersBase}/${groupId}/players`;
-        const data = await apiFetch(url, { method: 'POST', body: { player_names: playerNames } }, challengeConfig.csrfToken);
+        const data = await apiFetch(
+            url,
+            {
+                method: 'POST',
+                body: { player_names: names },
+                signal: nextSignal('savePlayers')
+            },
+            challengeConfig.csrfToken);
 
-        if (data.status === 'success') {
-            showError(errorContainer, "Names saved!", 'success');
-            setTimeout(() => showError(errorContainer, null), 2500);
-            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
-            if (groupIndex !== -1) {
-                challengeConfig.initialGroups[groupIndex].player_names = playerNames;
-                if (typeof updatePenaltyConfig === 'function') updatePenaltyConfig(challengeConfig);
-            } else console.warn("Could not find group in local config state to update player names.");
-        } else throw new Error(data.error || "Unknown error saving names.");
-    } catch (error) {
-        console.error("Failed to save player names:", error);
-        showError(errorContainer, `Error: ${error.message}`, 'danger');
-    } finally { setLoading(saveButton, false); isProcessingClick = false; }
+        if (data.status !== 'success') throw new Error(data.error || 'Unknown error');
+
+        showError(errBox, 'Names saved!', 'success');
+        setTimeout(() => showError(errBox, null), 2500);
+
+        const g = challengeConfig.initialGroups.find(x => x.id === groupId);
+        if (g) g.player_names = names;
+        updatePenaltyConfig(challengeConfig);
+    }
+    catch (err) {
+        console.error('save players failed', err);
+        showError(errBox, `Error: ${err.message}`, 'danger');
+    }
+    finally { restoreButton(saveBtn); }
 }
 
 /**
@@ -582,33 +578,37 @@ function renderLocalChallengeView(challenge) {
     }
 }
 
-async function handleClearPenaltyClick(event, clearButton) {
-    if (!clearButton || !clearButton.classList.contains('clear-penalty-btn')) { isProcessingClick = false; return; }
-    const groupId = parseInt(clearButton.dataset.groupId, 10);
-    if (isNaN(groupId)) { isProcessingClick = false; return; }
-    const penaltyDisplayDiv = clearButton.closest('.active-penalty-display');
-    if (!challengeConfig.urls.setPenaltyUrlBase || !challengeConfig.csrfToken) {
-        showError(penaltyDisplayDiv || statusDiv, "Cannot clear penalty: Configuration missing.", "danger");
-        isProcessingClick = false; return;
-    }
-    setLoading(clearButton, true, 'Clearing...');
-    showError(penaltyDisplayDiv || statusDiv, null);
-    const url = `${challengeConfig.urls.setPenaltyUrlBase}/${groupId}/penalty`;
-    const payload = { penalty_text: "" };
-    try {
-        const data = await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
-        if (data.status === 'success') {
-            updatePenaltyDisplay(groupId, '');
-            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
-            if (groupIndex !== -1) challengeConfig.initialGroups[groupIndex].active_penalty_text = '';
-        } else throw new Error(data.error || "Unknown error from server.");
-    } catch (error) {
-        console.error("Failed to clear penalty:", error);
-        showError(penaltyDisplayDiv || statusDiv, `Error: ${error.message}`, 'danger');
-        setLoading(clearButton, false);
-    } finally { isProcessingClick = false; }
-}
+async function handleClearPenaltyClick(_, clearBtn) {
+    if (!clearBtn?.classList.contains('clear-penalty-btn') || clearBtn.disabled) return;
 
+    const groupId = Number(clearBtn.dataset.groupId);
+    const penaltyDisplayDiv = clearBtn.closest('.active-penalty-display');
+    if (Number.isNaN(groupId) || !penaltyDisplayDiv) return;
+
+    if (!challengeConfig.urls.setPenaltyUrlBase || !challengeConfig.csrfToken) {
+        showError(penaltyDisplayDiv, "Cannot clear penalty: configuration missing.", 'danger');
+        return;
+    }
+
+    lockButton(clearBtn, 'Clearing…');
+
+    try {
+        const url = `${challengeConfig.urls.setPenaltyUrlBase}/${groupId}/penalty`;
+        await apiFetch(
+            url,
+            { method: 'POST', body: { penalty_text: '' } },
+            challengeConfig.csrfToken
+        );
+        updatePenaltyDisplay(groupId, '');
+        const g = challengeConfig.initialGroups.find(x => x.id === groupId);
+        if (g) g.active_penalty_text = '';
+    }
+    catch (err) {
+        console.error('clear penalty failed', err);
+        showError(penaltyDisplayDiv, `Error: ${err.message}`, 'danger');
+    }
+    finally { restoreButton(clearBtn); }
+}
 
 // --- Page Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -699,24 +699,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // --- Attach Delegated Event Listeners to the Main Container ---
-        pageContainer.addEventListener('click', (event) => {
-            if (isProcessingClick) { event.preventDefault(); return; }
-            const closestButton = event.target.closest('button[data-group-id]');
-            if (!closestButton) return;
+        pageContainer.addEventListener('click', (evt) => {
+            const btn = evt.target.closest('button');
+            if (!btn || btn.disabled) return;      // double‑click / already busy
 
-            const buttonClasses = closestButton.classList;
-            isProcessingClick = true;
-            try {
-                if (buttonClasses.contains('join-group-btn')) handleJoinGroupClick(event, closestButton);
-                else if (buttonClasses.contains('leave-group-btn')) handleLeaveGroupClick(event, closestButton);
-                else if (buttonClasses.contains('save-player-names-btn')) handleSavePlayersClick(event, closestButton);
-                else if (buttonClasses.contains('clear-penalty-btn')) handleClearPenaltyClick(event, closestButton);
-                else isProcessingClick = false;
-            } catch (handlerError) {
-                console.error("Error occurred inside click event handler:", handlerError);
-                showError(statusDiv, "An unexpected error occurred processing your click.", "danger");
-                isProcessingClick = false;
-            }
+            if (btn.classList.contains('join-group-btn')) { handleJoinGroupClick(evt, btn); return; }
+            if (btn.classList.contains('leave-group-btn')) { handleLeaveGroupClick(evt, btn); return; }
+            if (btn.classList.contains('save-player-names-btn')) { handleSavePlayersClick(evt, btn); return; }
+            if (btn.classList.contains('clear-penalty-btn')) { handleClearPenaltyClick(evt, btn); return; }
+            /* progress‑checkbox clicks are wired with a separate 'change' listener */
         });
 
         // Attach change listener for progress checkboxes

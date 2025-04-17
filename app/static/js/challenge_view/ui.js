@@ -39,7 +39,6 @@ function calculateProgress(challengeData, progressData = {}) {
 
     let total = 0;
     let completed = 0;
-    const safeProgressData = progressData || {};
 
     // Count normal wins
     if (challengeData?.normal) {
@@ -48,7 +47,7 @@ function calculateProgress(challengeData, progressData = {}) {
             total += count;
             for (let i = 0; i < count; i++) {
                 const progressKey = `normal_${key}_${i}`;
-                if (safeProgressData[progressKey] === true) {
+                if (progressData[progressKey] === true) {
 
                     completed++;
                 }
@@ -64,7 +63,7 @@ function calculateProgress(challengeData, progressData = {}) {
                     total += count || 0;
                     for (let i = 0; i < (count || 0); i++) {
                         const progressKey = `b2b_${segmentIdx}_${key}_${i}`;
-                        if (safeProgressData[progressKey] === true) {
+                        if (progressData[progressKey] === true) {
 
                             completed++;
                         }
