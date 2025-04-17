@@ -517,6 +517,7 @@ function handleChallengeFormSubmit(event) {
 }
 
 
+
 // --- Initialization Function ---
 // This function sets up the event listeners and initial state for the generation form.
 // It is NOT exported because it's called directly by the DOMContentLoaded listener below.
@@ -539,7 +540,8 @@ function initializeChallengeForm() {
     const modeRadios = document.querySelectorAll('input[name="group_mode"]');
     const penaltyCheckbox = document.getElementById('enablePenalties');
     const gameSelectionTbody = document.getElementById('gamesSelectionTbody'); // For event delegation
-
+    const selectAllBtn   = document.getElementById("selectAllGamesBtn");
+    const deselectAllBtn = document.getElementById("deselectAllGamesBtn");
     // --- Setup Dropdowns and Initial Game Card ---
     if (gameSourceSelect) {
         populateGameSourceDropdown(); // Populate game tabs
@@ -567,6 +569,19 @@ function initializeChallengeForm() {
         challengeForm.addEventListener('submit', handleChallengeFormSubmit); 
     } else { console.error("Required element missing: #challengeForm"); }
 
+    
+    // --- Select/Deselect all ---
+    if (selectAllBtn)   selectAllBtn.addEventListener("click", () => toggleAllGames(true));
+    if (deselectAllBtn) deselectAllBtn.addEventListener("click", () => toggleAllGames(false));
+
+    function toggleAllGames(select) {
+        if (!gameSelectionTbody) return;
+        gameSelectionTbody.querySelectorAll(".game-select-checkbox").forEach(cb => {
+            cb.checked = select;
+            // fire change so weight‐inputs / mode buttons enable‑disable correctly
+            cb.dispatchEvent(new Event("change"));
+        });
+    }
     // --- Setup Event Delegation for Dynamic Elements (Game Selection Table) ---
      if (gameSelectionTbody) {
          gameSelectionTbody.addEventListener('change', (event) => {

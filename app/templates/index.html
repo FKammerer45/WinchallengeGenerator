@@ -124,14 +124,30 @@
         {# --- Section 3: Select Games & Modes --- #}
         <div class="card shadow-md mb-5">
             <div class="card-header h5">3. Select Games & Modes</div>
-            <div class="form-group col-md-6">
-                <label for="gameSourceSelect">Game Entries Source Tab:</label>
-                <select id="gameSourceSelect" name="game_tab_id" class="form-control custom-select">
-                    <option value="" disabled selected>Loading tabs...</option>
-                </select>
-                <small class="form-text text-secondary">Select the tab containing the games list.</small>
+            <div class="d-flex align-items-end flex-wrap px-3 pt-3">
+                <!-- dropdown -->
+                <div class="form-group mb-2 mr-auto"> <!-- mr‑auto pushes buttons right -->
+                    <label for="gameSourceSelect">Game Entries Source Tab:</label>
+                    <select id="gameSourceSelect" name="game_tab_id" class="form-control custom-select">
+                        <option value="" disabled selected>Loading tabs...</option>
+                    </select>
+                    <small class="form-text text-secondary">
+                        Select the tab containing the games list.
+                    </small>
+                </div>
+
+                <!-- buttons -->
+                <div class="btn-group mb-2">
+                    <button type="button" id="selectAllGamesBtn" class="btn btn-sm btn-outline-primary">
+                        Select&nbsp;All
+                    </button>
+                    <button type="button" id="deselectAllGamesBtn" class="btn btn-sm btn-outline-secondary">
+                        Deselect&nbsp;All
+                    </button>
+                </div>
             </div>
             <div class="card-body p-0"> {# Remove padding for full-width table wrapper #}
+
                 <div class="table-responsive game-selection-table-wrapper">
                     <table class="table table-hover table-sm mb-0 game-selection-table"> {# Removed table-dark #}
                         <thead> {# Thead styled by CSS #}
