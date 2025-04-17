@@ -143,8 +143,22 @@ hr { border: 0; height: 1px; background-color: var(--surface-border); margin: va
 .btn.loading { pointer-events: none; }
 
 /* --- Form Styling --- */
-.form-control, .custom-select { background-color: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-primary); border-radius: var(--border-radius-md); padding: 0.7rem 1rem; transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast); font-size: 1rem; width: 100%; }
-.form-control::placeholder { color: var(--text-secondary); opacity: 0.6; }
+.form-control, .custom-select { 
+  background-color: var(--input-bg); 
+  border: 1px solid var(--input-border); 
+  color: var(--text-primary); 
+  border-radius: var(--border-radius-md); 
+  
+  /* --- ADJUSTED --- */
+  padding: 0.375rem 1rem; /* Reduced vertical padding */
+  height: auto;          /* Allow height to adjust */
+  line-height: normal;   /* Use default line height */
+  /* --- END ADJUSTMENT --- */
+
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast); 
+  font-size: 1rem; 
+  width: 100%; 
+}.form-control::placeholder { color: var(--text-secondary); opacity: 0.6; }
 .form-control:focus, .custom-select:focus { background-color: var(--surface-bg-opaque); border-color: var(--input-focus-border); color: var(--text-primary); box-shadow: var(--input-focus-shadow); outline: none; }
 .form-group { margin-bottom: 1.25rem; }
 label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-secondary); font-size: 0.9em; }
@@ -405,3 +419,12 @@ button.close { outline: none; }
   color: white !important;
 }
 
+.flash-top-center{
+  position:fixed;
+  top:calc(56px + 0.75rem);   /* 56 px navbar + small gap */
+  left:50%;
+  transform:translateX(-50%);
+  z-index:1080;
+  max-width:420px;
+  width:90%;
+}

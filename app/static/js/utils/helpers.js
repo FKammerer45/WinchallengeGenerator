@@ -70,3 +70,42 @@ export function escapeHtml(str) {
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match])
     );
 }
+
+
+
+export function showFlash(message, type = 'info', timeout = 4000) {
+    // create alert element
+    const div = document.createElement('div');
+    div.className = `alert alert-${type} alert-dismissible fade show position-fixed`
+                  + ` shadow-sm rounded`
+                  + ` flash-top-center`;          // custom util → top:1rem; left:50%; transform:translateX(-50%)
+    div.style.zIndex = 1080;                       // above navbars/modals
+    div.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    `;
+    document.body.appendChild(div);
+  
+    // auto‑dismiss
+    setTimeout(() => div.classList.remove('show'), timeout);
+    setTimeout(() => div.remove(), timeout + 150); // allow fade‑out
+  }
+
+
+  export function confirmModal(message, title = "Please confirm") {
+    return new Promise(resolve => {
+      document.getElementById("actionConfirmTitle").textContent = title;
+      document.getElementById("actionConfirmBody").textContent = message;
+      $("#actionConfirmModal").modal("show");
+  
+      const okBtn = document.getElementById("actionConfirmOk");
+      const handler = () => {
+        okBtn.removeEventListener("click", handler);
+        $("#actionConfirmModal").modal("hide");
+        resolve(true);
+      };
+      okBtn.addEventListener("click", handler, { once: true });
+  
+      $("#actionConfirmModal").on("hidden.bs.modal", () => resolve(false));
+    });
+  }

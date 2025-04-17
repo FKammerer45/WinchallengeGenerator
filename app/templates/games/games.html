@@ -25,11 +25,11 @@
 
   {# --- Top Button Row (Conditional on Login) --- #}
   {% if current_user.is_authenticated %}
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
-      <div class="btn-group mb-2" role="group" aria-label="Account Tab Actions">
-          <button id="saveTabBtn" class="btn btn-success btn-sm" title="Save the currently active tab to your account">Save Current Tab</button>
-          <button id="deleteTabBtn" class="btn btn-danger btn-sm" title="Delete the currently active tab">Delete Current Tab</button>
-          <button id="loadSavedTabsBtn" class="btn btn-info btn-sm" title="Load all tabs saved to your account">Load Saved Tabs</button>
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+      <div >
+          <button id="saveTabBtn" class="btn btn-success btn-sm mr-2 mb-2">Save Current Tab</button>
+          <button id="deleteTabBtn" class="btn btn-danger btn-sm mr-2 mb-2">Delete Current Tab</button>
+          <button id="loadSavedTabsBtn" class="btn btn-info btn-sm mr-2 mb-2">Load Saved Tabs</button>
       </div>
       <small class="text-secondary mb-2">You can save up to 5 tabs.</small>
   </div>

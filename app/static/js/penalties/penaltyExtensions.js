@@ -1,313 +1,276 @@
 // penalties/penaltyExtensions.js
 // Handles server interactions for penalty tabs and loading defaults
+// – All plain alerts replaced by reusable toast helper `showFlash()` –
+//   confirm() dialogs (user‑decisions) kept unchanged.
 
-import { getLocalPenaltyTabs, getLocalPenalties, setLocalPenaltyTabs, setLocalPenalties } from "./penaltyLocalStorageUtils.js";
+import {
+    getLocalPenaltyTabs,
+    getLocalPenalties,
+    setLocalPenaltyTabs,
+    setLocalPenalties
+} from "./penaltyLocalStorageUtils.js";
 import { createPenaltyTabFromLocalData } from "./penaltyTabManagement.js";
 import { renderPenaltiesForTab } from "./penaltyEntryManagement.js";
+import { confirmModal, showFlash } from "../utils/helpers.js";
 
-// --- Reusable API Fetch Helper --- (Consider moving to a shared utils.js)
+
+// ---------- reusable API fetch ------------------------------------------------
 async function apiFetch(url, options = {}) {
-    const method = options.method || 'GET';
+    const method = options.method || "GET";
     options.headers = options.headers || {};
-    if (['POST', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
-        if (!options.headers['Content-Type']) { options.headers['Content-Type'] = 'application/json'; }
-        if (typeof csrfToken === 'string' && csrfToken) { options.headers['X-CSRFToken'] = csrfToken; }
-        if (options.body && typeof options.body === 'object' && options.headers['Content-Type'] === 'application/json') {
+
+    if (["POST", "PUT", "DELETE"].includes(method.toUpperCase())) {
+        if (!options.headers["Content-Type"])
+            options.headers["Content-Type"] = "application/json";
+        if (typeof csrfToken === "string" && csrfToken)
+            options.headers["X-CSRFToken"] = csrfToken;
+        if (
+            options.body &&
+            typeof options.body === "object" &&
+            options.headers["Content-Type"] === "application/json"
+        ) {
             options.body = JSON.stringify(options.body);
         }
     }
+
     console.log(`Penalty API Fetch: ${method} ${url}`);
-    const response = await fetch(url, options);
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.error || errorData?.message || response.statusText || `HTTP error ${response.status}`;
-        console.error(`API Error ${response.status} for ${url}:`, errorMessage, errorData);
-        throw new Error(errorMessage);
+    const resp = await fetch(url, options);
+
+    if (!resp.ok) {
+        const errData = await resp.json().catch(() => null);
+        const msg =
+            errData?.error ||
+            errData?.message ||
+            resp.statusText ||
+            `HTTP error ${resp.status}`;
+        console.error(`API error ${resp.status} ${url}:`, msg, errData);
+        throw new Error(msg);
     }
-    if (response.status === 204) return { status: 'ok', message: 'Operation successful (no content)' };
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) return await response.json();
-    return { status: 'ok', message: 'Operation successful (non-JSON response)' };
+    if (resp.status === 204) return { status: "ok", message: "no content" };
+
+    return resp.headers.get("content-type")?.includes("application/json")
+        ? await resp.json()
+        : { status: "ok", message: "non‑JSON response" };
 }
 
-// --- Attach Handlers ---
-
-// Attach Save Penalty Tab Button Handler
+// ---------- SAVE TAB ----------------------------------------------------------
 export function attachSavePenaltyTabHandler() {
-    const saveBtn = document.getElementById("savePenaltyTabBtn");
-    if (!saveBtn) { return; } // Expected if not logged in
-    console.log("Attaching Save Penalty Tab handler to #savePenaltyTabBtn");
+    const btn = document.getElementById("savePenaltyTabBtn");
+    if (!btn) return;
 
-    saveBtn.addEventListener("click", async () => {
-        const activeTabLink = document.querySelector('#penaltiesTab .nav-link.active'); // Use correct tab container ID
-        if (!activeTabLink) { alert("No active penalty tab found."); return; }
-        const currentTabId = activeTabLink.getAttribute("href")?.substring(1); // e.g., '#penaltyPane-default' -> 'penaltyPane-default'
+    btn.addEventListener("click", async () => {
+        const activeLink = document.querySelector(
+            "#penaltiesTab .nav-link.active"
+        );
+        if (!activeLink)
+            return showFlash("No active penalty tab found.", "warning");
 
-        if (!currentTabId || currentTabId === "penaltyPane-default") { // Prevent saving default
-            alert("The default penalty tab cannot be saved."); return;
-        }
+        const tabId = activeLink.getAttribute("href")?.substring(1);
+        if (tabId === "default")
+            return showFlash("The default penalty tab cannot be saved.", "info");
 
-        console.log(`Attempting to save penalty tab: ${currentTabId}`);
-        saveBtn.disabled = true;
-
+        btn.disabled = true;
         try {
-            const allPenalties = getLocalPenalties();
-            const currentTabPenalties = allPenalties[currentTabId] || []; // Get penalties for this specific tab
-
-            const tabData = {
-                tabId: currentTabId, // Send client ID (e.g., penaltyPane-1)
-                tabName: activeTabLink.textContent.trim(),
-                penalties: currentTabPenalties // Send the list of penalty objects
+            const allPen = getLocalPenalties();
+            const payload = {
+                tabId,
+                tabName: activeLink.textContent.trim(),
+                penalties: allPen[tabId] || []
             };
-
-            // *** TODO: Update URL when backend endpoint is implemented ***
-            const data = await apiFetch("/api/penalties/save_tab", {
+            const res = await apiFetch("/api/penalties/save_tab", {
                 method: "POST",
-                body: tabData
+                body: payload
             });
-
-            if (data.status === "ok") {
-                alert("Penalty tab saved successfully.");
-            } else { alert("Error saving penalty tab: " + (data.error || "Unknown response")); }
-        } catch (error) {
-            console.error("Error saving penalty tab:", error);
-            alert("Error saving penalty tab: " + error.message);
+            res.status === "ok"
+                ? showFlash("Penalty tab saved successfully.", "success")
+                : showFlash(
+                    "Error saving penalty tab: " + (res.error || "Unknown response"),
+                    "danger"
+                );
+        } catch (e) {
+            console.error(e);
+            showFlash("Error saving penalty tab: " + e.message, "danger");
         } finally {
-            saveBtn.disabled = false;
+            btn.disabled = false;
         }
     });
 }
 
-// Attach Delete Penalty Tab Button Handler
+/* ---------- DELETE TAB ---------------------------------------------- */
 export function attachDeletePenaltyTabHandler() {
-    const deleteBtn = document.getElementById("deletePenaltyTabBtn");
-    if (!deleteBtn) { return; } // Expected if not logged in
-    console.log("Attaching Delete Penalty Tab handler to #deletePenaltyTabBtn");
-
-    deleteBtn.addEventListener("click", async () => {
-        const activeTabLink = document.querySelector('#penaltiesTab .nav-link.active');
-        if (!activeTabLink) { alert("No active penalty tab found."); return; }
-        const currentTabId = activeTabLink.getAttribute("href")?.substring(1);
-
-        if (!currentTabId || currentTabId === "penaltyPane-default") {
-            alert("The default penalty tab cannot be deleted."); return;
+    const btn = document.getElementById("deletePenaltyTabBtn");
+    if (!btn) return;
+  
+    btn.addEventListener("click", async () => {
+      const activeLink = document.querySelector("#penaltiesTab .nav-link.active");
+      if (!activeLink) return showFlash("No active penalty tab found.", "warning");
+  
+      const tabId = activeLink.getAttribute("href")?.substring(1);
+      if (!tabId || tabId === "penaltyPane-default")
+        return showFlash("The default penalty tab cannot be deleted.", "info");
+  
+      /* new modal confirm */
+      const ok = await confirmModal(
+        `Delete tab “${activeLink.textContent.trim()}”? This removes both local and server copies.`,
+        "Delete penalty tab?"
+      );
+      if (!ok) return;
+  
+      btn.disabled = true;
+      try {
+        const res = await apiFetch("/api/penalties/delete_tab", {
+          method: "POST",
+          body: { tabId }
+        });
+  
+        if (res.status === "ok") {
+          const tabs = getLocalPenaltyTabs() || {};
+          const pen = getLocalPenalties() || {};
+          delete tabs[tabId];
+          delete pen[tabId];
+          setLocalPenaltyTabs(tabs);
+          setLocalPenalties(pen);
+          showFlash("Penalty tab deleted.", "success");
+          location.reload();
+        } else {
+          showFlash(
+            "Error deleting penalty tab: " + (res.error || "Unknown response"),
+            "danger"
+          );
         }
-        if (!confirm(`Delete tab "${activeTabLink.textContent.trim()}"? This includes local and potentially saved server data.`)) { return; }
-
-        console.log(`Attempting to delete penalty tab: ${currentTabId}`);
-        deleteBtn.disabled = true;
-
-        try {
-            // *** TODO: Update URL when backend endpoint is implemented ***
-            const data = await apiFetch("/api/penalties/delete_tab", {
-                method: "POST",
-                body: { tabId: currentTabId }
-            });
-
-            if (data.status === "ok") {
-                console.log("Server confirmed penalty tab deletion.");
-                // Delete locally after server confirms
-                try {
-                    let localTabs = getLocalPenaltyTabs() || {};
-                    let localPenalties = getLocalPenalties() || {};
-                    delete localTabs[currentTabId];
-                    delete localPenalties[currentTabId];
-                    setLocalPenaltyTabs(localTabs);
-                    setLocalPenalties(localPenalties);
-                    console.log("Deleted penalty tab locally:", currentTabId);
-                } catch (localError) { console.error("Error deleting penalty tab locally:", localError); }
-
-                alert("Penalty tab deleted.");
-                location.reload(); // Reload page
-            } else { alert("Error deleting penalty tab on server: " + (data.error || "Unknown response")); }
-        } catch (error) {
-            console.error("Error deleting penalty tab:", error);
-            alert("Error deleting penalty tab: " + error.message);
-        } finally {
-            deleteBtn.disabled = false;
-        }
+      } catch (e) {
+        console.error(e);
+        showFlash("Error deleting penalty tab: " + e.message, "danger");
+      } finally {
+        btn.disabled = false;
+      }
     });
-}
-
-// Attach Load Saved Penalty Tabs Handler
-export function attachLoadSavedPenaltyTabsHandler() {
-    const loadBtn = document.getElementById("loadSavedPenaltyTabsBtn");
-    if (!loadBtn) { return; } // Expected if not logged in
-    console.log("Attaching Load Saved Penalty Tabs handler to #loadSavedPenaltyTabsBtn");
-
-    loadBtn.addEventListener("click", async () => {
-        if (!confirm("Load saved penalty tabs? This will overwrite unsaved local changes in non-default tabs.")) { return; }
-        console.log("Attempting to load saved penalty tabs...");
-        loadBtn.disabled = true;
-
-        try {
-            // *** TODO: Update URL when backend endpoint is implemented ***
-            const tabsData = await apiFetch("/api/penalties/load_tabs");
-
-            if (typeof tabsData !== 'object' || tabsData === null) throw new Error("Invalid data from server.");
-
-            console.log("Received saved penalty tabs data:", tabsData);
-
-            // Preserve default, overwrite others
-            let localTabs = { "default": getLocalPenaltyTabs()?.["default"] || { name: "Default" } };
-            let localPenalties = { "default": getLocalPenalties()?.["default"] || [] };
-            let loadedCount = 0;
-
-            for (const clientTabId in tabsData) {
-                if (clientTabId !== "default") {
-                    localTabs[clientTabId] = { name: tabsData[clientTabId].tab_name }; // Assuming structure from backend
-                    try {
-                        localPenalties[clientTabId] = JSON.parse(tabsData[clientTabId].penalties_json || "[]"); // Assuming key name
-                        loadedCount++;
-                    } catch (e) {
-                        console.error(`Error parsing penalties JSON for loaded tab ${clientTabId}:`, e);
-                        localPenalties[clientTabId] = [];
-                    }
-                }
-            }
-            setLocalPenaltyTabs(localTabs);
-            setLocalPenalties(localPenalties);
-
-            console.log(`${loadedCount} saved penalty tabs loaded into localStorage.`);
-            alert("Saved penalty tabs loaded. Reloading page.");
-            location.reload();
-
-        } catch (error) {
-            console.error("Error loading saved penalty tabs:", error);
-            alert("Error loading saved penalty tabs: " + error.message);
-            loadBtn.disabled = false;
+  }
+  
+  /* ---------- LOAD SAVED TABS ----------------------------------------- */
+  export function attachLoadSavedPenaltyTabsHandler() {
+    const btn = document.getElementById("loadSavedPenaltyTabsBtn");
+    if (!btn) return;
+  
+    btn.addEventListener("click", async () => {
+      const ok = await confirmModal(
+        "Load saved penalty tabs? Unsaved local changes in non‑default tabs will be overwritten.",
+        "Load saved tabs?"
+      );
+      if (!ok) return;
+  
+      btn.disabled = true;
+      try {
+        const data = await apiFetch("/api/penalties/load_tabs");
+        if (typeof data !== "object") throw new Error("Invalid data from server.");
+  
+        const newTabs = {
+          default: getLocalPenaltyTabs()?.default || { name: "Default" }
+        };
+        const newPenalties = {
+          default: getLocalPenalties()?.default || []
+        };
+  
+        let count = 0;
+        for (const id in data) {
+          if (id === "default") continue;
+          newTabs[id] = { name: data[id].tab_name };
+          try {
+            newPenalties[id] = JSON.parse(data[id].penalties_json || "[]");
+          } catch (e) {
+            console.error("Parse penalties JSON", id, e);
+            newPenalties[id] = [];
+          }
+          count++;
         }
+        setLocalPenaltyTabs(newTabs);
+        setLocalPenalties(newPenalties);
+        showFlash(`${count} saved penalty tab(s) loaded.`, "success");
+        location.reload();
+      } catch (e) {
+        console.error(e);
+        showFlash("Error loading saved tabs: " + e.message, "danger");
+        btn.disabled = false;
+      }
     });
-}
+  }
 
-// Attach Penalty Tab Rename Handler (Local Only)
+// ---------- RENAME TAB (local only) ------------------------------------------
 export function attachPenaltyTabRenameHandler() {
-    const penaltiesTabContainer = document.getElementById("penaltiesTab"); // Use correct ID
-    if (!penaltiesTabContainer) { return; }
-    console.log("Attaching Penalty Tab Rename handler to #penaltiesTab");
+    const container = document.getElementById("penaltiesTab");
+    if (!container) return;
 
-    penaltiesTabContainer.addEventListener("dblclick", (e) => {
-        const tabLink = e.target.closest(".nav-link");
-        // Check for the specific ID of the default penalty tab link
-        if (tabLink && tabLink.id !== "default-penalty-tab") {
-            e.preventDefault();
-            const currentName = tabLink.textContent.trim();
-            const newName = prompt(`Enter new name for the penalty tab "${currentName}":`, currentName);
+    container.addEventListener("dblclick", (e) => {
+        const link = e.target.closest(".nav-link");
+        if (!link) return;
 
-            if (newName && newName.trim() && newName.trim() !== currentName) {
-                const finalNewName = newName.trim();
-                tabLink.textContent = finalNewName;
-                const clientTabId = tabLink.getAttribute("data-tab") || tabLink.getAttribute("href")?.substring(1);
+        if (link.id === "default-penalty-tab")
+            return showFlash("The default penalty tab cannot be renamed.", "info");
 
-                if (clientTabId) {
-                    try {
-                        let localTabs = getLocalPenaltyTabs() || {};
-                        if (localTabs[clientTabId]) {
-                            localTabs[clientTabId].name = finalNewName;
-                            setLocalPenaltyTabs(localTabs); // Save rename locally
-                            console.log(`Penalty Tab '${clientTabId}' renamed locally to '${finalNewName}'.`);
-                        } else { console.warn(`Could not find penalty tab ${clientTabId} in localTabs to rename.`); }
-                    } catch (error) {
-                        console.error("Error updating penalty tab name in localStorage:", error);
-                        alert("Failed to save rename locally.");
-                        tabLink.textContent = currentName; // Revert
-                    }
-                } else { console.error("Could not determine clientTabId for penalty tab rename."); tabLink.textContent = currentName; }
-            }
-        } else if (tabLink && tabLink.id === "default-penalty-tab") {
-            alert("The Default penalty tab cannot be renamed."); // Specific message
-        }
-    });
-}
+        const current = link.textContent.trim();
+        const newName = prompt("New tab name:", current);
+        if (!newName || !newName.trim() || newName.trim() === current) return;
 
-
-export async function loadDefaultPenaltiesFromDB() {
-    try {
-        const data = await apiFetch("/api/penalties/load_defaults"); // Fetch from DB API
-
-        if (!data || !Array.isArray(data.penalties)) {
-            throw new Error("Invalid data structure for penalties received.");
-        }
-        console.log(`Received ${data.penalties.length} default penalties from DB.`);
-
-        // *** SIMPLIFIED CONVERSION - API returns correct keys ***
-        // Assign temporary local IDs? Or use DB IDs? Let's use DB IDs.
-        // Ensure JS uses these keys consistently.
-        const defaultPenalties = data.penalties.map(p => ({
-            id: p.id, // Use the ID from the database
-            name: p.name || "",
-            probability: p.probability !== undefined ? p.probability : 0.0,
-            description: p.description || "",
-            tabName: "Default" // Assign to default tab
-        }));
-
-        // Update only the 'default' penalty tab in localStorage
-        let localPenalties = getLocalPenalties() || {}; // Use getter
-        localPenalties["default"] = defaultPenalties;
-        setLocalPenalties(localPenalties); // Use setter
-        console.log("Default penalties updated in localStorage.");
-        renderPenaltiesForTab("default");
-    } catch (err) {
-        console.error('loadDefaultPenaltiesFromDB failed:', err);
-        throw err;
-    }
-}
-// Attach Load Default Penalties Button Handler (Modal Trigger + Confirmation Logic)
-export function attachLoadDefaultPenaltiesHandler() {
-    const loadDefaultBtn = document.getElementById("loadDefaultPenaltiesBtn");
-    const confirmBtn = document.getElementById("confirmLoadDefaultPenaltiesBtn");
-
-    if (!loadDefaultBtn) { console.warn("Load Default Penalties button not found."); return; }
-    if (!confirmBtn) { console.error("Confirmation button for load default penalties not found."); return; }
-
-    console.log("Attaching Load Default Penalties handlers.");
-
-    loadDefaultBtn.addEventListener("click", () => {
-        try { $('#confirmLoadDefaultPenaltiesModal').modal('show'); }
-        catch (e) { console.error("Error showing confirm load default penalties modal:", e); }
-    });
-
-    confirmBtn.addEventListener("click", async () => {
-        console.log("Load Default Penalties confirmed.");
-        try { $('#confirmLoadDefaultPenaltiesModal').modal('hide'); } catch (e) { console.warn("Could not hide confirm modal.", e); }
-
-        loadDefaultBtn.disabled = true; confirmBtn.disabled = true;
+        const id =
+            link.dataset.tab || link.getAttribute("href")?.substring(1) || null;
+        if (!id) return;
 
         try {
-            const data = await apiFetch("/api/penalties/load_defaults"); // Fetch from DB API
+            const tabs = getLocalPenaltyTabs() || {};
+            if (!tabs[id]) throw new Error("Local tab not found.");
 
-            if (!data || !Array.isArray(data.penalties)) {
-                throw new Error("Invalid data structure for penalties received.");
-            }
-            console.log(`Received ${data.penalties.length} default penalties from DB.`);
+            tabs[id].name = newName.trim();
+            setLocalPenaltyTabs(tabs);
+            link.textContent = newName.trim();
+            showFlash("Tab renamed locally.", "success");
+        } catch (e) {
+            console.error(e);
+            showFlash("Failed to save rename locally.", "danger");
+        }
+    });
+}
 
-            // *** SIMPLIFIED CONVERSION - API returns correct keys ***
-            // Assign temporary local IDs? Or use DB IDs? Let's use DB IDs.
-            // Ensure JS uses these keys consistently.
-            const defaultPenalties = data.penalties.map(p => ({
-                id: p.id, // Use the ID from the database
-                name: p.name || "",
-                probability: p.probability !== undefined ? p.probability : 0.0,
-                description: p.description || "",
-                tabName: "Default" // Assign to default tab
-            }));
+// ---------- LOAD DEFAULT PENALTIES from DB -----------------------------------
+export async function loadDefaultPenaltiesFromDB() {
+    const data = await apiFetch("/api/penalties/load_defaults");
+    if (!data || !Array.isArray(data.penalties))
+        throw new Error("Invalid data structure from server.");
 
-            // Update only the 'default' penalty tab in localStorage
-            let localPenalties = getLocalPenalties() || {}; // Use getter
-            localPenalties["default"] = defaultPenalties;
-            setLocalPenalties(localPenalties); // Use setter
-            console.log("Default penalties updated in localStorage.");
+    const defaults = data.penalties.map((p) => ({
+        id: p.id,
+        name: p.name || "",
+        probability:
+            p.probability !== undefined ? p.probability : 0.0,
+        description: p.description || "",
+        tabName: "Default"
+    }));
 
-            // Re-render the 'default' penalty tab UI
-            renderPenaltiesForTab("default");
-            console.log("Default penalty tab UI refreshed.");
-            alert("Default penalties loaded successfully into the 'Default' tab.");
+    const pen = getLocalPenalties() || {};
+    pen.default = defaults;
+    setLocalPenalties(pen);
+    renderPenaltiesForTab("default");
+    showFlash("Default penalties loaded.", "success");
+}
 
-        } catch (error) {
-            console.error("Error loading/processing default penalties:", error);
-            alert("Error loading default penalties: " + error.message);
+// ---------- LOAD‑DEFAULT button + confirm modal ------------------------------
+export function attachLoadDefaultPenaltiesHandler() {
+    const loadBtn = document.getElementById("loadDefaultPenaltiesBtn");
+    const okBtn = document.getElementById("confirmLoadDefaultPenaltiesBtn");
+    if (!loadBtn || !okBtn) return;
+
+    loadBtn.addEventListener("click", () =>
+        $("#confirmLoadDefaultPenaltiesModal").modal("show")
+    );
+
+    okBtn.addEventListener("click", async () => {
+        $("#confirmLoadDefaultPenaltiesModal").modal("hide");
+        loadBtn.disabled = okBtn.disabled = true;
+        try {
+            await loadDefaultPenaltiesFromDB();
+        } catch (e) {
+            showFlash("Error loading default penalties: " + e.message, "danger");
         } finally {
-            loadDefaultBtn.disabled = false; confirmBtn.disabled = false;
+            loadBtn.disabled = okBtn.disabled = false;
         }
     });
 }
