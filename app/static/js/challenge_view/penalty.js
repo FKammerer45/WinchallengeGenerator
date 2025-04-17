@@ -20,7 +20,10 @@ if (typeof TweenMax === 'undefined' && typeof gsap === 'undefined') {
 // --- Module State ---
 let playerWheels = {};
 let penaltyWheels = {};
-const CHALLENGE_INDEX = 'shared'; // Fixed index for elements on this page
+// when the button lives in the local‑challenge card we receive class “lostGameBtn‑local”
+// otherwise it’s “lostGameBtn‑Shared”
+let CHALLENGE_INDEX = 'shared';
+export function setPenaltyContext(idx) { CHALLENGE_INDEX = idx; }
 // Store config read from DOM
 let penaltyPageConfig = { // Keep its own config, initialized on load
     userJoinedGroupId: null,
@@ -176,19 +179,19 @@ async function displayFinalResult(chosenEntity, chosenPenalty, button) {
             // Make sure updatePenaltyDisplay is exported from challenge_ui.js and imported here,
             // or move the function if more appropriate.
             if (typeof updatePenaltyDisplay === "function") { // Check if function exists
-                 updatePenaltyDisplay(targetGroupId, penaltyTextToSave);
+                updatePenaltyDisplay(targetGroupId, penaltyTextToSave);
             } else {
-                 console.warn("updatePenaltyDisplay function not found/imported - UI won't update immediately.");
+                console.warn("updatePenaltyDisplay function not found/imported - UI won't update immediately.");
             }
 
 
         } catch (error) {
-             console.error("Failed to save penalty state to backend:", error);
-             resultDisplay.innerHTML += `<br><small class="text-danger">Error saving penalty state: ${error.message}</small>`;
+            console.error("Failed to save penalty state to backend:", error);
+            resultDisplay.innerHTML += `<br><small class="text-danger">Error saving penalty state: ${error.message}</small>`;
         }
     } else {
-         console.warn("Cannot save penalty state: Missing Group ID, URL base, or CSRF token.");
-         if (!targetGroupId) console.warn("Reason: User is not in a group or target group determination failed.");
+        console.warn("Cannot save penalty state: Missing Group ID, URL base, or CSRF token.");
+        if (!targetGroupId) console.warn("Reason: User is not in a group or target group determination failed.");
     }
     // --- End API Call ---
 
@@ -291,10 +294,13 @@ function spinPenaltyWheel(penaltyTabId, chosenEntity, button) {
 
 /** Main Handler for the "Lost Game" Button Click */
 function handleLostGameClick(event) {
-    if (!winwheelLoaded) return; // Check if library loaded
+    if (!winwheelLoaded) return;
 
-    const button = event.target.closest('.lostGameBtn-Shared');
-    if (!button) return;
+    const button = event.target.closest('.lostGameBtn-Shared, .lostGameBtn-local');
+    if (!button) return;                     // ← first be sure we really clicked a penalty button
+
+    if (button.classList.contains('lostGameBtn-local')) setPenaltyContext('local');
+    else setPenaltyContext('shared');
 
     console.log("Penalty assignment initiated...");
     const penaltyTabId = button.dataset.penaltyTabId;
@@ -331,9 +337,9 @@ function handleLostGameClick(event) {
     if (joinedGroupId !== null && penaltyPageConfig.isMultigroup) {
         const myGroupData = penaltyPageConfig.initialGroups?.find(g => g.id === joinedGroupId);
         const savedNames = (myGroupData?.player_names || [])
-                            .map(name => typeof name === 'string' ? name.trim() : '')
-                            .filter(name => name.length > 0)
-                            .slice(0, playersPerGroup);
+            .map(name => typeof name === 'string' ? name.trim() : '')
+            .filter(name => name.length > 0)
+            .slice(0, playersPerGroup);
 
         if (savedNames.length > 0) {
             participants = savedNames;
@@ -356,10 +362,10 @@ function handleLostGameClick(event) {
     const entityColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
     let entitySegments = createSegments(participants, entityColors);
 
-    if(entitySegments.length === 0) {
-         showError(resultDisplay, "Error creating segments.", 'danger'); // Use showError
-         button.disabled = false; return;
-     }
+    if (entitySegments.length === 0) {
+        showError(resultDisplay, "Error creating segments.", 'danger'); // Use showError
+        button.disabled = false; return;
+    }
 
     const winningSegmentIndex = entitySegments.findIndex(seg => seg.text === chosenEntity) + 1 || 1;
 
@@ -380,11 +386,11 @@ function handleLostGameClick(event) {
         // --- End Update ---
 
         playerWheels[CHALLENGE_INDEX].startAnimation();
-     } catch (e) {
-         console.error("Error creating Participant WinWheel:", e);
-         showError(resultDisplay, "Error initializing participant wheel!", 'danger'); // Use showError
-         button.disabled = false;
-     }
+    } catch (e) {
+        console.error("Error creating Participant WinWheel:", e);
+        showError(resultDisplay, "Error initializing participant wheel!", 'danger'); // Use showError
+        button.disabled = false;
+    }
 }
 
 
@@ -396,27 +402,26 @@ function initializePenaltyHandler() {
 
     // Read INITIAL config data from the DOM
     if (dataEl?.dataset) {
-         try {
-            
-             const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
-             const initialGroups = JSON.parse(dataEl.dataset.initialGroups || 'null');
-             const numPlayers = parseInt(dataEl.dataset.numPlayersPerGroup, 10);
+        try {
 
-             penaltyPageConfig = { // Populate its own config object ONCE
-                 userJoinedGroupId: typeof joinedId === 'number' ? joinedId : null,
-                 numPlayersPerGroup: (!isNaN(numPlayers) && numPlayers >= 1) ? numPlayers : 1,
-                 initialGroups: Array.isArray(initialGroups) ? initialGroups : [],
-                 isMultigroup: dataEl.dataset.isMultigroup === 'true'
-             };
-             console.log("Penalty module initial config read:", penaltyPageConfig);
+            const joinedId = JSON.parse(dataEl.dataset.userJoinedGroupId || 'null');
+            const initialGroups = JSON.parse(dataEl.dataset.initialGroups || 'null');
+            const numPlayers = parseInt(dataEl.dataset.numPlayersPerGroup, 10);
 
-             // Attach listener only if the button exists
-             if (document.querySelector(`.lostGameBtn-Shared`)) {
-                  document.addEventListener('click', handleLostGameClick);
-                  console.log("Challenge Penalty Handler Initialized (delegated).");
-             } else { console.log("Penalty button not found, skipping handler."); }
+            penaltyPageConfig = { // Populate its own config object ONCE
+                userJoinedGroupId: typeof joinedId === 'number' ? joinedId : null,
+                numPlayersPerGroup: (!isNaN(numPlayers) && numPlayers >= 1) ? numPlayers : 1,
+                initialGroups: Array.isArray(initialGroups) ? initialGroups : [],
+                isMultigroup: dataEl.dataset.isMultigroup === 'true'
+            };
+            console.log("Penalty module initial config read:", penaltyPageConfig);
 
-         } catch (e) { console.error("Penalty module failed to read initial config:", e); showError(statusDiv || document.body, "Penalty Init Error.", 'warning'); }
+            // Attach listener only if the button exists
+            document.addEventListener('click', handleLostGameClick);
+            console.log('Challenge Penalty Handler Initialised (delegated).');
+
+
+        } catch (e) { console.error("Penalty module failed to read initial config:", e); showError(statusDiv || document.body, "Penalty Init Error.", 'warning'); }
     } else { console.error("Penalty module could not find #challengeData."); }
 }
 

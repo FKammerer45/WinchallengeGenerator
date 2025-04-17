@@ -117,7 +117,7 @@ Challenge Not Found
     <h2 class="mb-4 text-light text-center">{% if is_multigroup %}Groups & Progress{% else %}Your Progress{% endif %}</h2>
 
     {# Create Group Form (Only for Multigroup) #}
-    {% if is_multigroup %}
+    {% if not is_local %}
     {# Use standard opaque card for form readability #}
     <div class="mb-5 card shadow-md">
       <div class="card-body p-4">
@@ -181,7 +181,7 @@ Challenge Not Found
 
     {# Message shown if no groups exist #}
     <div id="noGroupsMessageContainer" class="col-12 {% if initial_groups %}d-none{% endif %}">
-      <p class="text-secondary text-center py-5">No groups available.{% if is_multigroup %} Create one above!{% endif %}</p>
+      <p class="text-secondary text-center py-5">No groups available.{% if not is_local %} Create one above!{% endif %}</p>
     </div>
 
     {% else %} {# Error loading challenge #}
@@ -194,7 +194,7 @@ Challenge Not Found
 </div> {# End container #}
 
 {# --- Template for New Group Cards (Used by JS) --- #}
-{% if is_multigroup %}
+{% if not is_local %}
 <template id="groupCardTemplate">
   {# Apply standard column classes here #}
   <div class="col-lg-4 col-md-6 mb-4 group-card-wrapper" data-group-id="">
@@ -242,10 +242,7 @@ Challenge Not Found
 <script type="module" src="{{ url_for('static', filename='js/utils/local_storage.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/challenge_view/ui.js') }}"></script>
 
-{# --- Conditionally Load Penalty Logic Module --- #}
-{% if might_have_penalties %}
-  <script type="module" src="{{ url_for('static', filename='js/penalites/penalty.js') }}"></script>
-{% endif %}
+
 
 {# --- Main View Orchestrator Module --- #}
 <script type="module" src="{{ url_for('static', filename='js/challenge_view/main.js') }}"></script>

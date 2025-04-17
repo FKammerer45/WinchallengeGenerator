@@ -36,6 +36,40 @@ const TIMER_ID = 'main';
 
 // --- Helper Functions ---
 
+// Helper: join the given group and then refresh UI
+async function autoJoinGroup(groupId) {
+    if (!challengeConfig.urls.joinLeaveBase || !groupId) return;
+
+    try {
+        await apiFetch(
+            `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`,
+            { method: 'POST' },
+            challengeConfig.csrfToken
+        );
+
+        // update local state
+        updateUserJoinedGroupState(groupId);
+        const grp = challengeConfig.initialGroups.find(g => g.id === groupId);
+        if (grp) grp.member_count = Math.min(
+            (grp.member_count || 0) + 1,
+            challengeConfig.numPlayersPerGroup
+        );
+
+        // refresh UI (checkbox enable, buttons, etc.)
+        updateUIAfterMembershipChange(
+            challengeConfig, myGroupContainerEl, otherGroupsContainerEl
+        );
+
+        console.log(`Auto‑joined group ${groupId} successfully.`);
+    } catch (err) {
+        console.error('Auto‑join failed:', err);
+        showError(
+            statusDiv,
+            `Could not join the group automatically – ${err.message}`,
+            'danger'
+        );
+    }
+}
 /**
  * Reads configuration data from the hidden #challengeData div in the HTML
  * and populates the challengeConfig object.
@@ -146,6 +180,23 @@ async function handleCreateGroupSubmit(event) {
             });
             challengeConfig.initialGroupCount++;
             addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+            if (!challengeConfig.isMultigroup) {
+                const newId = data.group.id;
+
+                // move card under “Your Group” section
+                const newCard = otherGroupsContainerEl
+                    .querySelector(`.group-card-wrapper[data-group-id="${newId}"]`);
+                if (newCard) {
+                    myGroupContainerEl.innerHTML = '';
+                    const h = document.createElement('h4');
+                    h.className = 'text-warning mb-3'; h.textContent = 'Your Group';
+                    myGroupContainerEl.appendChild(h);
+                    myGroupContainerEl.appendChild(newCard);
+                }
+
+                // join it on the backend
+                await autoJoinGroup(newId);
+            }
             updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
             groupNameInput.value = '';
             showError(errorDiv, null);
@@ -427,11 +478,11 @@ function renderLocalChallengeView(challenge) {
         const infoCol = document.createElement('div');
         infoCol.className = 'col-lg-5 mb-4 mb-lg-0';
         const infoCard = document.createElement('div');
-        infoCard.className = 'card h-100 bg-dark text-light shadow-sm challenge-info-card'; // Use same class as DB view
+        infoCard.className = 'card h-100 shadow-md info-card glass-effect'; // Use same class as DB view
         infoCard.innerHTML = `
             <div class="card-header"><h3 class="h5 mb-0">Challenge Info</h3></div>
             <div class="card-body d-flex flex-column">
-                <h4 class="card-title text-warning mb-3">${escapeHtml(challenge.name || 'Unnamed Local Challenge')}</h4>
+                <h4 class="card-title text-secondary-accent mb-3">${escapeHtml(challenge.name || 'Unnamed Local Challenge')}</h4>
                 <p class="card-text mb-2">
                     <strong class="text-muted" style="min-width: 80px; display: inline-block;">Mode:</strong>
                     Local Challenge
@@ -454,7 +505,7 @@ function renderLocalChallengeView(challenge) {
         const rulesCol = document.createElement('div');
         rulesCol.className = 'col-lg-7';
         const rulesCard = document.createElement('div');
-        rulesCard.className = 'card h-100 bg-dark text-light shadow-sm challenge-rules-card'; // Use same class as DB view
+        rulesCard.className = 'card h-100 shadow-md rules-card glass-effect'; // Use same class as DB view
         const rulesHeader = document.createElement('div');
         rulesHeader.className = 'card-header';
         rulesHeader.innerHTML = '<h3 class="h5 mb-0">Challenge Rules</h3>';
@@ -468,11 +519,41 @@ function renderLocalChallengeView(challenge) {
 
         // Append Info/Rules Row to the main container
         displayContainer.appendChild(infoRulesRow);
+        if (challenge.penalty_info) {
+            const penaltyWrapper = document.createElement('div');
+            penaltyWrapper.id = 'penaltySectionContainer-local';
+            penaltyWrapper.className = 'mb-5 card shadow-sm glass-effect';
 
+            penaltyWrapper.innerHTML = `
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="h5 mb-0">Penalties</h3>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+                        data-target="#penaltyBody-local" aria-expanded="true" aria-controls="penaltyBody-local">
+                  <i class="bi bi-chevron-expand"></i>
+                </button>
+              </div>
+              <div id="penaltyBody-local" class="card-body collapse show">
+        <!-- wrapper for the *participant* wheel -->
+        <div id="playerWheelContainer-local" style="display:none" class="text-center mb-3">
+        <canvas id="playerWheelCanvas-local" width="220" height="220"></canvas>
+        <h6 id="playerWheelTitle-local" class="text-center mt-2"></h6>
+        </div>
+
+        <!-- wrapper for the *penalty* wheel -->
+        <div id="penaltyWheelContainer-local" style="display:none" class="text-center">
+            <canvas id="penaltyWheelCanvas-local" width="300" height="300"></canvas>
+         </div>
+                <div id="penaltyResult-local" class="mt-3" style="display:none"></div>
+                <button class="btn btn-warning lostGameBtn-local" data-penalty-tab-id="${challenge.penalty_info.tab_id}">
+                  Lost Game – Spin!
+                </button>
+              </div>`;
+            displayContainer.appendChild(penaltyWrapper);
+        }
         // --- Render Progress Bar (wrapped in a simple card) ---
         const progressWrapperCard = document.createElement('div');
         // Use standard card styling, maybe slightly less prominent than info/rules
-        progressWrapperCard.className = 'card bg-dark text-light mb-4 shadow-sm';
+        progressWrapperCard.className = 'card shadow-md glass-effect mb-4';
         const progressBarContainer = document.createElement('div');
         progressBarContainer.id = 'localProgressBarContainer'; // Specific ID for local bar
         progressBarContainer.className = 'card-body p-2'; // Add padding inside card body
@@ -482,7 +563,7 @@ function renderLocalChallengeView(challenge) {
 
         // --- Render Progress Items Card ---
         const progressItemsCard = document.createElement('div');
-        progressItemsCard.className = 'mb-4 card bg-dark text-light shadow-sm'; // Standard card style
+        progressItemsCard.className = 'mb-4 card group-card glass-effect shadow-md'; // Standard card style
         const progressItemsHeader = document.createElement('div');
         progressItemsHeader.className = 'card-header';
         progressItemsHeader.innerHTML = '<h3 class="mb-0 h5">Your Progress</h3>';
@@ -586,6 +667,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial UI setup
         try {
             updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+            if (!challengeConfig.isMultigroup &&
+                challengeConfig.initialGroupCount === 1 &&
+                challengeConfig.userJoinedGroupId === null) {
+
+                const firstId = challengeConfig.initialGroups[0]?.id;
+                if (firstId) {
+                    // visually move card first (so UI doesn’t “jump” later)
+                    const card = otherGroupsContainerEl
+                        .querySelector(`.group-card-wrapper[data-group-id="${firstId}"]`);
+                    if (card) {
+                        myGroupContainerEl.innerHTML = '';
+                        const h = document.createElement('h4');
+                        h.className = 'text-warning mb-3'; h.textContent = 'Your Group';
+                        myGroupContainerEl.appendChild(h);
+                        myGroupContainerEl.appendChild(card);
+                    }
+                    // now do the real join on the server
+                    autoJoinGroup(firstId);
+                }
+            }
             updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
         } catch (uiError) {
             console.error("Error during initial UI update:", uiError);
@@ -593,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Attach Create Group Form Listener
-        if (challengeConfig.isMultigroup && addGroupForm) {
+        if (addGroupForm) {
             addGroupForm.addEventListener('submit', handleCreateGroupSubmit);
         }
 
@@ -606,9 +707,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const buttonClasses = closestButton.classList;
             isProcessingClick = true;
             try {
-                if (challengeConfig.isMultigroup && buttonClasses.contains('join-group-btn')) handleJoinGroupClick(event, closestButton);
-                else if (challengeConfig.isMultigroup && buttonClasses.contains('leave-group-btn')) handleLeaveGroupClick(event, closestButton);
-                else if (challengeConfig.isMultigroup && buttonClasses.contains('save-player-names-btn')) handleSavePlayersClick(event, closestButton);
+                if (buttonClasses.contains('join-group-btn')) handleJoinGroupClick(event, closestButton);
+                else if (buttonClasses.contains('leave-group-btn')) handleLeaveGroupClick(event, closestButton);
+                else if (buttonClasses.contains('save-player-names-btn')) handleSavePlayersClick(event, closestButton);
                 else if (buttonClasses.contains('clear-penalty-btn')) handleClearPenaltyClick(event, closestButton);
                 else isProcessingClick = false;
             } catch (handlerError) {

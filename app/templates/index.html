@@ -63,13 +63,13 @@
                             <input class="custom-control-input mode-radio" type="radio" name="group_mode"
                                 id="modeSingleGroup" value="single" {% if request.form.get('group_mode', 'single'
                                 )=='single' %}checked{% endif %}>
-                            <label class="custom-control-label" for="modeSingleGroup">Single Group (Local Save)</label>
+                            <label class="custom-control-label" for="modeSingleGroup">Single Group </label>
                         </div>
                         <div class="custom-control custom-radio custom-control-inline">
                             <input class="custom-control-input mode-radio" type="radio" name="group_mode"
                                 id="modeMultiGroup" value="multi" {% if request.form.get('group_mode')=='multi'
                                 %}checked{% endif %}>
-                            <label class="custom-control-label" for="modeMultiGroup">Multigroup (Shareable)</label>
+                            <label class="custom-control-label" for="modeMultiGroup">Multigroup </label>
                             <small class="text-warning login-required-msg ml-2 d-none">(Login required)</small>
                         </div>
                         <small class="form-text text-secondary d-block mt-1">Single saves locally. Multigroup requires
