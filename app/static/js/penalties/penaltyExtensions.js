@@ -246,6 +246,7 @@ export async function loadDefaultPenaltiesFromDB() {
         localPenalties["default"] = defaultPenalties;
         setLocalPenalties(localPenalties); // Use setter
         console.log("Default penalties updated in localStorage.");
+        renderPenaltiesForTab("default");
     } catch (err) {
         console.error('loadDefaultPenaltiesFromDB failed:', err);
         throw err;
