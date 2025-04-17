@@ -8,7 +8,8 @@ import { getLocalPenaltyTabs, initPenaltiesLocalStorage } from "../penalties/pen
 import { saveChallengeToLocalStorage } from '../utils/local_storage.js'; 
 // Assuming helpers.js is in utils/
 import { showError, escapeHtml, setLoading } from '../utils/helpers.js'; 
-
+import { loadDefaultEntriesFromDB } from '../games/gamesExtensions.js';
+import{loadDefaultPenaltiesFromDB} from '../penalties/penaltyExtensions.js'; 
 // Flag to prevent recursion during mode change for anonymous users
 let isForcingMode = false;
 
@@ -531,7 +532,6 @@ function initializeChallengeForm() {
         console.error("Error initializing storage:", e); 
         // Potentially show a user-facing error if storage is critical
     }
-
     // --- Get DOM Elements ---
     const challengeForm = document.getElementById("challengeForm");
     const gameSourceSelect = document.getElementById("gameSourceSelect");
@@ -596,6 +596,14 @@ function initializeChallengeForm() {
 // --- Wait for DOM Ready and Initialize ---
 // This ensures all HTML elements are loaded before the script tries to interact with them.
 document.addEventListener('DOMContentLoaded', () => {
+    
+    if (!localStorage.getItem('defaults_loaded')) {
+        console.log("Loading default game entries from DB...");
+        loadDefaultEntriesFromDB().catch(console.error);
+        loadDefaultPenaltiesFromDB().catch(console.error);
+        localStorage.setItem('defaults_loaded', 'true');
+        window.location.reload();
+      }
     // Pre-check: Ensure critical variables passed from Flask are defined
     if (typeof window.generateChallengeUrl === 'undefined') {
         console.error('CRITICAL ERROR: window.generateChallengeUrl is not defined. Check Flask template variable passing.');
