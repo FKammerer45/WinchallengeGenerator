@@ -28,122 +28,100 @@ challenge_api = Blueprint('challenge_api', __name__, url_prefix='/api/challenge'
 
 # --- /generate endpoint ---
 # Update decorator to use the new blueprint name
-@challenge_api.route("/generate", methods=["POST"]) 
+@challenge_api.route("/generate", methods=["POST"])
 def generate_challenge():
     """API endpoint to generate a new challenge."""
-    # This route does not interact with the database session directly,
-    # it only calls logic functions and parses request data.
-    # No changes needed regarding SessionLocal here.
     logger.debug("Request received for /api/challenge/generate")
-    generation_data = {}
     try:
-        # --- 1. Parse Input Parameters ---
+        # --- 1. Parse Input Parameters (Form or JSON) ---
         if request.form and 'selected_games' in request.form:
-            logger.debug("Parsing parameters from Form data.")
-            generation_data['selected_games'] = request.form.getlist("selected_games")
-            generation_data['weights_str'] = request.form.getlist("weights") # Get weights list
-            generation_data['num_players'] = int(request.form.get("num_players", 1))
-            generation_data['desired_diff'] = float(request.form.get("desired_diff", 10.0))
-            generation_data['raw_b2b'] = int(request.form.get("raw_b2b", 1))
-            # Parse JSON strings from form data
-            generation_data['generation_pool_entries'] = json.loads(request.form.get("entries", "[]"))
-            generation_data['selected_modes'] = json.loads(request.form.get("selected_modes", "{}"))
-            generation_data['use_penalties'] = request.form.get('use_penalties') == 'on'
-            generation_data['penalty_tab_id'] = request.form.get('penalty_tab_id', 'default')
-            generation_data['challenge_name'] = request.form.get('challenge_name', None)
-            generation_data['group_mode'] = request.form.get('group_mode', 'single')
-            if generation_data['group_mode'] == 'multi':
-                generation_data['max_groups'] = int(request.form.get('max_groups', 10))
-            else:
-                generation_data['max_groups'] = 1
-
+            data_src = request.form
+            get = lambda k, default=None: data_src.get(k, default)
+            getlist = lambda k: data_src.getlist(k)
+            from_form = True
         elif request.is_json:
-            logger.debug("Parsing parameters from JSON data.")
-            data = request.get_json()
-            if not data: return jsonify({"error": "Invalid JSON data received."}), 400
-            # Parse fields from JSON payload
-            generation_data['selected_games'] = data.get("selected_games", [])
-            # Assume weights correspond to selected_games if sent via JSON
-            generation_data['weights_str'] = data.get("weights", []) # Expect list of numbers/strings
-            generation_data['num_players'] = int(data.get("num_players", 1))
-            generation_data['desired_diff'] = float(data.get("desired_diff", 10.0))
-            generation_data['raw_b2b'] = int(data.get("raw_b2b", 1))
-            generation_data['generation_pool_entries'] = data.get("entries", []) # Expect list of objects
-            generation_data['selected_modes'] = data.get("selected_modes", {}) # Expect object
-            generation_data['use_penalties'] = data.get('use_penalties', False)
-            generation_data['penalty_tab_id'] = data.get('penalty_tab_id', 'default')
-            generation_data['challenge_name'] = data.get('challenge_name', None)
-            generation_data['group_mode'] = data.get('group_mode', 'single')
-            if generation_data['group_mode'] == 'multi':
-                generation_data['max_groups'] = int(data.get('max_groups', 10))
-            else:
-                generation_data['max_groups'] = 1
+            js = request.get_json()
+            if not js:
+                return jsonify({"error": "Invalid JSON data."}), 400
+            data_src = js
+            get = lambda k, default=None: js.get(k, default)
+            getlist = lambda k: js.get(k, [])
+            from_form = False
         else:
-            return jsonify({"error": "Unsupported request format."}), 415
+            return jsonify({"error": "Unsupported format."}), 415
 
-        # Determine num_players_per_group (used in share options)
-        num_players_per_group = generation_data.get('num_players', 1) if generation_data['group_mode'] == 'multi' else 1
+        # build generation_data dict
+        gd = {}
+        gd['selected_games']        = getlist("selected_games")
+        gd['weights_str']          = getlist("weights")
+        gd['num_players']          = int(get("num_players", 1))
+        gd['desired_diff']         = float(get("desired_diff", 10.0))
+        gd['raw_b2b']              = int(get("raw_b2b", 1))
+        gd['generation_pool_entries'] = (json.loads(get("entries")) 
+                                        if from_form else get("entries", []))
+        gd['selected_modes']       = (json.loads(get("selected_modes")) 
+                                        if from_form else get("selected_modes", {}))
+        gd['use_penalties']        = (get('use_penalties') == 'on') if from_form else bool(get('use_penalties', False))
+        gd['penalty_tab_id']       = get('penalty_tab_id', 'default')
+        gd['challenge_name']       = get('challenge_name', None)
+        gd['group_mode']           = get('group_mode', 'single')
+        gd['max_groups']           = (int(get('max_groups')) 
+                                     if gd['group_mode']=="multi" else 1)
 
-        # --- 2. Determine Game Variables ---
-        game_vars_for_logic = initialize_game_vars(generation_data.get('generation_pool_entries', []))
-        if not game_vars_for_logic:
-            logger.warning("No valid game variables initialized from entries.")
-            # return jsonify({"error": "No valid game data found in the provided entries."}), 400
+        # --- 1a. Validate bounds ---
+        if gd['desired_diff'] > 1500:
+            return jsonify({"error": "desired_diff must be ≤ 1500."}), 400
+        if gd['max_groups'] > 20:
+            return jsonify({"error": "max_groups must be ≤ 20."}), 400
+
+        # --- 2. Init & Validate Game Variables ---
+        num_players_per_group = gd['num_players'] if gd['group_mode']=="multi" else 1
+        game_vars = initialize_game_vars(gd['generation_pool_entries'])
+        if not game_vars:
+            return jsonify({"error": "No valid game entries."}), 400
 
         # --- 3. Process Weights ---
-        selected_games = generation_data.get('selected_games', [])
-        weights_str_list = generation_data.get('weights_str', []) # Get list of strings/numbers
-        processed_weights = []
-        if len(selected_games) == len(weights_str_list):
-            try: processed_weights = [float(w) for w in weights_str_list]
-            except ValueError: logger.warning("Invalid weights received, using 1.0."); processed_weights = [1.0] * len(selected_games)
-        else: processed_weights = [1.0] * len(selected_games)
+        sel = gd['selected_games']
+        w_str = gd['weights_str']
+        if len(sel)==len(w_str):
+            try:
+                weights = [float(w) for w in w_str]
+            except ValueError:
+                logger.warning("Bad weights, defaulting to 1.0")
+                weights = [1.0]*len(sel)
+        else:
+            weights = [1.0]*len(sel)
 
-        # --- 4. Prepare Final Parameters ---
-        selected_games_lower = [str(g).lower() for g in selected_games if g] # Ensure strings and lowercase
-
-        # --- 5. Call Challenge Generation Logic ---
-        logger.debug("Calling generate_challenge_logic...")
-        challenge_result_data = generate_challenge_logic(
-            num_players=generation_data.get('num_players', 1),
-            desired_diff=generation_data.get('desired_diff', 10.0),
-            selected_games=selected_games_lower,
-            weights=processed_weights,
-            game_vars=game_vars_for_logic,
-            raw_b2b=generation_data.get('raw_b2b', 1),
-            entries=generation_data.get('generation_pool_entries', []), # Pass parsed entries
-            selected_modes=generation_data.get('selected_modes', {}) # Pass parsed modes
+        # --- 4. Call Core Logic ---
+        result = generate_challenge_logic(
+            num_players=gd['num_players'],
+            desired_diff=gd['desired_diff'],
+            selected_games=[g.lower() for g in sel if g],
+            weights=weights,
+            game_vars=game_vars,
+            raw_b2b=gd['raw_b2b'],
+            entries=gd['generation_pool_entries'],
+            selected_modes=gd['selected_modes']
         )
+        if result is None:
+            return jsonify({"error": "No entries match criteria."}), 400
 
-        # --- 6. Handle Result & Add Info ---
-        if challenge_result_data is None:
-            logger.error("generate_challenge_logic returned None. No matching entries found for criteria.")
-            return jsonify({"error": "No matching entries found for challenge criteria."}), 400
-
-        # Add penalty info if requested
-        if generation_data.get('use_penalties'):
-            challenge_result_data['penalty_info'] = {'tab_id': generation_data.get('penalty_tab_id', 'default')}
-        else: challenge_result_data['penalty_info'] = None
-
-        # Add share-related options
-        challenge_result_data['share_options'] = {
-            'challenge_name': generation_data.get('challenge_name'),
-            'max_groups': generation_data.get('max_groups'),
+        # --- 5. Augment & Return ---
+        result['penalty_info'] = {'tab_id': gd['penalty_tab_id']} if gd['use_penalties'] else None
+        result['share_options'] = {
+            'challenge_name': gd['challenge_name'],
+            'max_groups': gd['max_groups'],
             'num_players_per_group': num_players_per_group
         }
-
         logger.info("Challenge generated successfully.")
-        return jsonify(challenge_result_data)
+        return jsonify(result)
 
-    except json.JSONDecodeError as e:
-        logger.exception("Failed to decode JSON input (entries or selected_modes):")
-        return jsonify({"error": f"Invalid JSON format in request: {e}"}), 400
-    except ValueError as e:
-        logger.exception("Invalid numeric value received:")
-        return jsonify({"error": f"Invalid numeric value provided: {e}"}), 400
+    except (ValueError, json.JSONDecodeError) as e:
+        logger.exception("Bad input:")
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
-        logger.exception("Unexpected error in generate_challenge:")
-        return jsonify({"error": "Server error during challenge generation."}), 500
+        logger.exception("Server error:")
+        return jsonify({"error": "Server error."}), 500
 
 
 # --- /share endpoint ---

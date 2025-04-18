@@ -27,7 +27,7 @@
                 <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
                     data-target="#optionsBody" aria-expanded="true" aria-controls="optionsBody"
                     title="Toggle Options Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" fill="currentColor"
                         class="bi bi-chevron-expand" viewBox="0 0 16 16">
                         <path fill-rule="evenodd"
                             d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
@@ -69,7 +69,7 @@
                 <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
                     data-target="#modeParamsBody" aria-expanded="true" aria-controls="modeParamsBody"
                     title="Toggle Mode & Parameters Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" fill="currentColor"
                         class="bi bi-chevron-expand" viewBox="0 0 16 16">
                         <path fill-rule="evenodd"
                             d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
@@ -117,7 +117,7 @@
                     <div class="form-group col-md-6 col-lg-4 d-none" id="maxGroupsContainer">
                         <label for="maxGroups">Max Groups (Multigroup):</label>
                         <input type="number" id="maxGroups" name="max_groups" class="form-control"
-                            value="{{ request.form.get('max_groups', 10) }}" min="1" max="50">
+                            value="{{ request.form.get('max_groups', 10) }}" min="1" max="10">
                         <small class="form-text text-secondary">Max groups allowed when shared.</small>
                     </div>
                 </div>
@@ -125,7 +125,8 @@
                     <div class="form-group col-md-6 col-lg-4">
                         <label for="desiredDiff" class="font-weight-bold">Target Difficulty:</label>
                         <input type="number" step="0.1" id="desiredDiff" name="desired_diff" class="form-control"
-                            placeholder="e.g., 60.0" max="100" min="0" required value="{{ request.form.get('desired_diff', 60) }}">
+                            placeholder="e.g., 60.0" max="1500" min="0" required
+                            value="{{ request.form.get('desired_diff', 60) }}">
                     </div>
                     <div class="form-group col-md-12 col-lg-8">
                         <label for="spinB2B" class="font-weight-bold">
@@ -151,7 +152,7 @@
                 <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
                     data-target="#gamesModesBody" aria-expanded="true" aria-controls="gamesModesBody"
                     title="Toggle Games & Modes Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" fill="currentColor"
                         class="bi bi-chevron-expand" viewBox="0 0 16 16">
                         <path fill-rule="evenodd"
                             d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
@@ -267,11 +268,11 @@
 {% endblock %}
 <script>
     const el = document.getElementById('desiredDiff'),
-          MAX = 100;
+        MAX = 1500;
     el.addEventListener('input', () => {
-      if (+el.value > MAX) el.value = MAX;
+        if (+el.value > MAX) el.value = MAX;
     });
-  </script>
+</script>
 {% block scripts %}
 {{ super() }}
 <script type="module" src="{{ url_for('static', filename='js/challenge_generator/form.js') }}"></script>
