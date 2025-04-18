@@ -80,13 +80,13 @@ def create_app(config_name=None):
     app.register_blueprint(main)
 
     # --- Authentication Routes ---
-    # Still showing warning, ensure auth.py exists and defines 'auth' blueprint
-    try:
-        from .routes.auth import auth as auth_blueprint
-        app.register_blueprint(auth_blueprint, url_prefix='/auth')
-    except ImportError:
-        # This warning is still appearing in your logs
-        print("Warning: Auth blueprint not found or could not be imported.") 
+
+ 
+    from .routes.auth import auth as auth_blueprint
+    app.register_blueprint(auth_blueprint, url_prefix='/auth')
+  
+    from .routes.auth_twitch import auth_twitch
+    app.register_blueprint(auth_twitch, url_prefix='/auth/twitch')
 
     # --- API Blueprints ---
     # Ensure these blueprint variables match the ones defined in the respective files

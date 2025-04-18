@@ -10,32 +10,39 @@ load_dotenv()
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
-    """Base configuration settings."""
-    # Secret key for session management, CSRF protection, etc.
-    # IMPORTANT: Load from environment variable in production!
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-default-hard-to-guess-string' 
-    
-    # Disable SQLAlchemy event system if not needed, saves resources
+    """Base config with common settings."""
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-default-hard-to-guess-string'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
-    # Database configuration (will be overridden in specific configs)
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'app.db') # Default to SQLite in base dir
+        'sqlite:///' + os.path.join(basedir, 'app.db')
 
-    # reCAPTCHA Keys (Consider loading from environment variables too)
-    RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY') or 'YOUR_RECAPTCHA_PUBLIC_KEY'
+    # reCAPTCHA
+    RECAPTCHA_PUBLIC_KEY  = os.environ.get('RECAPTCHA_PUBLIC_KEY')  or 'YOUR_RECAPTCHA_PUBLIC_KEY'
     RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY') or 'YOUR_RECAPTCHA_PRIVATE_KEY'
-    RECAPTCHA_ENABLED = os.environ.get('RECAPTCHA_ENABLED', 'True').lower() in ('true', '1', 't')
+    RECAPTCHA_ENABLED     = os.environ.get('RECAPTCHA_ENABLED', 'True').lower() in ('true','1','t')
+
+    # Twitch OAuth2
+    TWITCH_CLIENT_ID     = os.environ.get('TWITCH_CLIENT_ID')     or ''
+    TWITCH_CLIENT_SECRET = os.environ.get('TWITCH_CLIENT_SECRET') or ''
+    TWITCH_REDIRECT_URI  = os.environ.get('TWITCH_REDIRECT_URI')  or ''
+    TWITCH_OAUTH_URL     = 'https://id.twitch.tv/oauth2' 
 
 
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
+
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError("No SECRET_KEY set for testing environment")
     # Use a separate database file for development
     SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, 'dev.db')
-    # Optionally disable reCAPTCHA for local development ease
-    # RECAPTCHA_ENABLED = False 
+
+    RECAPTCHA_ENABLED = False 
+
+    if not (os.environ.get('TWITCH_CLIENT_ID') and os.environ.get('TWITCH_CLIENT_SECRET') and os.environ.get('TWITCH_REDIRECT_URI')):
+        raise ValueError("Twitch OAuth settings missing in production")
 
 
 class TestingConfig(Config):
@@ -77,6 +84,11 @@ class ProductionConfig(Config):
         RECAPTCHA_ENABLED = False
     else:
         RECAPTCHA_ENABLED = True
+
+    # Ensure Twitch creds in prod
+    if not (os.environ.get('TWITCH_CLIENT_ID') and os.environ.get('TWITCH_CLIENT_SECRET') and os.environ.get('TWITCH_REDIRECT_URI')):
+        raise ValueError("Twitch OAuth settings missing in production")
+
 
 
 # Dictionary to easily map environment names to config classes

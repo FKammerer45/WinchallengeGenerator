@@ -5,3 +5,4 @@ notes.md
 seed_defaults.py
 dev.db
 filetree_filtered.txt
+./migrations

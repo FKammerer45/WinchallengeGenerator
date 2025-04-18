@@ -111,6 +111,7 @@ class User(db.Model):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
+    twitch_id = Column(String(50), unique=True, nullable=True, index=True)
     password_hash = Column(String(255), nullable=False) # Consider increasing length for future hash algorithms
 
     # Relationships using db.relationship

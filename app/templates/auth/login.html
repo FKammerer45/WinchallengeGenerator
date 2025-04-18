@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_form_helpers.html" import render_field %} {# Optional: Import macro for cleaner fields #}
+{% from "_form_helpers.html" import render_field %}
 
 {% block title %}Login - Win Challenge Generator{% endblock %}
 
@@ -7,59 +7,52 @@
 <div class="container mt-4">
   <h2>Login</h2>
 
-  {# Display flashed messages #}
-  {% include '_flash_messages.html' ignore missing %} 
+  {# Flash messages #}
+  {% include '_flash_messages.html' ignore missing %}
 
-  {# Use the form passed from the route #}
+  {# --- Standard Login Form --- #}
   <form method="POST" action="{{ url_for('auth.login') }}">
-    {{ form.hidden_tag() }} {# Renders CSRF token and any other hidden fields #}
+    {{ form.hidden_tag() }}
 
-    {# Render fields using WTForms (Option 1: Basic) #}
-    {# <div class="form-group mb-3">
-      {{ form.username.label(class="form-label") }}
-      {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), placeholder="Enter your username") }}
-      {% if form.username.errors %}
-        <div class="invalid-feedback">
-          {% for error in form.username.errors %}{{ error }}{% endfor %}
-        </div>
-      {% endif %}
+    <div class="mb-3">
+      {{ render_field(form.username, class="form-control", placeholder="Enter your username") }}
     </div>
-    <div class="form-group mb-3">
-       {{ form.password.label(class="form-label") }}
-       {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Enter your password") }}
-       {% if form.password.errors %}
-        <div class="invalid-feedback">
-          {% for error in form.password.errors %}{{ error }}{% endfor %}
-        </div>
-       {% endif %}
-    </div> #}
+    <div class="mb-3">
+      {{ render_field(form.password, class="form-control", placeholder="Enter your password") }}
+    </div>
 
-    {# Render fields using WTForms (Option 2: Using Macro - cleaner) #}
-    {# Create _form_helpers.html template if using this #}
-     <div class="mb-3">
-       {{ render_field(form.username, class="form-control", placeholder="Enter your username") }}
-     </div>
-     <div class="mb-3">
-       {{ render_field(form.password, class="form-control", placeholder="Enter your password") }}
-     </div>
-     {# Add remember_me field if using: {{ render_field(form.remember_me, class="form-check-input") }} #}
-
-
-    {# --- reCAPTCHA Integration (remains the same) --- #}
+    {# reCAPTCHA if enabled #}
     {% if recaptcha_enabled and recaptcha_public_key %}
-    <div class="form-group mb-3 d-flex justify-content-center"> 
+      <div class="form-group mb-3 d-flex justify-content-center">
         <div class="g-recaptcha" data-sitekey="{{ recaptcha_public_key }}"></div>
-    </div>
-    {% elif recaptcha_enabled and not recaptcha_public_key %}
-         <p class="text-danger small mb-3">reCAPTCHA is enabled but the site key is missing.</p> 
+      </div>
+    {% elif recaptcha_enabled %}
+      <p class="text-danger small mb-3">
+        reCAPTCHA is enabled but the site key is missing.
+      </p>
     {% endif %}
-    {# --- End reCAPTCHA Integration --- #}
 
-    {# Render submit button #}
     {{ form.submit(class="btn btn-primary") }}
   </form>
 
-  <p class="mt-3">
+  {# --- Divider --- #}
+  <div class="text-center my-3">
+    <span class="text-muted">or</span>
+  </div>
+
+  {# --- Twitch OAuth Login Button --- #}
+  <div class="text-center">
+    <a
+    href="{{ url_for('auth_twitch.twitch_login') }}"
+      class="btn btn-outline-secondary"
+      title="Login with Twitch"
+    >
+      <i class="bi bi-twitch"></i>  {# Bootstrap icon, ensure you have bootstrap-icons #}
+      Login with Twitch
+    </a>
+  </div>
+
+  <p class="mt-3 text-center">
     Don't have an account?
     <a href="{{ url_for('auth.register') }}">Register here</a>.
   </p>
@@ -67,7 +60,7 @@
 {% endblock %}
 
 {% block scripts %}
-  {{ super() if super }} 
+  {{ super() if super }}
   {% if recaptcha_enabled and recaptcha_public_key %}
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   {% endif %}
