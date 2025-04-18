@@ -22,9 +22,19 @@
         {# --- Section 1: Source & Options --- #}
         {# Use standard card, styled by style.css #}
         <div class="card shadow-md mb-5">
-            <div class="card-header h5">1. Options</div>
-            <div class="card-body">
-
+            <div class="card-header h5 d-flex justify-content-between align-items-center">
+                <span>1. Options</span>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+                    data-target="#optionsBody" aria-expanded="true" aria-controls="optionsBody"
+                    title="Toggle Options Section">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="bi bi-chevron-expand" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd"
+                            d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
+                    </svg>
+                </button>
+            </div>
+            <div class="collapse card-body" id="optionsBody">
                 <div class="form-row align-items-center mb-3">
                     <div class="col-auto">
                         <div class="custom-control custom-checkbox">
@@ -54,8 +64,19 @@
 
         {# --- Section 2: Mode & Parameters --- #}
         <div class="card shadow-md mb-5">
-            <div class="card-header h5">2. Mode & Parameters</div>
-            <div class="card-body">
+            <div class="card-header h5 d-flex justify-content-between align-items-center">
+                <span>2. Mode & Parameters</span>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+                    data-target="#modeParamsBody" aria-expanded="true" aria-controls="modeParamsBody"
+                    title="Toggle Mode & Parameters Section">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="bi bi-chevron-expand" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd"
+                            d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
+                    </svg>
+                </button>
+            </div>
+            <div class="collapse card-body" id="modeParamsBody">
                 <div class="form-group row mb-4 align-items-center"> {# Increased margin #}
                     <label class="col-sm-4 col-lg-3 col-form-label font-weight-bold">Challenge Mode:</label>
                     <div class="col-sm-8 col-lg-9">
@@ -115,7 +136,9 @@
                             value="{{ request.form.get('raw_b2b', 1) }}"
                             oninput="this.previousElementSibling.querySelector('output').textContent = this.value">
                         <div class="d-flex justify-content-between w-100 px-1"> <small
-                                class="text-secondary">None</small> <small class="text-secondary">High</small> </div>
+                                class="text-secondary">None</small>
+                            <small class="text-secondary">High</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -123,71 +146,82 @@
 
         {# --- Section 3: Select Games & Modes --- #}
         <div class="card shadow-md mb-5">
-            <div class="card-header h5">3. Select Games & Modes</div>
-            <div class="d-flex align-items-end flex-wrap px-3 pt-3">
-                <!-- dropdown -->
-                <div class="form-group mb-2 mr-auto"> <!-- mr‑auto pushes buttons right -->
-                    <label for="gameSourceSelect">Game Entries Source Tab:</label>
-                    <select id="gameSourceSelect" name="game_tab_id" class="form-control custom-select">
-                        <option value="" disabled selected>Loading tabs...</option>
-                    </select>
-                    <small class="form-text text-secondary">
-                        Select the tab containing the games list.
-                    </small>
-                </div>
-
-                <!-- buttons -->
-                <div class="btn-group mb-2">
-                    <button type="button" id="selectAllGamesBtn" class="btn btn-sm btn-outline-primary">
-                        Select&nbsp;All
-                    </button>
-                    <button type="button" id="deselectAllGamesBtn" class="btn btn-sm btn-outline-secondary">
-                        Deselect&nbsp;All
-                    </button>
-                </div>
+            <div class="card-header h5 d-flex justify-content-between align-items-center">
+                <span>3. Select Games & Modes</span>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+                    data-target="#gamesModesBody" aria-expanded="true" aria-controls="gamesModesBody"
+                    title="Toggle Games & Modes Section">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="bi bi-chevron-expand" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd"
+                            d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
+                    </svg>
+                </button>
             </div>
-            <div class="card-body p-0"> {# Remove padding for full-width table wrapper #}
+            <div class="collapse show" id="gamesModesBody">
+                <div class="d-flex align-items-end flex-wrap px-3 pt-3">
+                    <!-- dropdown -->
+                    <div class="form-group mb-2 mr-auto"> <!-- mr‑auto pushes buttons right -->
+                        <label for="gameSourceSelect">Game Entries Source Tab:</label>
+                        <select id="gameSourceSelect" name="game_tab_id" class="form-control custom-select">
+                            <option value="" disabled selected>Loading tabs...</option>
+                        </select>
+                        <small class="form-text text-secondary">
+                            Select the tab containing the games list.
+                        </small>
+                    </div>
 
-                <div class="table-responsive game-selection-table-wrapper">
-                    <table class="table table-hover table-sm mb-0 game-selection-table"> {# Removed table-dark #}
-                        <thead> {# Thead styled by CSS #}
-                            <tr>
-                                <th style="width:45%;">Game</th>
-                                <th style="width:15%;">Weight</th>
-                                <th style="width:40%;">Allowed Modes</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gamesSelectionTbody">
-                            <tr>
-                                <td colspan="3" class="text-center text-secondary py-4">Select Game Source Tab above...
-                                </td>
-                            </tr>
-                        </tbody>
-                        <tfoot>
-                            <tr id="showMoreGamesRow" class="d-none">
-                              <td colspan="3" class="text-center py-2">
-                                <button type="button"
-                                        id="showLessGamesBtn"
-                                        class="btn btn-outline-secondary btn-sm mr-2 d-none">
-                                  ▲ Show less
-                                </button>
-                          
-                                <button type="button"
-                                        id="showMoreGamesBtn"
-                                        class="btn btn-outline-primary btn-sm">
-                                  ▼ Show more
-                                </button>
-                              </td>
-                            </tr>
-                          </tfoot>
-
-
-                    </table>
+                    <!-- buttons -->
+                    <div class="btn-group mb-2">
+                        <button type="button" id="selectAllGamesBtn" class="btn btn-sm btn-outline-primary">
+                            Select&nbsp;All
+                        </button>
+                        <button type="button" id="deselectAllGamesBtn" class="btn btn-sm btn-outline-secondary">
+                            Deselect&nbsp;All
+                        </button>
+                    </div>
                 </div>
-            </div>
+                <div class="card-body p-0"> {# Remove padding for full-width table wrapper #}
 
+                    <div class="table-responsive game-selection-table-wrapper">
+                        <table class="table table-hover table-sm mb-0 game-selection-table"> {# Removed table-dark #}
+                            <thead> {# Thead styled by CSS #}
+                                <tr>
+                                    <th style="width:45%;">Game</th>
+                                    <th style="width:15%;">Weight</th>
+                                    <th style="width:40%;">Allowed Modes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gamesSelectionTbody">
+                                <tr>
+                                    <td colspan="3" class="text-center text-secondary py-4">Select Game Source Tab
+                                        above...
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr id="showMoreGamesRow" class="d-none">
+                                    <td colspan="3" class="text-center py-2">
+                                        <button type="button" id="showLessGamesBtn"
+                                            class="btn btn-outline-secondary btn-sm mr-2 d-none">
+                                            ▲ Show less
+                                        </button>
+
+                                        <button type="button" id="showMoreGamesBtn"
+                                            class="btn btn-outline-primary btn-sm">
+                                            ▼ Show more
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tfoot>
+
+
+                        </table>
+                    </div>
+                </div>
+
+            </div>
         </div>
-
         {# --- Form Error Display --- #}
         <div id="formErrorDisplay" class="alert alert-danger text-center" style="display: none;"></div>
 

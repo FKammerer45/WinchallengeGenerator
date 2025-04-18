@@ -292,7 +292,7 @@ function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button) {
         console.log("Chosen Penalty (Weighted):", chosenPenalty);
 
         if (!chosenPenalty || chosenPenalty.name === "No Penalty") {
-            displayFinalResult(chosenEntity, chosenPenalty, button);
+            displayFinalResult(idx, chosenEntity, chosenPenalty, button);
             penaltyWheelContainer.style.display = 'none'; return;
         }
 
@@ -310,7 +310,7 @@ function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button) {
     } catch (e) { console.error("Error preparing penalty segments:", e); showError(errorTarget, "Error loading penalties!", 'danger'); if (button) button.disabled = false; penaltyWheelContainer.style.display = 'none'; return; }
 
     const penaltyWinningSegmentIndex = penaltyWheelSegments.findIndex(seg => seg.text === chosenPenalty.name) + 1;
-    if (penaltyWinningSegmentIndex <= 0) { console.error("Chosen penalty missing from visual segments!"); displayFinalResult(chosenEntity, chosenPenalty, button); penaltyWheelContainer.style.display = 'none'; return; }
+    if (penaltyWinningSegmentIndex <= 0) { console.error("Chosen penalty missing from visual segments!"); displayFinalResult(idx, chosenEntity, chosenPenalty, button); penaltyWheelContainer.style.display = 'none'; return; }
 
     // Create and start the wheel
     if (getPenaltyWheel(idx)) setPenaltyWheel(idx, null);
