@@ -2,7 +2,7 @@
 // Manages rendering and CRUD operations for penalty entries in localStorage
 
 import { addLocalPenalty, updateLocalPenalty, removeLocalPenalty, getLocalPenalties, getLocalPenaltyTabs } from "./penaltyLocalStorageUtils.js";
-
+import { confirmModal } from "../utils/helpers.js";
 // --- Alert Helper --- (Define or import shared helper)
 function showPenaltyFormAlert(message, type = 'danger', containerId = 'newPenaltyAlert') {
     const alertContainer = document.getElementById(containerId);
@@ -166,7 +166,7 @@ export function handleUpdatePenalty() {
   }
 }
 
-export function handleDeletePenalty() {
+export async function handleDeletePenalty() {
   const entryIdInput = document.getElementById("editPenaltyEntryId"); // Use correct ID
   const entryId = entryIdInput?.value;
 
@@ -177,9 +177,13 @@ export function handleDeletePenalty() {
 
   const form = document.getElementById("editPenaltyForm");
   const penaltyName = form.elements.editPenaltyName?.value || "this penalty";
-  if (!confirm(`Are you sure you want to delete the penalty "${penaltyName}"?`)) {
-    return;
-  }
+
+  const ok = await confirmModal(
+              `Are you sure you want to delete the penalty "${penaltyName}"?`,
+              "Please confirm deletion"
+          );
+  if (!ok) return;  // user cancelled
+ 
 
   const currentTab = window.currentPenaltyTab || "default"; // Need penalty context var
   console.log(`Deleting penalty '${entryId}' from tab '${currentTab}'`);

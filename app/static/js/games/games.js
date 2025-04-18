@@ -10,8 +10,8 @@ import {
     attachTabRenameHandler,
     attachLoadDefaultEntriesHandler,
     attachDeleteTabHandler // For deleting TABS
- } from "./gamesExtensions.js";
-import { escapeHtml, showError } from "../utils/helpers.js";
+} from "./gamesExtensions.js";
+import { escapeHtml, showError, confirmModal } from "../utils/helpers.js";
 
 // --- Flags to prevent attaching modal listeners multiple times ---
 let newGameListenerAttached = false;
@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     console.log("Initializing Games page...");
 
-    try { initLocalStorage(); } catch(e) { console.error("Error initializing local storage:", e); }
+    try { initLocalStorage(); } catch (e) { console.error("Error initializing local storage:", e); }
 
     // --- Rebuild UI from LocalStorage ---
     try {
@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (tabs) { Object.keys(tabs).filter(id => id !== 'default').forEach(tabId => { createTabFromLocalData(tabId, tabs[tabId].name); }); }
         else { console.error("Failed to get tabs from local storage for rebuild."); }
         const allEntries = getLocalEntries();
-        if(allEntries) { Object.keys(allEntries).forEach(tabId => { renderGamesForTab(tabId); }); }
+        if (allEntries) { Object.keys(allEntries).forEach(tabId => { renderGamesForTab(tabId); }); }
         else { console.error("Failed to get entries from local storage for rendering."); renderGamesForTab("default"); }
     } catch (error) { console.error("Error during UI rebuild from localStorage:", error); }
 
@@ -54,19 +54,19 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.target?.classList.contains("insertGameBtn")) {
             const tabId = e.target.getAttribute("data-tab");
             window.currentTargetTab = tabId; // Set global context
-             try {
-                 // Clear any previous alerts in the modal
-                 const alertContainer = document.getElementById("newGameAlert");
-                 if(alertContainer) alertContainer.innerHTML = '';
-                 // Show the modal
-                 $('#newGameModal').modal('show');
+            try {
+                // Clear any previous alerts in the modal
+                const alertContainer = document.getElementById("newGameAlert");
+                if (alertContainer) alertContainer.innerHTML = '';
+                // Show the modal
+                $('#newGameModal').modal('show');
             }
-             catch (modalError) { console.error("Error showing new game modal:", modalError); alert("Could not open the new game form."); }
+            catch (modalError) { console.error("Error showing new game modal:", modalError); alert("Could not open the new game form."); }
         }
     });
 
-     // Double-click on Table Row for Editing (Delegated)
-     // This listener *only* prepares data, populates HTML, and triggers the modal show
+    // Double-click on Table Row for Editing (Delegated)
+    // This listener *only* prepares data, populates HTML, and triggers the modal show
     document.addEventListener("dblclick", (e) => {
         const targetRow = e.target.closest("tr");
         if (targetRow && targetRow.dataset.gameName && targetRow.dataset.entryIds && targetRow.parentElement?.classList.contains("gamesTable")) {
@@ -99,9 +99,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 let originalEntries = [];
                 try {
-                     const allEntries = getLocalEntries();
-                     const currentTabEntries = allEntries[window.currentTargetTab] || [];
-                     originalEntries = currentTabEntries.filter(entry => entryIds.includes(entry.id));
+                    const allEntries = getLocalEntries();
+                    const currentTabEntries = allEntries[window.currentTargetTab] || [];
+                    originalEntries = currentTabEntries.filter(entry => entryIds.includes(entry.id));
                 } catch (fetchError) { console.error("Error fetching original entries:", fetchError); modesContainer.innerHTML = '<p class="text-danger">Error loading details.</p>'; return; }
 
                 if (originalEntries.length === 0) { modesContainer.innerHTML = '<p class="text-warning">Could not find details.</p>'; return; }
@@ -137,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 // Show the modal
                 try { $('#editGameModal').modal('show'); }
-                catch(modalError) { console.error("Error showing edit game modal:", modalError); }
+                catch (modalError) { console.error("Error showing edit game modal:", modalError); }
 
             } else { console.warn("Could not determine tab context for double-clicked row."); }
         }
@@ -160,8 +160,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Listener for when the EDIT game modal is fully shown
-     $('#editGameModal').on('shown.bs.modal', function () {
-         if (!editGameListenersAttached) {
+    $('#editGameModal').on('shown.bs.modal', function () {
+        if (!editGameListenersAttached) {
             const updateGameBtn = document.getElementById("updateGameBtn");
             if (updateGameBtn) {
                 updateGameBtn.addEventListener("click", handleUpdateGame);
@@ -175,38 +175,54 @@ document.addEventListener("DOMContentLoaded", () => {
                 editModalBody.addEventListener('click', handleDeleteSingleMode); // Use named function
                 console.log("Attached listener to editModalBody for delete via shown.bs.modal.");
             } else {
-                 console.error("Could not find edit modal body to attach delete listener inside shown.bs.modal handler.");
+                console.error("Could not find edit modal body to attach delete listener inside shown.bs.modal handler.");
             }
             editGameListenersAttached = true; // Set flag after attempting both
-         }
-     });
+        }
+    });
 
     // Define named function for delete handler (can be defined outside DOMContentLoaded if preferred)
-    function handleDeleteSingleMode(e) {
-        if (e.target?.classList.contains('delete-single-mode-btn')) {
-            const button = e.target;
-            const entryId = button.dataset.entryId;
-            const modeName = button.dataset.modeName || 'this mode';
-            const section = button.closest('.edit-mode-section');
-            const currentTab = window.currentTargetTab;
-            const alertContainer = document.getElementById("editGameAlert");
+    async function handleDeleteSingleMode(e) {
+        // Only act on the delete button
+        if (!e.target?.classList.contains('delete-single-mode-btn')) return;
 
-            if (!entryId || !section || !currentTab || !alertContainer) {
-                console.error("Cannot delete mode: Missing required elements or context.");
-                showError(alertContainer || document.body, "Could not delete mode due to an internal error.", "danger");
-                return;
+        const button = e.target;
+        const entryId = button.dataset.entryId;
+        const modeName = button.dataset.modeName || 'this mode';
+        const section = button.closest('.edit-mode-section');
+        const currentTab = window.currentTargetTab;
+        const alertContainer = document.getElementById("editGameAlert");
+
+        // Sanity checks
+        if (!entryId || !section || !currentTab || !alertContainer) {
+            console.error("Cannot delete mode: Missing context.");
+            showError(alertContainer || document.body,
+                "Internal error: cannot delete mode.", "danger");
+            return;
+        }
+
+        // Show your bootstrap confirm modal
+        const ok = await confirmModal(
+            `Are you sure you want to delete the mode "${modeName}"?`,
+            "Please confirm deletion"
+        );
+        if (!ok) return;  // user cancelled
+
+        // Perform deletion
+        try {
+            removeLocalGameEntry(currentTab, entryId);
+            renderGamesForTab(currentTab);
+            section.remove();
+            const modesContainer = document.getElementById("editGameModesContainer");
+            if (!modesContainer.querySelector('.edit-mode-section')) {
+                $('#editGameModal').modal('hide');
             }
 
-            if (confirm(`Are you sure you want to delete the mode "${modeName}"?`)) {
-                try {
-                    removeLocalGameEntry(currentTab, entryId);
-                    section.remove();
-                    showError(alertContainer, `Mode "${escapeHtml(modeName)}" deleted locally. Save changes or Cancel to discard.`, "warning");
-                } catch (deleteError) {
-                     console.error(`Error removing local game entry ${entryId}:`, deleteError);
-                     showError(alertContainer, `Failed to delete mode "${escapeHtml(modeName)}".`, "danger");
-                }
-            }
+        } catch (deleteError) {
+            console.error(`Error removing entry ${entryId}:`, deleteError);
+            showError(alertContainer,
+                `Failed to delete mode "${escapeHtml(modeName)}".`,
+                "danger");
         }
     }
 
@@ -214,14 +230,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // These target static elements or use delegation from document, safe to attach here
     try {
         if (typeof isLoggedIn !== 'undefined' && isLoggedIn) {
-             attachSaveTabHandler();
-             attachLoadSavedTabsHandler();
-             attachDeleteTabHandler();
+            attachSaveTabHandler();
+            attachLoadSavedTabsHandler();
+            attachDeleteTabHandler();
         }
         attachTabRenameHandler();
         attachLoadDefaultEntriesHandler();
     } catch (extError) {
-         console.error("Error attaching extension handlers:", extError);
+        console.error("Error attaching extension handlers:", extError);
     }
 
 }); // End DOMContentLoaded

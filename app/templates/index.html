@@ -125,7 +125,7 @@
                     <div class="form-group col-md-6 col-lg-4">
                         <label for="desiredDiff" class="font-weight-bold">Target Difficulty:</label>
                         <input type="number" step="0.1" id="desiredDiff" name="desired_diff" class="form-control"
-                            placeholder="e.g., 60.0" required value="{{ request.form.get('desired_diff', 60) }}">
+                            placeholder="e.g., 60.0" max="100" min="0" required value="{{ request.form.get('desired_diff', 60) }}">
                     </div>
                     <div class="form-group col-md-12 col-lg-8">
                         <label for="spinB2B" class="font-weight-bold">
@@ -265,7 +265,13 @@
     window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }};
 </script>
 {% endblock %}
-
+<script>
+    const el = document.getElementById('desiredDiff'),
+          MAX = 100;
+    el.addEventListener('input', () => {
+      if (+el.value > MAX) el.value = MAX;
+    });
+  </script>
 {% block scripts %}
 {{ super() }}
 <script type="module" src="{{ url_for('static', filename='js/challenge_generator/form.js') }}"></script>

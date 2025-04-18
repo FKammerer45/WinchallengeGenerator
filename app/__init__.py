@@ -5,7 +5,10 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
-from flask_migrate import Migrate # <--- Import Migrate
+from flask_migrate import Migrate 
+
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 # Import the configuration dictionary
 from config import config
 
@@ -14,7 +17,14 @@ from config import config
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect() 
-migrate = Migrate() # <--- Create Migrate instance globally
+migrate = Migrate() 
+
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["20 per minute"],
+    headers_enabled=True
+)
 
 # Configure login manager
 # These should start at column 1 in your file
@@ -35,20 +45,7 @@ def load_user(user_id):
 
 # This function definition should start at column 1
 def create_app(config_name=None):
-    """
-    Application factory function.
-    Creates and configures the Flask application instance.
-    
-    Args:
-        config_name (str, optional): The name of the configuration to use 
-                                     ('development', 'testing', 'production'). 
-                                     If None, determined by FLASK_ENV environment variable.
-                                     Defaults to 'development'.
-    
-    Returns:
-        Flask: The configured Flask application instance.
-    """
-    # Code inside the function IS indented
+   
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
         if config_name not in config:
@@ -75,8 +72,8 @@ def create_app(config_name=None):
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app) 
-    migrate.init_app(app, db) # <--- Initialize Migrate with app and db
-
+    migrate.init_app(app, db)
+    limiter.init_app(app)
     # Import and register blueprints
     # --- Main Routes ---
     from .routes.main import main # Use the correct blueprint variable name 'main'

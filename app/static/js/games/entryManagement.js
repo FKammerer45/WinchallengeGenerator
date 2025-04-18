@@ -9,13 +9,13 @@ import {
     getLocalTabs
 } from "./localStorageUtils.js";
 // Import showError directly, aliased if preferred
-import { escapeHtml, showError as showGameFormAlert } from "../utils/helpers.js";
+import { escapeHtml, showError } from "../utils/helpers.js";
 
 // --- Alert Helper ---
-// Define showEditGameAlert using the imported showError
-function showEditGameAlert(message, type = 'danger') {
-    // Target the specific alert div in the edit modal
-    showGameFormAlert(message, type, 'editGameAlert');
+// Wrap showError so we always pass the actual element
+function showEditGameAlert(message) {
+    const alertEl = document.getElementById('editGameAlert');
+    showError(alertEl, message);
 }
 
 // --- groupEntriesForDisplay function ---
@@ -121,11 +121,11 @@ export function handleSaveNewGame() {
     if (!isNaN(difficulty) && (difficulty < 0 || difficulty > 10 || Math.round(difficulty * 10) / 10 !== difficulty)) { errors.push("Difficulty must be between 0.0 and 10.0 (e.g., 5.0, 7.5)."); }
     if (!isNaN(numberOfPlayers) && (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers))) { errors.push("Number of players must be a whole number between 1 and 99."); }
 
-    if (errors.length > 0) { showGameFormAlert(errors.join("<br>"), 'danger', 'newGameAlert'); return; }
+    if (errors.length > 0) { const alertEl = document.getElementById('newGameAlert');showError(alertEl, errors.join("<br>")); return; }
 
     const currentTab = window.currentTargetTab || "default";
     let tabName = "Default";
-    try { tabName = getLocalTabs()[currentTab]?.name || tabName; } catch(e) { console.error("Error reading tabs for tabName:", e); }
+    try { tabName = getLocalTabs()[currentTab]?.name || tabName; } catch (e) { console.error("Error reading tabs for tabName:", e); }
 
     const newEntry = {
         id: "local-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
@@ -163,8 +163,8 @@ export function handleUpdateGame() {
     if (modeSections.length === 0) {
         showEditGameAlert("No modes remaining for this game.", "info");
         setTimeout(() => {
-             $('#editGameModal').modal('hide');
-             renderGamesForTab(currentTab);
+            $('#editGameModal').modal('hide');
+            renderGamesForTab(currentTab);
         }, 1500);
         return;
     }
@@ -188,7 +188,7 @@ export function handleUpdateGame() {
 
         // --- Validation per mode ---
         if (!entryId) errors.push(`Internal error: Missing ID for mode #${index + 1}.`);
-        if (!gameMode) { errors.push(`Mode name is required for entry #${index + 1}.`); console.error(`Validation failed for section ${index+1}: gameMode is empty after trim.`); }
+        if (!gameMode) { errors.push(`Mode name is required for entry #${index + 1}.`); console.error(`Validation failed for section ${index + 1}: gameMode is empty after trim.`); }
         if (isNaN(difficulty)) errors.push(`Difficulty must be a number for mode "${gameMode || index + 1}".`);
         if (isNaN(numberOfPlayers)) errors.push(`Number of players must be an integer for mode "${gameMode || index + 1}".`);
         if (!isNaN(difficulty) && (difficulty < 0 || difficulty > 10 || Math.round(difficulty * 10) / 10 !== difficulty)) { errors.push(`Difficulty for "${gameMode || index + 1}" must be 0.0-10.0.`); }
@@ -211,7 +211,7 @@ export function handleUpdateGame() {
     // console.log("Updates to Apply:", allUpdates);
 
     if (errors.length > 0) {
-        showEditGameAlert(errors.join("<br>"), 'danger');
+        showEditGameAlert(errors.join("<br>"));
         return; // Stop if any validation failed
     }
 
@@ -223,16 +223,15 @@ export function handleUpdateGame() {
             catch (updateError) { console.error(`Failed to update entry ID ${updatedEntry.id}:`, updateError); errors.push(`Failed to save changes for mode "${updatedEntry.gameMode}".`); updateSuccess = false; }
         });
 
-        if (!updateSuccess) { showEditGameAlert(errors.join("<br>"), 'danger'); return; }
+        if (!updateSuccess) { showEditGameAlert(errors.join("<br>")); return; }
 
         renderGamesForTab(currentTab);
         $('#editGameModal').modal('hide');
 
     } catch (error) {
         console.error("Error updating entries:", error);
-        showEditGameAlert("An unexpected error occurred while saving changes.", 'danger');
+        showEditGameAlert("An unexpected error occurred while saving changes.");
     }
 } // (End handleUpdateGame)
 
-// --- handleDeleteGame function was removed ---
 
