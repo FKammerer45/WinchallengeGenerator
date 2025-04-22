@@ -187,31 +187,54 @@ export function attachLoadSavedTabsHandler() {
 export function attachTabRenameHandler() {
     const container = document.getElementById("gamesTab");
     if (!container) return;
-
-    container.addEventListener("dblclick", e => {
-        const link = e.target.closest(".nav-link");
-        if (!link || link.id === "default-tab") return;
-
-        e.preventDefault();
-        const current = link.textContent.trim();
-        const newName = prompt("Rename tab:", current);
-        if (!newName || newName.trim() === current) return;
-
-        const tabId =
-            link.dataset.tab || link.getAttribute("href")?.substring(1) || "";
-        if (!tabId) return;
-
-        try {
-            const tabs = getLocalTabs() || {};
-            tabs[tabId].name = newName.trim();
-            setLocalTabs(tabs);
-            link.textContent = newName.trim();
-        } catch (err) {
-            console.error(err);
-            showFlash("Failed to rename tab locally.", "danger");
-        }
+  
+    let activeLink, activeId;
+  
+    // On double-click, open modal and prefill input
+    container.addEventListener("dblclick", (e) => {
+      const link = e.target.closest(".nav-link");
+      if (!link || link.id === "default-tab") return;
+  
+      activeLink = link;
+      activeId = link.dataset.tab || link.getAttribute("href").substring(1);
+      const currentName = link.textContent.trim();
+  
+      // Prefill and show the modal
+      document.getElementById("renameGameTabInput").value = currentName;
+      $("#renameGameTabModal").modal("show");
     });
-}
+  
+    // Handle modal form submission
+    document
+      .getElementById("renameGameTabForm")
+      .addEventListener("submit", (e) => {
+        e.preventDefault();
+        const newName = document
+          .getElementById("renameGameTabInput")
+          .value.trim();
+  
+        // Close modal if no change
+        if (!newName || newName === activeLink.textContent.trim()) {
+          return $("#renameGameTabModal").modal("hide");
+        }
+  
+        try {
+          const tabs = getLocalTabs() || {};
+          if (!tabs[activeId]) throw new Error("Local tab not found.");
+  
+          // Persist change locally and update UI
+          tabs[activeId].name = newName;
+          setLocalTabs(tabs);
+          activeLink.textContent = newName;
+          showFlash("Game tab renamed.", "success");
+        } catch (err) {
+          console.error(err);
+          showFlash("Failed to rename game tab.", "danger");
+        } finally {
+          $("#renameGameTabModal").modal("hide");
+        }
+      });
+  }
 
 // ---------- DEFAULT ENTRIES ---------------------------------------------------
 export async function loadDefaultEntriesFromDB() {

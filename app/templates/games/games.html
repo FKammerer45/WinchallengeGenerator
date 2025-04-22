@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Games Configuration{% endblock %}
-
+{% import "_form_helpers.html" as forms %}
 {% block head %}
     {{ super() }}
     {# Base style.css is linked in base.html #}
@@ -69,12 +69,14 @@
   {# --- End Tab Content --- #}
 
 
-  {# *** CRITICAL: Include Modals BEFORE the scripts block *** #}
+
   {% include "games/games_modals.html" %}
 
-
+  {{ forms.rename_tab_modal('game') }}
 </div> {# End container #}
 {% endblock %}
+
+
 
 {% block scripts %}
 {{ super() }}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Penalties Configuration{% endblock %}
-
+{% import "_form_helpers.html" as forms %}
 {% block head %}
     {{ super() }}
     {# Base style.css is linked in base.html #}
@@ -90,8 +90,10 @@
   {% include "penalties/penalties_modals.html" %}
   {# Fallback CSRF #}
   <input type="hidden" name="csrf_token_field" value="{{ csrf_token() }}">
+  {{ forms.rename_tab_modal('penalty') }}
 </div> {# End Container #}
 {% endblock %}
+
 
 {% block scripts %}
 {{ super() }}

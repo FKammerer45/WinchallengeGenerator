@@ -11,9 +11,19 @@ import { showError, escapeHtml, setLoading } from '../utils/helpers.js';
 import { loadDefaultEntriesFromDB } from '../games/gamesExtensions.js';
 import { loadDefaultPenaltiesFromDB } from '../penalties/penaltyExtensions.js';
 // Flag to prevent recursion during mode change for anonymous users
+const selectedGames = new Set();
 let isForcingMode = false;
 const PAGE_SIZE = 10;        // how many games visible per click
 let gamesShown = PAGE_SIZE;  // current slice size
+
+//  helper to re‑apply checks
+function restoreChecked(checkedSet) {
+    document.querySelectorAll('.game-select-checkbox').forEach(cb => {
+        cb.checked = checkedSet.has(cb.value);
+        cb.dispatchEvent(new Event('change'));  // keep weight inputs in sync
+    });
+}
+
 /**
  * Updates UI elements on the index form based on selections 
  * (group mode, penalties enabled). Handles anonymous user restrictions.
@@ -306,6 +316,9 @@ function updateGameSelectionCard() {
     }
 
     tbody.innerHTML = tableHtml;
+    tbody.querySelectorAll('.game-select-checkbox').forEach(cb => {
+        cb.checked = selectedGames.has(cb.value); // Use the persistent Set
+    });
     const moreBtn = document.getElementById("showMoreGamesBtn");
     const lessBtn = document.getElementById("showLessGamesBtn");
     const rowToggle = document.getElementById("showMoreGamesRow");
@@ -374,6 +387,25 @@ function handleChallengeFormSubmit(event) {
     const shareResultDiv = document.getElementById('shareResult');
     const viewLocalBtn = document.getElementById('viewLocalChallengeBtn');
 
+    const checkedGames = Array.from(selectedGames);
+
+    // Replace whatever `selected_games` FormData had
+    formData.delete('selected_games');
+    checkedGames.forEach(g => formData.append('selected_games', g));
+
+    // --- validations ---
+    if (formData.get("group_mode") === 'multi' && !isAuth) {
+        showError(errorDisplay, "Login required for multigroup.");
+        return updateIndexFormUI();
+    }
+    if (checkedGames.length === 0) {
+        showError(errorDisplay, "Please select at least one game.");
+        return;
+    }
+    if (!formData.get("game_tab_id")) {
+        showError(errorDisplay, "Please select a game source tab.");
+        return;
+    }
     // --- Clear previous state ---
     showError(errorDisplay, null); // Clear previous errors
     if (resultWrapper) {
@@ -393,9 +425,7 @@ function handleChallengeFormSubmit(event) {
         updateIndexFormUI(); // Update UI to reflect change
         return; // Stop submission
     }
-    if (!form.querySelector('input[name="selected_games"]:checked')) {
-        showError(errorDisplay, "Please select at least one game."); return;
-    }
+
     const selectedGameTab = formData.get("game_tab_id"); // Get selected game source tab
     if (!selectedGameTab) {
         showError(errorDisplay, "Please select a game source tab."); return;
@@ -537,101 +567,179 @@ function handleChallengeFormSubmit(event) {
 // This function sets up the event listeners and initial state for the generation form.
 // It is NOT exported because it's called directly by the DOMContentLoaded listener below.
 function initializeChallengeForm() {
-    // ... (function content remains the same) ...
-    console.log("Initializing challenge form script..."); // Log start
+    console.log("Initializing challenge form script...");
 
-    // Initialize local storage utilities (safe to call multiple times)
-    try {
-        initGameStorage();
-        initPenaltiesLocalStorage();
-    } catch (e) {
-        console.error("Error initializing storage:", e);
-        // Potentially show a user-facing error if storage is critical
-    }
-    // --- Get DOM Elements ---
+    // Init storages
+    initGameStorage();
+    initPenaltiesLocalStorage();
+
+    // Grab elements
     const challengeForm = document.getElementById("challengeForm");
     const gameSourceSelect = document.getElementById("gameSourceSelect");
     const penaltySourceSelect = document.getElementById("penaltySourceSelect");
     const modeRadios = document.querySelectorAll('input[name="group_mode"]');
     const penaltyCheckbox = document.getElementById('enablePenalties');
-    const gameSelectionTbody = document.getElementById('gamesSelectionTbody'); // For event delegation
+    const gameSelectionTbody = document.getElementById('gamesSelectionTbody');
     const selectAllBtn = document.getElementById("selectAllGamesBtn");
     const deselectAllBtn = document.getElementById("deselectAllGamesBtn");
-    // --- Setup Dropdowns and Initial Game Card ---
+    const moreBtn = document.getElementById("showMoreGamesBtn");
+    const lessBtn = document.getElementById("showLessGamesBtn");
+
+    // Populate dropdowns + initial card
     if (gameSourceSelect) {
-        populateGameSourceDropdown(); // Populate game tabs
-        gameSourceSelect.addEventListener('change', updateGameSelectionCard); // Update card on change
-        // Update card on initial load after dropdown is populated
-        // Use setTimeout to allow dropdown rendering before updating card
-        setTimeout(updateGameSelectionCard, 0);
-    } else { console.error("Required element missing: #gameSourceSelect"); }
+        populateGameSourceDropdown(); // Populates the dropdown options
+
+
+        gameSourceSelect.addEventListener('change', () => {
+
+            updateGameSelectionCard();
+
+
+            gameSelectionTbody?.querySelectorAll('.game-select-checkbox').forEach(cb => {
+                const event = new Event('change', { bubbles: true });
+                cb.dispatchEvent(event);
+            });
+            // --- End of added snippet ---
+        });
+
+
+        updateGameSelectionCard();
+
+
+        gameSelectionTbody?.querySelectorAll('.game-select-checkbox').forEach(cb => {
+            const event = new Event('change', { bubbles: true });
+            cb.dispatchEvent(event);
+        });
+        // --- End of added snippet ---
+    }
 
     if (penaltySourceSelect) {
-        populatePenaltySourceDropdown(); // Populate penalty tabs
-    } else { console.error("Required element missing: #penaltySourceSelect"); }
+        populatePenaltySourceDropdown();
+    }
 
-    // --- Setup Event Listeners for Form Controls ---
-    if (modeRadios.length > 0) {
-        modeRadios.forEach(radio => radio.addEventListener('change', updateIndexFormUI));
-    } else { console.warn("Mode selection radios (input[name='group_mode']) missing."); }
+    // Standard UI hooks
+    modeRadios.forEach(r => r.addEventListener('change', updateIndexFormUI));
+    if (penaltyCheckbox) penaltyCheckbox.addEventListener('change', updateIndexFormUI);
 
-    if (penaltyCheckbox) {
-        penaltyCheckbox.addEventListener('change', updateIndexFormUI);
-    } else { console.warn("Penalty checkbox (#enablePenalties) missing."); }
+    // Form submission
+    if (challengeForm) challengeForm.addEventListener('submit', handleChallengeFormSubmit);
 
-    // --- Setup Form Submission ---
-    if (challengeForm) {
-        challengeForm.addEventListener('submit', handleChallengeFormSubmit);
-    } else { console.error("Required element missing: #challengeForm"); }
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", () => {
+            // 1. Get all game names for the CURRENTLY selected source tab
+            const dropdown = document.getElementById("gameSourceSelect");
+            const selectedTab = dropdown?.value;
+            let allGameNames = [];
+            // Ensure tab is selected and tbody exists before proceeding
+            if (selectedTab && gameSelectionTbody) {
+                try {
+                    // Reuse logic similar to updateGameSelectionCard to get all unique game names
+                    const allTabsData = getLocalEntries(selectedTab);
+                    let entries = [];
+                    if (allTabsData && allTabsData.hasOwnProperty(selectedTab)) {
+                        const specificTabEntries = allTabsData[selectedTab];
+                        if (Array.isArray(specificTabEntries)) {
+                            entries = specificTabEntries;
+                        }
+                    }
+                    // Group entries just to get unique game names
+                    const grouped = {};
+                    entries.forEach(entry => {
+                        // Ensure entry and its properties exist before trimming
+                        const gameName = (entry?.Spiel || entry?.game)?.trim();
+                        if (gameName) {
+                            // We only need the key to exist for unique names
+                            if (!grouped[gameName]) { grouped[gameName] = true; }
+                        }
+                    });
+                    allGameNames = Object.keys(grouped); // Get all unique names for this tab
+                } catch (e) {
+                    console.error("Error getting game names for Select All:", e);
+                    // Optionally display an error to the user here
+                    return; // Stop execution if we couldn't get the names
+                }
+            } else {
+                console.warn("Cannot Select All: No game source selected or table body not found.");
+                return; // Stop if no source selected or table doesn't exist
+            }
 
+            // 2. Add ALL game names for this source to the persistent Set
+            allGameNames.forEach(name => selectedGames.add(name));
 
-    // --- Select/Deselect all ---
-    if (selectAllBtn) selectAllBtn.addEventListener("click", () => toggleAllGames(true));
-    if (deselectAllBtn) deselectAllBtn.addEventListener("click", () => toggleAllGames(false));
-
-    function toggleAllGames(select) {
-        if (!gameSelectionTbody) return;
-        gameSelectionTbody.querySelectorAll(".game-select-checkbox").forEach(cb => {
-            cb.checked = select;
-            // fire change so weight‐inputs / mode buttons enable‑disable correctly
-            cb.dispatchEvent(new Event("change"));
+            // 3. Update only the VISIBLE checkboxes' checked state and trigger change event
+            //    (The change event handler will take care of enabling/disabling inputs)
+            gameSelectionTbody?.querySelectorAll(".game-select-checkbox")
+                .forEach(cb => {
+                    // Since we added all games to selectedGames, all visible ones should be checked.
+                    if (!cb.checked) { // Only change if it's not already checked
+                        cb.checked = true;
+                        // Dispatch the change event so the other listener updates the UI (weight/modes)
+                        const event = new Event('change', { bubbles: true });
+                        cb.dispatchEvent(event);
+                    }
+                });
         });
     }
-    document.getElementById("showMoreGamesBtn")
-        ?.addEventListener("click", () => {
-            gamesShown += PAGE_SIZE;
-            updateGameSelectionCard();
-        });
 
-    document.getElementById("showLessGamesBtn")
-        ?.addEventListener("click", () => {
-            gamesShown = Math.max(PAGE_SIZE, gamesShown - PAGE_SIZE);
-            updateGameSelectionCard();
+    // Deselect All Button Logic
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener("click", () => {
+            // 1. Clear the persistent Set entirely
+            selectedGames.clear();
+
+            // 2. Update only the VISIBLE checkboxes' checked state and trigger change event
+            //    (The change event handler will take care of enabling/disabling inputs)
+            gameSelectionTbody?.querySelectorAll(".game-select-checkbox")
+                .forEach(cb => {
+                    if (cb.checked) { // Only change if it's currently checked
+                        cb.checked = false;
+                        // Dispatch the change event so the other listener updates the UI (weight/modes)
+                        const event = new Event('change', { bubbles: true });
+                        cb.dispatchEvent(event);
+                    }
+                });
         });
-    // --- Setup Event Delegation for Dynamic Elements (Game Selection Table) ---
+    }
+    // Show more / less
+    if (moreBtn) moreBtn.addEventListener("click", () => {
+        gamesShown += PAGE_SIZE;
+        updateGameSelectionCard(); // State restored inside using selectedGames
+    });
+    if (lessBtn) lessBtn.addEventListener("click", () => {
+        gamesShown = Math.max(PAGE_SIZE, gamesShown - PAGE_SIZE);
+        updateGameSelectionCard(); // State restored inside using selectedGames
+    });
+
+    // Delegate checkboxes to enable/disable weight & modes button
     if (gameSelectionTbody) {
-        gameSelectionTbody.addEventListener('change', (event) => {
-            // Handle clicks on game selection checkboxes
-            if (event.target.classList.contains('game-select-checkbox')) {
-                const row = event.target.closest('tr');
-                if (!row) return;
-                const weightInput = row.querySelector('.game-weight-input');
-                const modesBtn = row.querySelector('.modes-btn');
-                const isChecked = event.target.checked;
-                // Enable/disable weight input and modes button based on checkbox
-                if (weightInput) weightInput.disabled = !isChecked;
-                if (modesBtn) modesBtn.disabled = !isChecked; // Or visually indicate disabled state
+        gameSelectionTbody.addEventListener('change', event => {
+            if (!event.target.classList.contains('game-select-checkbox')) return;
+
+            const checkbox = event.target;
+            const gameValue = checkbox.value;
+            const row = checkbox.closest('tr');
+            const weightInp = row.querySelector('.game-weight-input');
+            const modesBtn = row.querySelector('.modes-btn');
+            const isChecked = checkbox.checked;
+
+            // Update the persistent state
+            if (isChecked) {
+                selectedGames.add(gameValue); // Add to Set
+            } else {
+                selectedGames.delete(gameValue); // Remove from Set
             }
-            // Add handling for mode checkboxes within modals if needed
-            // else if (event.target.classList.contains('allowed-mode-checkbox')) { ... }
+
+            // Update related inputs/buttons in the same row
+            if (weightInp) weightInp.disabled = !isChecked;
+            if (modesBtn) modesBtn.disabled = !isChecked;
         });
-    } else { console.error("Required element missing: #gamesSelectionTbody for event delegation."); }
+    }
 
-    // --- Initial UI State ---
-    updateIndexFormUI(); // Set initial visibility based on default form values
-
-    console.log("Challenge form initialization complete."); // Log end
+    // Final UI fix
+    updateIndexFormUI();
+    console.log("Challenge form initialization complete.");
 }
+
 
 
 // --- Wait for DOM Ready and Initialize ---

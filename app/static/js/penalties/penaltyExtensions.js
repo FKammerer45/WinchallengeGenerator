@@ -197,36 +197,54 @@ export function attachDeletePenaltyTabHandler() {
 
 // ---------- RENAME TAB (local only) ------------------------------------------
 export function attachPenaltyTabRenameHandler() {
-    const container = document.getElementById("penaltiesTab");
-    if (!container) return;
+  const container = document.getElementById("penaltiesTab");
+  if (!container) return;
 
-    container.addEventListener("dblclick", (e) => {
-        const link = e.target.closest(".nav-link");
-        if (!link) return;
+  let activeLink, activeId;
 
-        if (link.id === "default-penalty-tab")
-            return showFlash("The default penalty tab cannot be renamed.", "info");
+  // On double-click, open modal and prefill input
+  container.addEventListener("dblclick", (e) => {
+    const link = e.target.closest(".nav-link");
+    if (!link || link.id === "default-penalty-tab") return;
 
-        const current = link.textContent.trim();
-        const newName = prompt("New tab name:", current);
-        if (!newName || !newName.trim() || newName.trim() === current) return;
+    activeLink = link;
+    activeId = link.dataset.tab || link.getAttribute("href").substring(1);
+    const currentName = link.textContent.trim();
 
-        const id =
-            link.dataset.tab || link.getAttribute("href")?.substring(1) || null;
-        if (!id) return;
+    // Prefill and show the modal
+    document.getElementById("renamePenaltyTabInput").value = currentName;
+    $("#renamePenaltyTabModal").modal("show");
+  });
 
-        try {
-            const tabs = getLocalPenaltyTabs() || {};
-            if (!tabs[id]) throw new Error("Local tab not found.");
+  // Handle modal form submission
+  document
+    .getElementById("renamePenaltyTabForm")
+    .addEventListener("submit", (e) => {
+      e.preventDefault();
+      const newName = document
+        .getElementById("renamePenaltyTabInput")
+        .value.trim();
 
-            tabs[id].name = newName.trim();
-            setLocalPenaltyTabs(tabs);
-            link.textContent = newName.trim();
-            showFlash("Tab renamed locally.", "success");
-        } catch (e) {
-            console.error(e);
-            showFlash("Failed to save rename locally.", "danger");
-        }
+      // Close modal if no change
+      if (!newName || newName === activeLink.textContent.trim()) {
+        return $("#renamePenaltyTabModal").modal("hide");
+      }
+
+      try {
+        const tabs = getLocalPenaltyTabs() || {};
+        if (!tabs[activeId]) throw new Error("Local tab not found.");
+
+        // Persist change locally and update UI
+        tabs[activeId].name = newName;
+        setLocalPenaltyTabs(tabs);
+        activeLink.textContent = newName;
+        showFlash("Penalty tab renamed.", "success");
+      } catch (err) {
+        console.error(err);
+        showFlash("Failed to rename penalty tab.", "danger");
+      } finally {
+        $("#renamePenaltyTabModal").modal("hide");
+      }
     });
 }
 
