@@ -1,0 +1,204 @@
+{# templates/pricing/pricing_section.html #}
+{% extends "base.html" %}
+{% block title %}Subscription Plans - Win Challenge Generator{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/pricing.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-4 mb-5 subscribe-page">
+
+    {# --- Page Header --- #}
+    <div class="text-center mb-5">
+        <h1 class="display-4 page-title mb-3">Choose Your Plan</h1>
+        <p class="lead text-secondary col-lg-8 mx-auto">Unlock enhanced features and support the platform by upgrading
+            to Pro.</p>
+    </div>
+
+    {# --- Pricing Section --- #}
+    <section class="pricing-section">
+        <div class="row justify-content-center g-4">
+
+            {# --- Free Plan Card --- #}
+            <div class="col-lg-5 col-md-6">
+                <div class="plan-card free-plan glass-effect h-100 d-flex flex-column">
+                    <div class="card-body p-4 p-lg-5">
+                        <h3 class="plan-name mb-3 d-flex align-items-center">
+                            <i class="bi bi-box-seam me-2 fs-4"></i>
+                            Free Plan
+                        </h3>
+                        <p class="plan-price display-5 fw-bold mb-2">€0<span
+                                class="fs-4 fw-normal text-secondary">/month</span></p>
+                        <p class="plan-description text-secondary mb-4">
+                            Perfect for beginners to explore win challenges.
+                        </p>
+                        <hr class="feature-divider">
+                        <ul class="features-list list-unstyled mb-4">
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to 15
+                                challenges</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Basic
+                                overlay customization</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Adjustable
+                                Timer</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Countdown
+                                Timer</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Moderator
+                                control link</li>
+                            <li class="feature-item disabled"><i class="bi bi-x-circle text-secondary me-2"></i>Custom
+                                Title</li>
+                            <li class="feature-item disabled"><i class="bi bi-x-circle text-secondary me-2"></i>Pinned
+                                Challenges</li>
+                            <li class="feature-item disabled"><i
+                                    class="bi bi-x-circle text-secondary me-2"></i>Commercial Usage</li>
+                        </ul>
+                    </div>
+                    <div class="card-footer p-4 p-lg-5 mt-auto text-center"> {# Added text-center #}
+                        {# Logic for Free plan button (adjust as needed) #}
+                        {% if current_user.is_authenticated and not current_user.is_pro %} {# Example check #}
+                        <button class="btn btn-secondary w-100 disabled" aria-disabled="true">Your Current Plan</button>
+                        {% elif current_user.is_authenticated and current_user.is_pro %}
+                        <span class="text-muted">You are Pro!</span>
+                        {% else %}
+                        <a href="{{ url_for('auth.register') }}" class="btn btn-secondary w-100">Get Started Free</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {# --- Pro Plan Card --- #}
+            <div class="col-lg-5 col-md-6">
+                <div class="plan-card pro-plan glass-effect highlighted h-100 d-flex flex-column">
+                    <div class="card-body p-4 p-lg-5">
+                        <div class="popular-badge">Meow :3</div>
+                        <h3 class="plan-name mb-3 d-flex align-items-center">
+                            <i class="bi bi-gem me-2 fs-4 text-primary-accent"></i>
+                            Pro Plan
+                        </h3>
+                        <p class="plan-price display-5 fw-bold mb-2">€2.99<span
+                                class="fs-4 fw-normal text-secondary">/month</span></p>
+                        <p class="plan-description text-secondary mb-4">
+                            For creators who want to boost engagement and unlock all features.
+                        </p>
+                        <hr class="feature-divider">
+                        <ul class="features-list list-unstyled mb-4">
+                            <li class="feature-item"><i
+                                    class="bi bi-check-circle-fill text-success me-2"></i><strong>Everything from Free
+                                    Plan, plus:</strong></li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to 70
+                                challenges</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Custom
+                                title</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Custom
+                                font</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Timer per
+                                challenge</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Pinned
+                                challenges</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Control
+                                link permissions</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Commercial
+                                Usage License</li>
+                        </ul>
+                    </div>
+                    <div class="card-footer p-4 p-lg-5 mt-auto text-center"> {# Added text-center #}
+                        {# --- MODIFICATION START --- #}
+                        {% if current_user.is_authenticated %}
+                        {# User is logged in #}
+                        {% if current_user.is_pro %} {# Example check for existing Pro user #}
+                        <button class="btn btn-primary w-100 disabled" aria-disabled="true">Your Current Plan</button>
+                        {% else %}
+                        {# Logged in, not Pro -> Show actual checkout link #}
+                        <a href="{{ url_for('payment.checkout') }}" class="btn btn-primary w-100 cta-button">Upgrade to
+                            Pro</a>
+                        {% endif %}
+                        {% else %}
+                        {# User is NOT logged in -> Show button that triggers JS #}
+                        <button type="button" id="upgrade-login-prompt" class="btn btn-primary w-100 cta-button">Upgrade
+                            to Pro</button>
+                        {# Add a placeholder for the message #}
+                        <div id="login-prompt-message" class="text-warning small mt-2" style="display: none;">
+                            Please <a href="{{ url_for('auth.login', next=url_for('main.subscribe')) }}"
+                                class="alert-link">login</a> or <a
+                                href="{{ url_for('auth.register', next=url_for('main.subscribe')) }}"
+                                class="alert-link">register</a> to upgrade.
+                        </div>
+                        {% endif %}
+                        {# --- MODIFICATION END --- #}
+                    </div>
+                </div>
+
+                {# --- MOVE CAT CONTAINER HERE --- #}
+                <div id="running-cat-local-container">
+                    <img id="running-cat-local-gif" src="{{ url_for('static', filename='images/maxwell-cat.gif') }}"
+                        alt="Animated cat" onerror="this.style.display='none'">
+                    {# --- ADD SPEECH BUBBLE INSIDE CAT CONTAINER --- #}
+                    <div id="cat-speech-bubble" class="speech-bubble">
+                        meow im maxwell
+                    </div>
+                    {# --- END SPEECH BUBBLE --- #}
+                </div>
+                {# --- END CAT CONTAINER --- #}
+            </div> {# End Card Footer #}
+        </div>
+
+</div> {# End row #}
+
+
+
+</section> {# End pricing-section #}
+
+</div> {# End container #}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# --- ADD THIS SCRIPT BLOCK --- #}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const upgradeButton = document.getElementById('upgrade-login-prompt');
+        const messageDiv = document.getElementById('login-prompt-message');
+
+        if (upgradeButton && messageDiv) {
+            upgradeButton.addEventListener('click', function (event) {
+                // Prevent any default button action (though type="button" should suffice)
+                event.preventDefault();
+
+                // Show the login/register message
+                messageDiv.style.display = 'block';
+
+                // Optional: Hide the message after a few seconds
+                // setTimeout(() => {
+                //     messageDiv.style.display = 'none';
+                // }, 5000); // Hide after 5 seconds
+            });
+        }
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const catImage = document.getElementById('running-cat-local-gif');
+        const speechBubble = document.getElementById('cat-speech-bubble');
+        let bubbleTimeout; // To store the timeout ID
+
+        if (catImage && speechBubble) {
+            catImage.addEventListener('click', function () {
+                // Clear any existing timeout to prevent immediate hiding
+                clearTimeout(bubbleTimeout);
+
+                // Show the bubble
+                speechBubble.classList.add('show');
+
+                // Set a timeout to hide the bubble after 3 seconds (3000ms)
+                bubbleTimeout = setTimeout(() => {
+                    speechBubble.classList.remove('show');
+                }, 3000);
+            });
+        }
+    });
+</script>
+
+{# --- END OF SCRIPT BLOCK --- #}
+{% endblock %}

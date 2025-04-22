@@ -1,0 +1,94 @@
+{# templates/payment/checkout_page.html #}
+{% extends "base.html" %}
+{% block title %}Upgrade to Pro - Checkout{% endblock %}
+
+{% block head %}
+{{ super() }}
+{# Add specific CSS for checkout page if needed later #}
+{# <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/checkout.css') }}"> #}
+
+{# --- IMPORTANT: Add Payment Provider JS SDK --- #}
+{# Example for Stripe - Replace with your chosen provider's SDK #}
+{# <script src="https://js.stripe.com/v3/"></script> #}
+
+<style>
+  /* Basic styling for placeholder */
+  .checkout-container {
+    max-width: 600px;
+    margin: 2rem auto;
+  }
+  .payment-placeholder {
+    border: 2px dashed var(--surface-border);
+    padding: 3rem 1.5rem;
+    text-align: center;
+    border-radius: var(--border-radius-lg);
+    background-color: rgba(0,0,0,0.1);
+  }
+  .payment-placeholder i {
+    font-size: 3rem;
+    color: var(--accent-primary);
+    margin-bottom: 1rem;
+    display: block;
+  }
+  .payment-placeholder p {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 checkout-container">
+
+    <div class="text-center mb-5">
+        <h1 class="display-5 page-title mb-3">Upgrade to Pro Plan</h1>
+        <p class="lead text-secondary">Complete your secure payment below.</p>
+    </div>
+
+    <div class="card glass-effect mb-4">
+        <div class="card-body p-4 p-lg-5">
+            <h4 class="mb-4">Order Summary</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="fw-bold"><i class="bi bi-gem me-2 text-primary-accent"></i>Pro Plan (Monthly)</span>
+                <span class="fw-bold">€2.99</span>
+            </div>
+            <hr style="border-color: var(--surface-border);">
+             <div class="d-flex justify-content-between align-items-center fw-bold mt-3">
+                <span>Total</span>
+                <span>€2.99 / month</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card glass-effect">
+         <div class="card-header h5">
+            Payment Details
+         </div>
+        <div class="card-body p-4 p-lg-5">
+            {# --- Payment Provider Integration Placeholder --- #}
+            {# This is where you would integrate Stripe Elements, PayPal button, etc. #}
+            <div class="payment-placeholder">
+                 <i class="bi bi-credit-card-2-front"></i> {# Example Icon #}
+                <p>Secure payment processing will be integrated here.</p>
+                {# Example button (replace with actual payment element) #}
+                <button class="btn btn-primary btn-lg disabled" aria-disabled="true">
+                    Proceed to Payment (Placeholder)
+                </button>
+            </div>
+            {# --- End Placeholder --- #}
+        </div>
+    </div>
+
+</div> {# End container #}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# Add specific JS for payment handling here #}
+{# Example for Stripe:
+<script>
+    // const stripe = Stripe('YOUR_STRIPE_PUBLISHABLE_KEY');
+    // // ... Stripe Elements setup ...
+</script>
+#}
+{% endblock %}

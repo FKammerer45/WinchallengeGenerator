@@ -102,6 +102,8 @@ def create_app(config_name=None):
     from .routes.tabs_api import tabs_api 
     app.register_blueprint(tabs_api, url_prefix='/api/tabs')
 
+    from app.routes.payment import payment_bp 
+    app.register_blueprint(payment_bp, url_prefix='/api/payment') 
 
     # --- Context Processors (Optional) ---
     # @app.context_processor

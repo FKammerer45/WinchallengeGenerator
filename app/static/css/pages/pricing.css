@@ -1,0 +1,342 @@
+/* static/css/pages/pricing.css */
+/* Styles specifically for the Subscription Plans page */
+
+/* --- Subscription Page Specific Styles --- */
+/* Targeting the container class added in the HTML */
+.subscribe-page .page-title {
+    /* Uses existing h1 styling from style.css */
+    margin-bottom: 1.5rem !important;
+    /* Adjust spacing if needed */
+}
+
+.subscribe-page .lead {
+    margin-bottom: 3rem;
+    /* More space after description */
+}
+
+.pricing-section {
+    margin-top: 2rem;
+    /* Adjust top margin */
+}
+
+.plan-card {
+    /* Base styles inherited from .glass-effect in style.css */
+    /* Ensure glass effect variables are available or define fallbacks */
+    background-color: var(--surface-bg, rgba(17, 24, 39, 0.8));
+    backdrop-filter: blur(var(--glass-blur, 10px));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 10px));
+    border: 1px solid var(--surface-border, rgba(75, 85, 99, 0.4));
+    border-radius: var(--border-radius-lg, 0.75rem);
+    /* Use larger radius */
+    box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.3));
+    transition: transform var(--transition-std, 200ms cubic-bezier(0.4, 0, 0.2, 1)),
+        box-shadow var(--transition-std, 200ms cubic-bezier(0.4, 0, 0.2, 1)),
+        border-color var(--transition-std, 200ms cubic-bezier(0.4, 0, 0.2, 1));
+    overflow: hidden;
+    /* Contain glow effects */
+    position: relative;
+    /* Needed for absolute positioned badge */
+    color: var(--text-primary, #f3f4f6);
+    /* Ensure base text color */
+}
+
+.plan-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.4));
+}
+
+/* Specific Plan Styling */
+.plan-card.free-plan {
+    /* Can add specific styles if needed, e.g., border */
+    border: 1px solid var(--surface-border, rgba(75, 85, 99, 0.4));
+}
+
+.plan-card.pro-plan.highlighted {
+    border: 1px solid var(--accent-primary, #3b82f6);
+    transform: scale(1.03);
+    /* Make Pro slightly larger */
+    z-index: 10;
+    /* Bring highlighted card to front */
+    /* --- Primary Glow Effect --- */
+    box-shadow: 0 0 25px 5px var(--accent-primary-glow, rgba(59, 130, 246, 0.3)),
+        var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.3));
+    /* Combine glows */
+}
+
+.plan-card.pro-plan.highlighted:hover {
+    transform: scale(1.04) translateY(-5px);
+    box-shadow: 0 0 35px 8px var(--accent-primary-glow, rgba(59, 130, 246, 0.3)),
+        var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.4));
+}
+
+/* Optional: Most Popular Badge for Pro Plan */
+.popular-badge {
+    position: absolute;
+    top: 15px;
+    right: -40px;
+    /* Position partially off-card */
+    background: linear-gradient(45deg, var(--accent-secondary, #fb923c), var(--accent-secondary-hover, #f97316));
+    color: var(--text-on-accent, #ffffff);
+    padding: 0.3rem 2.5rem;
+    /* Long padding for diagonal effect */
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+}
+
+.plan-card .card-body {
+    /* Inherits padding from HTML */
+    flex-grow: 1;
+    /* Ensure body takes available space */
+}
+
+.plan-name {
+    color: var(--text-primary, #f3f4f6);
+    font-weight: 700;
+}
+
+.plan-name i {
+    opacity: 0.8;
+    vertical-align: middle;
+    /* Align icon better */
+}
+
+.pro-plan .plan-name i {
+    color: var(--accent-primary, #3b82f6);
+    /* Use theme accent color */
+}
+
+
+.plan-price {
+    color: var(--text-primary, #f3f4f6);
+    margin-bottom: 0.5rem !important;
+    /* Override default */
+}
+
+.plan-price .fs-4 {
+    /* Target the /month text */
+    margin-left: 0.25rem;
+    font-weight: 400;
+    /* Make it less bold */
+    color: var(--text-secondary, #9ca3af);
+    /* Use secondary color */
+}
+
+.plan-description {
+    font-size: 0.95rem;
+    min-height: 3em;
+    /* Ensure consistent height */
+    color: var(--text-secondary, #9ca3af);
+    /* Ensure secondary color */
+}
+
+hr.feature-divider {
+    border-color: var(--surface-border, rgba(75, 85, 99, 0.4));
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.features-list {
+    padding-left: 0;
+    list-style: none;
+    /* Ensure no default bullets */
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.8rem;
+    font-size: 0.95rem;
+    color: var(--text-primary, #f3f4f6);
+}
+
+.feature-item i {
+    margin-right: 0.75rem !important;
+    /* Ensure consistent spacing */
+    font-size: 1.1em;
+    /* Slightly larger icons */
+    flex-shrink: 0;
+    /* Prevent icon shrinking */
+    vertical-align: middle;
+    /* Align icon better */
+}
+
+/* Ensure icon colors are set */
+.feature-item .text-success {
+    color: var(--success-color, #34d399) !important;
+}
+
+.feature-item .text-secondary {
+    color: var(--text-secondary, #9ca3af) !important;
+}
+
+
+/* Disabled features style */
+.feature-item.disabled {
+    color: var(--text-secondary, #9ca3af);
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+.feature-item.disabled i {
+    opacity: 0.5;
+}
+
+.plan-card .card-footer {
+    background-color: transparent;
+    /* Ensure footer is transparent */
+    border-top: 1px solid var(--surface-border, rgba(75, 85, 99, 0.4));
+    padding: 1.5rem;
+    /* Match body padding */
+}
+
+/* Style the CTA Button */
+.pro-plan .cta-button {
+    /* Uses .btn-primary styles from style.css */
+    /* Add extra emphasis */
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+/* Ensure button styles from main style.css apply */
+.plan-card .btn {
+    /* Inherits base .btn styles */
+    width: 100%;
+    /* Make buttons full width */
+}
+
+.plan-card .btn.disabled {
+    opacity: 0.65;
+    pointer-events: none;
+    /* Make disabled buttons non-interactive */
+}
+
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 15px 3px var(--accent-primary-glow, rgba(59, 130, 246, 0.3)), var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.3));
+    }
+
+    50% {
+        box-shadow: 0 0 25px 8px var(--accent-primary-glow, rgba(59, 130, 246, 0.3)), var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.4));
+    }
+
+    100% {
+        box-shadow: 0 0 15px 3px var(--accent-primary-glow, rgba(59, 130, 246, 0.3)), var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.3));
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 991px) {
+    .plan-card.pro-plan.highlighted {
+        transform: scale(1.01);
+        /* Less aggressive scaling on smaller screens */
+    }
+
+    .plan-card.pro-plan.highlighted:hover {
+        transform: scale(1.02) translateY(-5px);
+    }
+}
+
+@media (max-width: 767px) {
+    .plan-card.pro-plan.highlighted {
+        transform: scale(1);
+        /* No scaling */
+        margin-top: 2rem;
+        /* Add space above highlighted card when stacked */
+    }
+
+    .plan-card.pro-plan.highlighted:hover {
+        transform: translateY(-5px);
+        /* Keep hover effect */
+    }
+
+    .popular-badge {
+        top: 10px;
+        right: -35px;
+        padding: 0.25rem 2rem;
+        font-size: 0.7rem;
+    }
+}
+
+/* --- Interactive Cat (Local GIF) --- */
+#running-cat-local-container {
+    position: absolute; /* Position relative to the card-footer */
+    bottom: 0px;       /* Distance from bottom of footer */
+    right: 0px;        /* Distance from right of footer */
+    width: 100px;        /* Make cat smaller */
+    max-width: 100px;
+    height: auto;
+    z-index: 101;       /* Slightly above footer content if needed */
+    cursor: pointer;    /* Indicate it's clickable */
+    /* Removed animation, fixed positioning, opacity */
+  }
+  
+  #running-cat-local-gif {
+    display: block;
+    width: 100%;
+    height: auto;
+    transition: transform 0.2s ease-in-out; /* Add subtle hover effect */
+  }
+  
+  #running-cat-local-container:hover #running-cat-local-gif {
+      transform: scale(1.1); /* Slightly enlarge on hover */
+  }
+  
+  /* --- Speech Bubble --- */
+  .speech-bubble {
+    position: absolute;
+    bottom: 105%; /* Position above the cat container */
+    left: 50%;
+    transform: translateX(-50%); /* Center horizontally */
+    background-color: var(--surface-bg-opaque, #111827); /* Use opaque background */
+    color: var(--text-primary, #f3f4f6);
+    padding: 8px 12px;
+    border-radius: var(--border-radius-md, 0.5rem);
+    border: 1px solid var(--surface-border, rgba(75, 85, 99, 0.4));
+    box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.3));
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap; /* Prevent text wrapping */
+    opacity: 0; /* Hidden by default */
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+    pointer-events: none; /* Bubble itself isn't clickable */
+    z-index: 102;
+  }
+  
+  /* Triangle pointer for the bubble */
+  .speech-bubble::after {
+    content: '';
+    position: absolute;
+    top: 100%; /* Point downwards */
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: var(--surface-bg-opaque, #111827) transparent transparent transparent; /* Match bubble bg */
+    /* Add border matching bubble border */
+     border-top-color: var(--surface-border, rgba(75, 85, 99, 0.4)); /* Outer border */
+  }
+  /* Inner triangle to cover border */
+   .speech-bubble::before {
+     content: '';
+     position: absolute;
+     top: calc(100% - 1px); /* Position slightly above outer triangle border */
+     left: 50%;
+     transform: translateX(-50%);
+     border-width: 5px; /* Slightly smaller */
+     border-style: solid;
+     border-color: var(--surface-bg-opaque, #111827) transparent transparent transparent;
+     z-index: 1; /* Ensure it's above the border triangle */
+   }
+  
+  
+  /* Class to show the bubble */
+  .speech-bubble.show {
+    opacity: 1;
+    visibility: visible;
+  }

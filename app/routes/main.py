@@ -76,6 +76,13 @@ def my_challenges_view():
         is_authenticated=is_authenticated
         )
 
+@main.route('/subscribe')
+def subscribe():
+    """Renders the subscription pricing page."""
+    logger.debug("Rendering subscription page.")
+    # You might pass additional data if needed, e.g., user's current plan status
+    return render_template('pricing/pricing_section.html')
+
 # --- Unified Challenge View Route ---
 @main.route("/challenge/<string:challenge_id>")
 def challenge_view(challenge_id):

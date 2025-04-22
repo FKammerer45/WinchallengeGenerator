@@ -1845,4 +1845,40 @@ button.close {
   color: var(--text-primary);
 }
 
+/* --- Styling for the Pricing Nav Link --- */
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing {
+  /* Use accent color for text */
+  color: var(--accent-secondary, #fb923c);
+  font-weight: 600; /* Make it bolder */
+  background-color: rgba(251, 146, 60, 0.1); /* Subtle background tint using secondary accent */
+  border: 1px solid var(--accent-secondary-glow, rgba(251, 146, 60, 0.3)); /* Subtle border */
+  border-radius: var(--border-radius-md, 0.5rem); /* Match button radius */
+  padding: 0.4rem 0.8rem; /* Adjust padding to look more button-like */
+  margin-left: 0.5rem; /* Add some space from other links */
+  box-shadow: 0 0 10px 1px var(--accent-secondary-glow, rgba(251, 146, 60, 0.3)); /* Add a glow */
+  transition: all var(--transition-std, 200ms cubic-bezier(0.4, 0, 0.2, 1)); /* Smooth transition */
+}
 
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing:hover,
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing:focus {
+  color: var(--text-on-accent, #ffffff); /* Text color on hover */
+  background-color: var(--accent-secondary, #fb923c); /* Solid background on hover */
+  border-color: var(--accent-secondary-hover, #f97316); /* Darker border on hover */
+  box-shadow: 0 0 15px 3px var(--accent-secondary-glow, rgba(251, 146, 60, 0.4)); /* Enhanced glow */
+  transform: translateY(-1px); /* Slight lift effect */
+  text-decoration: none; /* Remove underline from hover */
+}
+
+/* Ensure the icon color matches */
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing i {
+  color: inherit; /* Inherit color from the link */
+  vertical-align: middle; /* Align icon better */
+}
+
+/* Active state styling (when on the pricing page) */
+.navbar-dark .navbar-nav .nav-item.active .nav-link.nav-link-pricing {
+  color: var(--text-on-accent, #ffffff);
+  background-color: var(--accent-secondary-hover, #f97316); /* Use darker hover color for active */
+  border-color: var(--accent-secondary-hover, #f97316);
+  box-shadow: 0 0 15px 3px var(--accent-secondary-glow, rgba(251, 146, 60, 0.4));
+}
