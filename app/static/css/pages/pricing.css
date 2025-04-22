@@ -283,7 +283,7 @@ hr.feature-divider {
   }
   
   #running-cat-local-container:hover #running-cat-local-gif {
-      transform: scale(1.1); /* Slightly enlarge on hover */
+      transform: scale(10); /* Slightly enlarge on hover */
   }
   
   /* --- Speech Bubble --- */

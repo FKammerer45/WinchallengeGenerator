@@ -27,7 +27,7 @@ class Config:
     TWITCH_REDIRECT_URI  = os.environ.get('TWITCH_REDIRECT_URI')  or ''
     TWITCH_OAUTH_URL     = 'https://id.twitch.tv/oauth2' 
 
-    RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0")
+    RATELIMIT_STORAGE_URL = "memory://"
 
 
 class DevelopmentConfig(Config):
@@ -46,7 +46,6 @@ class DevelopmentConfig(Config):
     if not (os.environ.get('TWITCH_CLIENT_ID') and os.environ.get('TWITCH_CLIENT_SECRET') and os.environ.get('TWITCH_REDIRECT_URI')):
         raise ValueError("Twitch OAuth settings missing in production")
     
-    RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0")
 
 
 class TestingConfig(Config):

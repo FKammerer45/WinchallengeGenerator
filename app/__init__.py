@@ -19,12 +19,7 @@ login_manager = LoginManager()
 csrf = CSRFProtect() 
 migrate = Migrate() 
 
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri="redis://localhost:6379/0",
-    default_limits=["60 per minute"],
-    headers_enabled=True,
-)
+
 
 # Configure login manager
 # These should start at column 1 in your file
@@ -55,7 +50,12 @@ def create_app(config_name=None):
     print(f"--- Loading configuration: '{config_name}' ---") 
 
     app = Flask(__name__)
-
+    limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=app.config.get('RATELIMIT_STORAGE_URL', 'memory://'),
+    default_limits=["60 per minute"],
+    headers_enabled=True,
+    )
     try:
         app.config.from_object(config[config_name])
         print(f"--- Configuration loaded successfully for '{config_name}' ---")

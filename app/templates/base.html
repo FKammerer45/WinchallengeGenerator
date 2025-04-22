@@ -77,15 +77,15 @@
           <li class="nav-item {{ 'active' if request.endpoint == 'main.my_challenges_view' else '' }}"> <a
               class="nav-link" href="{{ url_for('main.my_challenges_view') }}">My Challenges</a> </li>
 
-           {# --- UPDATE THIS NAV ITEM --- #}
+
            <li class="nav-item {{ 'active' if request.endpoint == 'main.subscribe' else '' }}">
               {# Add the class "nav-link-pricing" to the anchor tag #}
               <a class="nav-link nav-link-pricing" href="{{ url_for('main.subscribe') }}">
                    <i class="bi bi-gem me-1"></i> {# Optional Icon #}
-                   Pricing
+                   Challenge Pro
               </a>
           </li>
-          {# --- END OF UPDATE --- #}
+
 
         </ul>
         {# --- Auth Links (Right) --- #}
