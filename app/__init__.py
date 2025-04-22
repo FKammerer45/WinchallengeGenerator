@@ -19,11 +19,11 @@ login_manager = LoginManager()
 csrf = CSRFProtect() 
 migrate = Migrate() 
 
-
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["20 per minute"],
-    headers_enabled=True
+    storage_uri="redis://localhost:6379/0",
+    default_limits=["60 per minute"],
+    headers_enabled=True,
 )
 
 # Configure login manager
