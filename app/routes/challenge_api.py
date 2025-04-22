@@ -2,7 +2,7 @@
 import logging
 import json
 import uuid
-from flask import Blueprint, request, jsonify, current_app, url_for
+from flask import Blueprint, render_template, request, jsonify, current_app, url_for
 from flask_login import login_required, current_user
 
 # Import logic functions
@@ -103,18 +103,42 @@ def generate_challenge():
             entries=gd['generation_pool_entries'],
             selected_modes=gd['selected_modes']
         )
-        if result is None:
-            return jsonify({"error": "No entries match criteria."}), 400
+        if result is None or result.get("error"):
+            error_msg = result.get("error", "No challenge could be generated.") if isinstance(result, dict) else "Challenge generation failed."
+            logger.warning(f"Challenge generation failed: {error_msg}")
+            return jsonify({"error": error_msg}), 400
 
         # --- 5. Augment & Return ---
         result['penalty_info'] = {'tab_id': gd['penalty_tab_id']} if gd['use_penalties'] else None
         result['share_options'] = {
-            'challenge_name': gd['challenge_name'],
-            'max_groups': gd['max_groups'],
-            'num_players_per_group': num_players_per_group
+            'challenge_name':       gd['challenge_name'],
+            'desired_diff':         gd['desired_diff'], # Original desired diff
+            'group_mode':           gd['group_mode'],
+            'max_groups':           gd['max_groups'],
+            'num_players_per_group':num_players_per_group
         }
         logger.info("Challenge generated successfully.")
-        return jsonify(result)
+
+        rendered_html = render_template(
+        "_challenge_result.html", # Use the new template name
+        normal_group=result.get("normal", {}),
+        b2b_grouped=result.get("b2b", []),
+        total_difficulty=result.get("total_difficulty", 0.0), # Get calculated total diff
+        share_options=result.get("share_options", {}), # Pass share options if needed in template
+        penalty_info=result.get("penalty_info")      # Pass penalty info if needed
+    )
+
+        # --- Return JSON including the *newly rendered* HTML ---
+        # Ensure the key for the rendered HTML is "result" so form.js works
+        return jsonify({
+            "result": rendered_html, # The HTML rendered from _challenge_result.html
+            "normal": result.get("normal", {}), # Still include raw data for share.js
+            "b2b": result.get("b2b", []),       # Still include raw data for share.js
+            "share_options": result.get("share_options", {}),
+            "penalty_info": result.get("penalty_info")
+        })
+
+
 
     except (ValueError, json.JSONDecodeError) as e:
         logger.exception("Bad input:")

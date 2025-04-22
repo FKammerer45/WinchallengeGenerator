@@ -134,5 +134,9 @@ def generate_challenge_logic(
                 result_html += f"<p style='margin-left:20px;'>{key}: {count} win(s)</p>"
 
     logger.debug("Final challenge result generated with total diff: %.2f", total_diff)
-    return {"result": result_html, "normal": normal_group, "b2b": b2b_grouped}
+    return {
+    "normal": normal_group,  # The grouped dictionary {'Game (Mode)': {'count': N, 'diff': D}}
+    "b2b": b2b_grouped,      # The list of B2B segments [{'group': G, 'length': L, 'seg_diff': SD}, ...]
+    "total_difficulty": total_diff # ADD total difficulty explicitly
+    }
 

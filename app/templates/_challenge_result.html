@@ -1,0 +1,125 @@
+{# templates/_challenge_result.html #}
+{# This template uses the GROUPED data from the original backend logic #}
+{% set bi_icon_prefix = 'bi bi-' %} {# Adjust if using a different icon set #}
+
+<div class="challenge-result-container"> 
+
+    {# --- Info Bar (Optional - could be generated outside this partial) --- #}
+    {# Assuming share_options are passed, reusing improved info bar #}
+    {% if share_options %}
+    <div class="info-bar glass-effect p-3 mb-4 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center">
+        <h4 class="m-0 mb-2 mb-sm-0 text-break">
+            <i class="{{ bi_icon_prefix }}trophy me-2"></i>
+            {% if share_options.challenge_name %}
+                {{ share_options.challenge_name|e }}
+            {% else %}
+                <span class="text-muted">Generated Challenge</span>
+            {% endif %}
+        </h4>
+        <div class="challenge-meta d-flex flex-wrap gap-2 justify-content-center justify-content-sm-end">
+             <span class="badge bg-primary text-white rounded-pill px-3 py-1 d-flex align-items-center">
+                <i class="{{ bi_icon_prefix }}people me-1"></i>
+                {% if share_options.group_mode == 'multi' %}
+                   Multigroup ({{ share_options.num_players_per_group }} / grp, {{ share_options.max_groups }} max)
+                {% else %}
+                   Single
+                {% endif %}
+            </span>
+            {# Show CALCULATED total difficulty #}
+             <span class="badge bg-success text-white rounded-pill px-3 py-1 d-flex align-items-center">
+                <i class="{{ bi_icon_prefix }}calculator me-1"></i>
+                Total Difficulty: {{ total_difficulty|round(1) }}
+            </span>
+        </div>
+    </div>
+    {% else %}
+     {# Fallback if share_options aren't passed #}
+      <p class="text-center mb-3"><strong>Total Difficulty: {{ total_difficulty|round(1) }}</strong></p>
+    {% endif %}
+
+
+    {# --- Normal Section --- #}
+    {# Check if normal_group dictionary has items #}
+    {% if normal_group %}
+    <div class="card glass-effect mb-4 result-section fade-in-up">
+        <div class="card-header h5 d-flex align-items-center">
+             <i class="{{ bi_icon_prefix }}list-stars me-2"></i>
+             Normal Wins
+        </div>
+        <ul class="list-group list-group-flush">
+            {# Iterate through the grouped dictionary: key is 'Game (Mode)', value is {'count': N, 'diff': D} #}
+            {% for game_mode_key, info in normal_group.items() | sort %} {# Sort alphabetically #}
+            <li class="list-group-item game-item px-3 py-2 d-flex justify-content-between align-items-center">
+                 {# Left side: Game Info #}
+                 <div class="d-flex align-items-center">
+                     <i class="{{ bi_icon_prefix }}joystick me-2 text-primary opacity-75 fs-5"></i>
+                     <div>
+                         {# Display the combined key directly #}
+                         <span class="fw-bold">{{ game_mode_key|e }}</span>
+                         {# Could add average difficulty if needed: (info.diff / info.count)|round(1) #}
+                     </div>
+                 </div>
+                 {# Right side: Wins & Total Difficulty for this group #}
+                 <div class="text-end">
+                     <span class="badge bg-light text-dark rounded-pill me-1">
+                         {{ info.count }} Win{{ 's' if info.count != 1 else '' }}
+                     </span>
+                     <span class="badge bg-secondary rounded-pill">
+                        <i class="{{ bi_icon_prefix }}speedometer2 me-1"></i>Total Diff: {{ info.diff|round(1) }}
+                     </span>
+                 </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {# --- B2B Section --- #}
+    {# Check if b2b_grouped list has items #}
+    {% if b2b_grouped %}
+    {# Loop through each segment dictionary in the list #}
+    {% for segment in b2b_grouped %}
+    <div class="card glass-effect mb-4 result-section fade-in-up" style="animation-delay: {{ loop.index0 * 0.1 }}s;"> {# Stagger animation #}
+         {# Display total segment difficulty in the header #}
+        <div class="card-header h5 d-flex align-items-center justify-content-between text-warning">
+             <div class="d-flex align-items-center">
+                 <i class="{{ bi_icon_prefix }}arrow-repeat me-2"></i>
+                 Back-to-Back Segment #{{ loop.index }} ({{ segment.length }} wins) {# Add segment index #}
+             </div>
+             <span class="badge bg-warning text-dark rounded-pill">
+                 <i class="{{ bi_icon_prefix }}speedometer2 me-1"></i>Seg. Diff: {{ segment.seg_diff|round(1) }}
+             </span>
+        </div>
+        <ul class="list-group list-group-flush">
+            {# Iterate through the items (key-value pairs) in segment.group dictionary #}
+            {% for game_mode_key, wins_count in segment.group.items() | sort %} {# Sort alphabetically #}
+            <li class="list-group-item game-item px-3 py-2 d-flex justify-content-between align-items-center">
+                {# Left side: Game Info #}
+                 <div class="d-flex align-items-center">
+                     <i class="{{ bi_icon_prefix }}joystick me-2 text-warning opacity-75 fs-5"></i>
+                     <span class="fw-bold">{{ game_mode_key|e }}</span>
+                 </div>
+                 {# Right side: Wins #}
+                 <div class="text-end">
+                     <span class="badge bg-light text-dark rounded-pill">
+                         {{ wins_count }} Win{{ 's' if wins_count != 1 else '' }}
+                     </span>
+                 </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %} {# End loop through b2b_grouped segments #}
+    {% endif %} {# End if b2b_grouped #}
+
+    {# --- Penalty Info --- #}
+    {% if penalty_info %}
+    <div class="alert alert-info d-flex align-items-center glass-effect fade-in-up" style="animation-delay: 0.2s;" role="alert"> {# Changed to alert-info #}
+        <i class="{{ bi_icon_prefix }}shield-slash-fill flex-shrink-0 me-2"></i> {# Changed icon #}
+        <div>
+            Penalties Active (Source: <strong>{{ penalty_info.tab_id|e }}</strong>)
+        </div>
+    </div>
+    {% endif %}
+
+</div>

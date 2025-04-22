@@ -394,7 +394,7 @@ function handleChallengeFormSubmit(event) {
     checkedGames.forEach(g => formData.append('selected_games', g));
 
     // --- validations ---
-    if (formData.get("group_mode") === 'multi' && !isAuth) {
+    if (formData.get("group_mode") === 'multi' && !isAuthenticated) {
         showError(errorDisplay, "Login required for multigroup.");
         return updateIndexFormUI();
     }
