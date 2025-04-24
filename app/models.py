@@ -18,7 +18,10 @@ user_challenge_group_membership = db.Table('user_challenge_group_membership', db
     db.Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
     db.Column('group_id', Integer, ForeignKey('challenge_groups.id'), primary_key=True)
 )
-
+challenge_authorized_users = db.Table('challenge_authorized_users', db.metadata,
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('challenge_id', db.Integer, db.ForeignKey('shared_challenges.id'), primary_key=True)
+)
 # --- Basic Config/Entry Models ---
 
 # Inherit from db.Model instead of Base
@@ -161,7 +164,13 @@ class SharedChallenge(db.Model):
     # Relationships using db.relationship
     groups = db.relationship("ChallengeGroup", back_populates="shared_challenge", cascade="all, delete-orphan", lazy="select")
     creator = db.relationship("User", back_populates="created_challenges")
-
+    authorized_users = db.relationship(
+        "User",
+        secondary=challenge_authorized_users,
+        # Consider a backref if you need to easily find challenges a user is authorized for
+        backref=db.backref("authorized_challenges", lazy="dynamic"),
+        lazy="select" # Or 'dynamic' if you expect large lists and want to query further
+    )
     def __repr__(self): 
         return f"<SharedChallenge id={self.id} public_id='{self.public_id}'>"
         

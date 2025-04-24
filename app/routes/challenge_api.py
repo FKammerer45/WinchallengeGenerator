@@ -25,6 +25,15 @@ logger = logging.getLogger(__name__)
 # Define the blueprint - RENAME VARIABLE to challenge_api
 challenge_api = Blueprint('challenge_api', __name__, url_prefix='/api/challenge') 
 
+def is_user_authorized(challenge, user):
+    """Checks if a user is the creator or in the authorized list."""
+    if not user or not user.is_authenticated:
+        return False
+    if challenge.creator_id == user.id:
+        return True
+    # Check if user is in the collection. This requires the relationship to be loaded.
+    # Ensure 'authorized_users' is loaded efficiently if needed frequently (e.g., using joinedload or selectinload options in the query)
+    return user in challenge.authorized_users
 
 # --- /generate endpoint ---
 # Update decorator to use the new blueprint name
@@ -226,6 +235,15 @@ def share_challenge():
             max_groups=max_groups,
             num_players_per_group=num_players_per_group
         )
+
+        if current_user.is_authenticated: # Ensure user is logged in
+            user_to_add = db.session.get(User, current_user.id) # Get user object in session
+            if user_to_add:
+                new_challenge.authorized_users.append(user_to_add)
+                logger.info(f"Automatically authorized creator {current_user.username} for challenge {public_id}")
+            else:
+                logger.warning(f"Could not re-fetch user {current_user.id} to auto-authorize.")
+
         db.session.add(new_challenge)
         db.session.commit() # Commit transaction
         logger.info(f"Successfully created SharedChallenge {public_id} by user {current_user.username}")
@@ -256,6 +274,7 @@ def share_challenge():
 
 # --- /<public_id>/groups endpoint ---
 # Update decorator to use the new blueprint name
+@login_required
 @challenge_api.route("/<public_id>/groups", methods=["POST"]) 
 def add_group_to_challenge(public_id):
     """
@@ -264,7 +283,7 @@ def add_group_to_challenge(public_id):
     """
     logger.debug(f"Request to add group to challenge {public_id}")
     data = request.get_json()
-
+    
     if not data or 'group_name' not in data:
         logger.warning(f"Add group request for {public_id} missing JSON or 'group_name'.")
         return jsonify({"error": "Invalid request. JSON data with 'group_name' required."}), 400
@@ -282,6 +301,9 @@ def add_group_to_challenge(public_id):
             logger.warning(f"Attempt to add group to non-existent challenge {public_id}")
             return jsonify({"error": "Challenge not found."}), 404
 
+        if challenge.creator_id != current_user.id:
+            logger.warning(f"User {current_user.username} attempted to add group to challenge {public_id} but is not creator.")
+            return jsonify({"error": "Only the challenge creator can add groups."}), 403
         # Check group limit
         current_group_count = db.session.query(func.count(ChallengeGroup.id))\
             .filter(ChallengeGroup.shared_challenge_id == challenge.id)\
@@ -370,12 +392,23 @@ def update_group_progress(public_id, group_id):
 
         if not group:
             return jsonify({"error": "Challenge or Group not found."}), 404
+        challenge = group.shared_challenge # Get the challenge via the relationship
+        if not challenge:
+            # This case should ideally not happen if database constraints are correct
+            logger.error(f"Challenge object missing for group {group_id}")
+            return jsonify({"error": "Internal Server Error: Cannot find challenge for group."}), 500
+        
+        if not is_user_authorized(challenge, current_user):
+            logger.warning(f"User {current_user.username} unauthorized to update progress for challenge {challenge.public_id}.")
+            return jsonify({"error": "You are not authorized for this challenge."}), 403
+
+        
 
         # --- Authorization Check: User must be a member ---
         is_member = any(member.id == current_user.id for member in group.members)
         if not is_member:
             logger.warning(f"Forbidden: User {current_user.username} (ID: {current_user.id}) tried to update progress for group {group_id} but is not a member.")
-            return jsonify({"error": "You are not authorized to update progress for this group."}), 403
+            return jsonify({"error": "You must be a member of this group to update its progress."}), 403
 
         # --- Update Progress Logic ---
         if group.progress_data is None: # Initialize if null
@@ -447,6 +480,10 @@ def join_group(group_id):
         if not challenge: # Should not happen if FK is set
             return jsonify({"error": "Challenge associated with group not found."}), 500
 
+        if not is_user_authorized(challenge, current_user):
+            logger.warning(f"User {current_user.username} unauthorized to join group {group_id} for challenge {challenge.public_id}.")
+            return jsonify({"error": "You are not authorized to join groups for this challenge."}), 403
+        
         # --- Business Logic Checks ---
         # 1. Is the group full based on num_players_per_group?
         if len(group.members) >= challenge.num_players_per_group:
@@ -509,9 +546,20 @@ def leave_group(group_id):
         group = db.session.query(ChallengeGroup).options(
             selectinload(ChallengeGroup.members)
         ).get(group_id)
-
         if not group:
             return jsonify({"error": "Group not found."}), 404
+
+        challenge = group.shared_challenge # Get the challenge via the relationship
+        if not challenge:
+            # This case should ideally not happen if database constraints are correct
+            logger.error(f"Challenge object missing for group {group_id}")
+            return jsonify({"error": "Internal Server Error: Cannot find challenge for group."}), 500
+        
+        if not is_user_authorized(challenge, current_user):
+            logger.warning(f"User {current_user.username} unauthorized to leave group {group_id} for challenge {challenge.public_id}.")
+            return jsonify({"error": "You are not authorized to leave groups for this challenge."}), 403
+        
+        
 
         # Find the user in the group's members
         user_to_remove = None
@@ -568,6 +616,10 @@ def update_group_players(group_id):
         if not challenge: # Should not happen
             return jsonify({"error": "Challenge for group not found."}), 500
 
+
+        if not is_user_authorized(challenge, current_user):
+            logger.warning(f"User {current_user.username} unauthorized to update players for challenge {challenge.public_id}.")
+            return jsonify({"error": "Not authorized for this challenge."}), 403
         # Authorization: Check if current user is a member of the group
         is_member = any(member.id == current_user.id for member in group.members)
         if not is_member:
@@ -658,6 +710,19 @@ def set_group_penalty(group_id):
         if not group:
             return jsonify({"error": "Group not found."}), 404
 
+        challenge = group.shared_challenge # Get the challenge via the relationship
+        if not challenge:
+            # This case should ideally not happen if database constraints are correct
+            logger.error(f"Challenge object missing for group {group_id}")
+            return jsonify({"error": "Internal Server Error: Cannot find challenge for group."}), 500
+        
+        if not is_user_authorized(challenge, current_user):
+            logger.warning(f"User {current_user.username} unauthorized to set penalty for challenge {challenge.public_id}.")
+            return jsonify({"error": "Not authorized for this challenge."}), 403
+
+
+
+
         # Authorization Check (Example: must be a member to set penalty)
         is_member = any(member.id == current_user.id for member in group.members)
         if not is_member:
@@ -683,3 +748,71 @@ def set_group_penalty(group_id):
         logger.exception(f"Unexpected error setting penalty for group {group_id}: {e}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
+@challenge_api.route("/<public_id>/authorize", methods=["POST"])
+@login_required
+def add_authorized_user(public_id):
+    challenge = db.session.query(SharedChallenge).options(
+        selectinload(SharedChallenge.authorized_users) # Eager load for check
+    ).filter_by(public_id=public_id).first_or_404()
+
+    if challenge.creator_id != current_user.id:
+        return jsonify({"error": "Only the creator can authorize users."}), 403
+
+    data = request.get_json()
+    username_to_add = data.get('username')
+    if not username_to_add:
+        return jsonify({"error": "Username required."}), 400
+
+    user_to_add = db.session.query(User).filter(User.username.ilike(username_to_add)).first()
+    if not user_to_add:
+        return jsonify({"error": f"User '{username_to_add}' not found."}), 404
+    if user_to_add.id == challenge.creator_id:
+         # Return ok status, but maybe indicate they are creator
+         return jsonify({"status": "ok", "message": "Creator is always authorized."}), 200
+
+    if user_to_add not in challenge.authorized_users:
+        challenge.authorized_users.append(user_to_add)
+        db.session.commit()
+        logger.info(f"User {user_to_add.username} authorized for challenge {public_id} by {current_user.username}.")
+        # ----> MODIFIED RETURN START <----
+        return jsonify({
+            "status": "success",
+            "message": f"User {user_to_add.username} authorized.",
+            "user": {"id": user_to_add.id, "username": user_to_add.username} # Include user info
+        }), 200
+        # ----> MODIFIED RETURN END <----
+    else:
+        # ----> MODIFIED RETURN START (Optional: Include user info even if already authorized) <----
+        return jsonify({
+            "status": "ok",
+            "message": f"User {user_to_add.username} already authorized.",
+            "user": {"id": user_to_add.id, "username": user_to_add.username} # Optionally include info
+        }), 200
+        # ----> MODIFIED RETURN END <----
+
+# The remove_authorized_user function likely doesn't need modification
+# unless you want to return the details of the removed user.
+# Existing implementation seems fine.
+@challenge_api.route("/<public_id>/authorize/<int:user_id>", methods=["DELETE"])
+@login_required
+def remove_authorized_user(public_id, user_id):
+    # ... (existing implementation is likely okay) ...
+     challenge = db.session.query(SharedChallenge).options(selectinload(SharedChallenge.authorized_users)).filter_by(public_id=public_id).first_or_404()
+     if challenge.creator_id != current_user.id:
+         return jsonify({"error": "Only the creator can remove users."}), 403
+
+     user_to_remove = None
+     for user in challenge.authorized_users:
+          if user.id == user_id:
+                user_to_remove = user
+                break
+
+     if not user_to_remove:
+         return jsonify({"error": "User not found in authorized list."}), 404
+     if user_to_remove.id == challenge.creator_id:
+          return jsonify({"error": "Cannot remove the creator."}), 400
+
+     challenge.authorized_users.remove(user_to_remove)
+     db.session.commit()
+     logger.info(f"User {user_to_remove.username} authorization revoked for challenge {public_id} by {current_user.username}.")
+     return jsonify({"status": "success", "message": f"User {user_to_remove.username} removed."}), 200

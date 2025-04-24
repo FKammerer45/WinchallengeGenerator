@@ -21,21 +21,18 @@ main = Blueprint('main', __name__)
 @main.route("/")
 def index():
     """Renders the main page (challenge generation form)."""
-    logger.debug("Rendering index page.")
     # Pass any necessary context for the template
     return render_template("index.html", game_vars={}) # Assuming game_vars might be used
 
 @main.route("/games")
 def games_config():
     """Renders the games configuration page."""
-    logger.debug("Rendering games config page.")
     # Pass empty lists/dicts initially, JS will populate from localStorage/API
     return render_template("games/games.html", games=[], existing_games=[], game_vars={})
 
 @main.route("/penalties")
 def penalties_config():
     """Renders the penalties configuration page."""
-    logger.debug("Rendering penalties config page shell.")
     # Pass any necessary context for the template
     return render_template("penalties.html")
 
@@ -43,12 +40,10 @@ def penalties_config():
 @main.route("/my_challenges")
 def my_challenges_view():
     """Displays DB challenges for logged-in users OR prepares shell for JS local view."""
-    logger.debug(f"Request received for /my_challenges...")
     user_challenges = []
     is_authenticated = current_user.is_authenticated
 
     if is_authenticated:
-        logger.debug(f"... by authenticated user {current_user.username} (ID: {current_user.id})")
         try:
             # Use db.session directly for database operations
             user_challenges = db.session.query(SharedChallenge)\
@@ -67,8 +62,7 @@ def my_challenges_view():
             logger.exception(f"Error fetching DB challenges for user {current_user.username}")
             flash("Could not load your saved challenges due to a server error.", "danger")
             user_challenges = [] # Ensure it's an empty list on error
-    else:
-        logger.debug("... by anonymous user. Will rely on JS for local challenges.")
+   
 
     return render_template(
         "my_challenges.html",
@@ -79,7 +73,6 @@ def my_challenges_view():
 @main.route('/subscribe')
 def subscribe():
     """Renders the subscription pricing page."""
-    logger.debug("Rendering subscription page.")
     # You might pass additional data if needed, e.g., user's current plan status
     return render_template('pricing/pricing_section.html')
 
@@ -90,8 +83,7 @@ def challenge_view(challenge_id):
     Renders the view for DB or Local challenges.
     Ensures fresh group data is loaded for DB challenges.
     """
-    logger.debug(f"Request received for /challenge/{challenge_id}")
-
+    
     is_local = False
     shared_challenge = None
     initial_groups_data = None # Will hold data prepared for template
@@ -101,7 +93,6 @@ def challenge_view(challenge_id):
 
     if challenge_id.startswith("local_"):
         is_local = True
-        logger.debug(f"Identified as local challenge ID: {challenge_id}")
         # For local challenges, JS handles loading data and rendering
         # Pass minimal necessary info
 
@@ -115,24 +106,47 @@ def challenge_view(challenge_id):
         except ValueError:
             logger.warning(f"Invalid public_id format provided: {challenge_id}")
             abort(404)
-
-        logger.debug(f"Attempting to load DB challenge: {challenge_id}")
         try:
             # Use db.session directly for database operations
             # Query challenge with related data efficiently loaded
             shared_challenge = db.session.query(SharedChallenge).options(
                 selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members), # Load groups and their members
+                selectinload(SharedChallenge.authorized_users),
                 joinedload(SharedChallenge.creator) # Load the creator user
             ).filter(SharedChallenge.public_id == challenge_id).first()
 
             if not shared_challenge:
                 logger.warning(f"DB Challenge {challenge_id} not found.")
                 abort(404)
+            
+           
+    
+
+
+            is_creator = False
+            is_authorized = False
+            authorized_user_list = [] # Initialize
+
+            if current_user.is_authenticated:
+                # Use the helper function (ensure it's accessible or redefined here)
+                from .challenge_api import is_user_authorized # Assuming helper is in challenge_api.py
+                is_creator = (shared_challenge.creator_id == current_user.id)
+                # Pass the fetched challenge (with eager-loaded authorized_users) to the helper
+                is_authorized = is_user_authorized(shared_challenge, current_user)
+
+                # If the viewer is the creator, prepare the list of authorized users for the template
+                if is_creator:
+                    authorized_user_list = [
+                        {'id': u.id, 'username': u.username}
+                        for u in shared_challenge.authorized_users # Iterate over the pre-loaded list
+                    ]
+                    # Optional: Sort the list alphabetically by username
+                    authorized_user_list.sort(key=lambda x: x['username'].lower())
 
             # Refresh group objects to ensure latest state within this session
             # This is useful if other requests might have modified groups concurrently
             # although less critical if you just loaded them. Can be intensive.
-            logger.debug(f"Refreshing group data for challenge {challenge_id}...")
+            
             refreshed_groups = []
             for group in shared_challenge.groups:
                 try:
@@ -173,7 +187,6 @@ def challenge_view(challenge_id):
                 # Iterate over the refreshed groups list
                 for g in shared_challenge.groups 
             ]
-            logger.debug(f"Prepared initial_groups_data with {len(initial_groups_data)} groups.")
 
         except Exception as db_err:
             # Rollback in case of any error during DB operations or processing
@@ -194,7 +207,10 @@ def challenge_view(challenge_id):
             is_multigroup=is_multigroup,
             user_joined_group_id=user_joined_group_id,
             initial_groups=initial_groups_data, # Pass the prepared list
-            num_players_per_group=num_players_per_group
+            num_players_per_group=num_players_per_group,
+            is_creator=is_creator, 
+            is_authorized=is_authorized, 
+            authorized_user_list=authorized_user_list 
         )
     except Exception as render_error:
         logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")

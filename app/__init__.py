@@ -11,7 +11,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 # Import the configuration dictionary
 from config import config
-
+import logging
 # Initialize extensions globally but without app context initially
 # These should start at column 1 in your file
 db = SQLAlchemy()
@@ -56,6 +56,7 @@ def create_app(config_name=None):
     default_limits=["60 per minute"],
     headers_enabled=True,
     )
+    
     try:
         app.config.from_object(config[config_name])
         print(f"--- Configuration loaded successfully for '{config_name}' ---")
@@ -67,6 +68,14 @@ def create_app(config_name=None):
         print(f"Error: Configuration name '{config_name}' not found in config dictionary. Using 'default'.")
         config_name = 'default'
         app.config.from_object(config[config_name])
+
+
+    if app.config['DEBUG']:
+        # Ensure the root logger and app logger are set to DEBUG level
+        # when Flask debug mode is on.
+        logging.basicConfig(level=logging.DEBUG) # Configures root logger
+        app.logger.setLevel(logging.DEBUG) # Configures Flask's app.logger
+        print("--- Logger level explicitly set to DEBUG ---") # Confirmation
 
     # Initialize extensions with the app instance
     db.init_app(app)
