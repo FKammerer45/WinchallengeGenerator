@@ -32,40 +32,44 @@ import {
   // ---------- CARD CREATION ----------------------------------------------------
   function createLocalChallengeCard(ch) {
     const col = document.createElement("div");
-    col.className = "col-md-6 col-lg-4 mb-4 local-challenge-item";
-    col.dataset.localId = ch.localId;
-  
-    const href = `${pageConfig.viewLocalUrl}${ch.localId}`;
-  
+    col.className = "col-md-6 col-lg-4 mb-4 local-challenge-item"; // Keep item class
+    col.dataset.localId = ch.localId; // Keep ID for deletion logic
+
+    // Construct the URL using pageConfig
+    const href = `${pageConfig.viewLocalUrl || '/challenge/'}${ch.localId}`;
+
+    // --- Apply updated structure matching the shared card ---
     col.innerHTML = `
-      <div class="card challenge-card h-100">
-        <a href="${href}" class="card-body-link" target="_blank">
-          <div class="card-body">
-            <h5 class="card-title">${escapeHtml(
-              ch.name || "Unnamed Local Challenge"
-            )}</h5>
-            <h6 class="card-subtitle mb-2 text-muted">
-              <code style="font-size:.9em;">${escapeHtml(
-                ch.localId.slice(0, 12)
-              )}…</code> (Local)
-            </h6>
-            <p class="card-text small">
-              Saved: ${ch.createdAt
-                ? new Date(ch.createdAt).toLocaleString()
-                : "N/A"}
-            </p>
+      <div class="card list-card h-100 glass-effect challenge-card-hover"> 
+        <a href="${href}" class="card-body-link text-light" style="text-decoration: none;" target="_blank">
+          <div class="card-body d-flex flex-column"> 
+            <h5 class="card-title mb-3 d-flex align-items-center">
+                <i class="bi bi-pc-display-horizontal me-2 text-info fs-5"></i> 
+                <span>${escapeHtml(ch.name || "Unnamed Local Challenge")}</span>
+            </h5>
+
+
+
+            <div class="mt-auto small text-secondary"> 
+                <p class="mb-1">
+                    <i class="bi bi-calendar-event me-1 opacity-75"></i>Created: ${
+                      ch.createdAt
+                        ? new Date(ch.createdAt).toLocaleString()
+                        : "N/A"
+                    }
+                </p>
+           </div>
           </div>
         </a>
-        <div class="card-footer text-right">
-          <button
-            class="btn btn-sm btn-outline-danger delete-local-challenge-btn"
-            data-local-id="${ch.localId}"
-            data-challenge-name="${escapeHtml(
-              ch.name || "Unnamed Local Challenge"
-            )}">
-            <span class="spinner-border spinner-border-sm" style="display:none;"></span>
-            <span>Delete</span>
-          </button>
+        <div class="card-footer d-flex justify-content-end align-items-center py-2 px-3">
+            <button class="btn btn-sm btn-outline-danger delete-local-challenge-btn d-flex align-items-center"
+                    data-local-id="${ch.localId}"
+                    data-challenge-name="${escapeHtml(ch.name || "Unnamed Local Challenge")}"
+                    title="Delete Local Challenge">
+                <span class="spinner-border spinner-border-sm me-1" style="display: none;"></span>
+                <i class="bi bi-trash me-1"></i>
+                <span class="button-text">Delete</span> 
+            </button>
         </div>
       </div>`;
     return col;

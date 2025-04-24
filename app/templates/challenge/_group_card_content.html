@@ -5,7 +5,7 @@
 {# Determine wrapper classes based on whether this is the joined group #}
 {% set wrapper_classes = 'col-lg-4 col-md-6 mb-4 group-card-wrapper' %}
 {% if is_member %}
-  {% set wrapper_classes = 'col-md-8 col-lg-6 mx-auto mb-4 group-card-wrapper joined-group-layout' %}
+{% set wrapper_classes = 'col-md-8 col-lg-6 mx-auto mb-4 group-card-wrapper joined-group-layout' %}
 {% endif %}
 
 <div class="{{ wrapper_classes }}" data-group-id="{{ group.id }}">
@@ -16,7 +16,7 @@
 
       {# Placeholder div for the group-specific progress bar #}
       <div id="progressBarContainer-{{ group.id }}" class="group-progress-bar-container mb-3">
-          {# JS will render the progress bar here via updateUIAfterMembershipChange #}
+        {# JS will render the progress bar here via updateUIAfterMembershipChange #}
       </div>
 
       {# Include progress checkboxes - passes the group dict and challenge object #}
@@ -24,25 +24,43 @@
 
       {# Placeholder for Player Name inputs (JS will render/show if needed) #}
       <div class="player-names-section mt-3 border-top pt-3" style="display: none;">
-         <h6 class="small mb-2">Group Players (Max {{ num_players_per_group }}):</h6>
-         <div class="player-name-inputs"></div> {# JS fills this #}
-         <div class="player-name-error text-danger small mt-1"></div> {# JS shows errors here #}
-         {# JS adds save button here #}
+        <h6 class="small mb-2">Group Players (Max {{ num_players_per_group }}):</h6>
+        <div class="player-name-inputs"></div> {# JS fills this #}
+        <div class="player-name-error text-danger small mt-1"></div> {# JS shows errors here #}
+        {# JS adds save button here #}
       </div>
 
     </div> {# End card-body #}
 
-     {# Active Penalty Display (JS updates content and visibility) #}
-    <div class="active-penalty-display mt-2 border-top pt-2 mx-3 mb-2" data-group-id="{{ group.id }}" style="{{ 'display: none;' if not group.active_penalty_text }}">
-         <h6 class="small mb-1">Active Penalty:</h6>
-         <p class="mb-0 small penalty-text-content">{{ group.active_penalty_text | escape if group.active_penalty_text else '' }}</p>
-         {# Clear button added by JS if user is member #}
+    {# Active Penalty Display (JS updates content and visibility) #}
+    <div class="active-penalty-display mt-3 mx-2 mb-2" {# Adjusted margins slightly #} data-group-id="{{ group.id }}"
+      style="{{ 'display: none;' if not group.active_penalty_text else '' }}">
+
+      {# Use alert component for better visibility #}
+      <div class="alert alert-warning p-2 d-flex align-items-center justify-content-between glass-effect shadow-sm mb-0"
+        role="alert">
+        {# Left side: Icon and Text #}
+        <div class="d-flex align-items-center">
+          <i class="bi bi-exclamation-octagon-fill fs-5 me-2"></i> {# Warning Icon #}
+          <div class="penalty-text-content small">
+            {# Combine label and text #}
+            <strong class="me-1">Active Penalty:</strong>
+            <span>{{ group.active_penalty_text | escape if group.active_penalty_text else 'None' }}</span>
+          </div>
+        </div>
+        {# Right side: Placeholder for the Clear button added by JS #}
+        {# The clear button will be appended here by updateUIAfterMembershipChange JS function #}
+        {# Add a specific target class if needed for JS to append the button reliably #}
+        <div class="penalty-clear-button-container ms-2">
+          {# JS adds button here #}
+        </div>
+      </div>
     </div>
 
     {# Footer for Join/Leave buttons (JS manages the button content/state) #}
     {% if is_multigroup %}
     <div class="card-footer text-center join-leave-footer">
-       {# Button content/state set dynamically by challenge_ui.js #}
+      {# Button content/state set dynamically by challenge_ui.js #}
     </div>
     {% endif %}
   </div> {# End card #}

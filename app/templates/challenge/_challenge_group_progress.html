@@ -1,34 +1,50 @@
 {# templates/challenge/_challenge_group_progress.html #}
 {# Renders the INTERACTIVE progress checkboxes for a specific group #}
-{# Expects: challenge, group, is_member context variables #}
+{# Expects: challenge, group, is_member, current_user context variables #}
 
 {% set c = challenge.challenge_data %}
 {% set group_progress = group.progress or {} %} {# Use 'progress' key from dict #}
 {% set group_id = group.id %}
-{# Determine if checkboxes should be interactive based on membership and login status #}
-{% set is_interactive = is_member and current_user.is_authenticated %}
+{# Determine if checkboxes should be interactive based on membership and login status, PLUS overall authorization #}
+{# Assuming is_authorized boolean is passed from challenge.html context via 'with context' or similar #}
+{% set is_interactive = is_authorized and is_member and current_user.is_authenticated %}
+
+{% set bi_icon_prefix = 'bi bi-' %} {# Define icon prefix #}
 
 {% if c %}
-<div class="group-progress-container mt-3"> {# Added margin-top #}
+<div class="group-progress-container mt-3 px-1"> {# Added slight horizontal padding #}
 
-    {# Normal Wins Progress #}
+    {# --- Normal Wins Progress --- #}
     {% if c.normal %}
-        <h6 class="text-info small font-weight-bold mb-2">Normal Wins Progress:</h6> {# Use info color (blue) #}
+        {# Section Header #}
+        <div class="d-flex align-items-center mb-2 text-info">
+            <i class="{{ bi_icon_prefix }}check-circle-fill me-2 fs-5"></i>
+            <h6 class="mb-0 fw-bold small text-uppercase">Normal Wins Progress</h6>
+        </div>
+
+        {# Items - Using styled divs instead of plain list #}
         {% for key, info in c.normal.items()|sort %}
-            <div class="mb-2">
-                <strong class="small d-block text-light">{{ key | escape }} ({{ info.count }} needed):</strong>
-                <div class="progress-markers pl-2">
+            <div class="progress-category mb-3">
+                {# Game/Mode Label with count #}
+                 <div class="d-flex align-items-center mb-1">
+                    <i class="{{ bi_icon_prefix }}joystick me-2 opacity-75 text-primary"></i>
+                    <strong class="small text-light me-2">{{ key | escape }}</strong>
+                    <span class="badge bg-secondary rounded-pill fw-normal">{{ info.count }} needed</span>
+                 </div>
+                 {# Checkbox Markers #}
+                <div class="progress-markers ps-4"> {# Indent markers slightly #}
                     {% for i in range(info.count|int) %}
                         {% set item_type = 'normal' %}
                         {% set item_key = key %}
                         {% set item_index = i %}
                         {% set progress_key = item_type ~ '_' ~ item_key ~ '_' ~ item_index %}
                         {% set is_checked = group_progress.get(progress_key, False) %}
-                        {% set safe_id_key = progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') %}
+                        {% set safe_id_key = progress_key | replace('[^a-zA-Z0-9-_]', '_') %} {# More robust ID safe replace #}
                         {% set input_id = 'check_' ~ group_id ~ '_' ~ safe_id_key %}
 
-                        {# Use custom controls styled by style.css #}
-                        <div class="custom-control custom-checkbox d-inline-block mr-2 progress-item {% if is_checked %}completed{% endif %}" data-progress-key="{{ progress_key }}">
+                        <div class="custom-control custom-checkbox d-inline-block me-1 progress-item {% if is_checked %}completed{% endif %}"
+                             data-progress-key="{{ progress_key }}"
+                             title="Win {{ i+1 }} for {{ key | escape }}">
                           <input type="checkbox"
                                  class="custom-control-input progress-checkbox"
                                  id="{{ input_id }}"
@@ -38,32 +54,46 @@
                                  data-item-key="{{ item_key | escape }}"
                                  data-item-index="{{ item_index }}"
                                  {% if is_checked %}checked{% endif %}
-                                 {# Disable based on interactivity flag #}
                                  {% if not is_interactive %}disabled{% endif %}
                                  >
-                          <label class="custom-control-label" for="{{ input_id }}">
-                             {# Label text can be hidden if checkbox is styled clearly #}
+                           {# Custom styled label (needs CSS in style.css) or keep sr-only #}
+                           <label class="custom-control-label" for="{{ input_id }}">
                              <span class="sr-only">Win {{ i+1 }} for {{ key | escape }}</span>
-                          </label>
+                           </label>
                         </div>
                     {% endfor %}
                 </div>
             </div>
         {% endfor %}
-    {% endif %}
+    {% endif %} {# End Normal Wins #}
 
-    {# Back-to-Back Wins Progress #}
+    {# --- Back-to-Back Wins Progress --- #}
     {% if c.b2b %}
-        {% if c.normal %}<hr class="my-3">{% endif %} {# Use standard hr #}
-        <h6 class="text-secondary-accent small font-weight-bold mb-2">B2B Segment Progress:</h6> {# Use secondary accent (pink) #}
+        {% if c.normal %}<hr class="my-3 section-divider">{% endif %} {# Use styled divider #}
+
+        {# Section Header #}
+        <div class="d-flex align-items-center mb-2 text-secondary-accent">
+            <i class="{{ bi_icon_prefix }}arrow-repeat me-2 fs-5"></i>
+            <h6 class="mb-0 fw-bold small text-uppercase">B2B Segment Progress</h6>
+        </div>
+
+        {# Items per Segment #}
         {% for seg in c.b2b %}
             {% set outer_loop_index = loop.index %}
-             <div class="mb-2">
-                <strong class="small d-block text-light">Segment {{ outer_loop_index }}:</strong>
+             <div class="progress-category mb-3 ms-2"> {# Indent segment slightly #}
+                {# Segment Title #}
+                <strong class="small d-block text-light mb-1">Segment {{ outer_loop_index }} ({{ seg.length }} wins):</strong>
+                {# Items within segment #}
                 {% for key, count in seg.group.items()|sort %}
-                    <div class="pl-2 mb-1">
-                         <span class="small d-inline-block mr-2 text-light">{{ key | escape }} ({{ count }} needed):</span>
-                        <div class="progress-markers d-inline-block">
+                    <div class="mb-2">
+                        {# Game/Mode Label #}
+                         <div class="d-flex align-items-center mb-1">
+                            <i class="{{ bi_icon_prefix }}joystick me-2 opacity-75 text-warning"></i>
+                            <span class="small text-light me-2">{{ key | escape }}</span>
+                            <span class="badge bg-secondary rounded-pill fw-normal">{{ count }} needed</span>
+                         </div>
+                         {# Checkbox Markers #}
+                        <div class="progress-markers ps-4"> {# Indent markers #}
                             {% for i in range(count|int) %}
                                 {% set item_type = 'b2b' %}
                                 {% set item_key = key %}
@@ -71,10 +101,12 @@
                                 {% set segment_index = outer_loop_index %}
                                 {% set progress_key = item_type ~ '_' ~ segment_index ~ '_' ~ item_key ~ '_' ~ item_index %}
                                 {% set is_checked = group_progress.get(progress_key, False) %}
-                                {% set safe_id_key = progress_key | replace(' ', '_') | replace('(', '') | replace(')', '') %}
+                                {% set safe_id_key = progress_key | replace('[^a-zA-Z0-9-_]', '_') %} {# More robust ID safe replace #}
                                 {% set input_id = 'check_' ~ group_id ~ '_' ~ safe_id_key %}
 
-                                <div class="custom-control custom-checkbox d-inline-block mr-2 progress-item {% if is_checked %}completed{% endif %}" data-progress-key="{{ progress_key }}">
+                                <div class="custom-control custom-checkbox d-inline-block me-1 progress-item {% if is_checked %}completed{% endif %}"
+                                     data-progress-key="{{ progress_key }}"
+                                     title="Segment {{ segment_index }} Win {{ i+1 }} for {{ key | escape }}">
                                   <input type="checkbox"
                                          class="custom-control-input progress-checkbox"
                                          id="{{ input_id }}"
@@ -94,16 +126,17 @@
                             {% endfor %}
                         </div>
                     </div>
-                {% endfor %}
-             </div>
-        {% endfor %}
-    {% endif %}
+                {% endfor %} {# End loop keys in segment group #}
+             </div> {# End segment div #}
+        {% endfor %} {# End loop segments #}
+    {% endif %} {# End B2B Wins #}
 
     {# Fallback if challenge structure is missing or empty #}
     {% if not c.normal and not c.b2b %}
-        <p class="text-secondary small">No progress items defined for this challenge.</p>
+        <p class="text-secondary small text-center mt-3">No progress items defined for this challenge.</p>
     {% endif %}
 </div>
+
 {% else %}
-    <p class="text-danger">Error: Challenge data ('c') not provided to progress template.</p>
+    <p class="text-danger p-2">Error: Challenge data ('c') not provided to progress template.</p>
 {% endif %}

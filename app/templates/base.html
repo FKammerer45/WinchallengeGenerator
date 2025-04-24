@@ -30,7 +30,9 @@
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 
   {# --- Block for page-specific head elements --- #}
-  {% block head %}{% endblock %}
+  {% block head %}
+  <style> body { background-color: var(--base-bg, #030712); } </style>
+  {% endblock %}
 </head>
 
 {# Add flex classes for potential sticky footer #}

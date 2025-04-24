@@ -1,38 +1,57 @@
 {# app/templates/challenge/_challenge_penalty_section.html #}
-{# Expects: players (list of names for wheel), penalty_tab_id, challenge_index ('shared') #}
+{# Enhanced version with modern styling #}
+{# Expects: players (list of names for wheel), penalty_tab_id, challenge_index ('shared' or 'local') #}
 
-{# Button to trigger penalty assignment - Use warning (yellow/orange) accent #}
-<div class="text-center mb-4"> {# Increased margin #}
-    <button class="btn btn-warning lostGameBtn-Shared shadow-md" {# Use modern button class #}
+{% set bi_icon_prefix = 'bi bi-' %} {# Define icon prefix #}
+
+{# --- Trigger Button --- #}
+<div class="text-center mb-4 pb-2"> {# Added some bottom padding #}
+    <button class="btn btn-lg btn-warning lostGameBtn-{{ 'Shared' if challenge_index == 'shared' else 'Local' }} shadow-md d-inline-flex align-items-center justify-content-center" {# Added flex alignment #}
             data-penalty-tab-id="{{ penalty_tab_id }}"
-            data-players="{{ players|tojson|safe }}"
+            data-players="{{ players|tojson|safe if players else '[]' }}" {# Ensure valid JSON even if players is None #}
             title="Click if a game was lost">
-        {# Consider adding an icon here if Font Awesome is available #}
-        {# <i class="fas fa-exclamation-triangle mr-2"></i> #}
-        <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# Keep spinner #}
-        <span>Lost Game - Assign Penalty</span>
+        <i class="{{ bi_icon_prefix }}dice-6 me-2"></i> {# Dice Icon #}
+        <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span> {# Spinner #}
+        <span>Lost Game - Spin Penalty</span> {# Slightly updated text #}
     </button>
+    {# Add instruction text #}
+    <p class="text-secondary small mt-2">Click above to spin for a randomly assigned penalty.</p>
 </div>
 
-{# Containers for the wheels (initially hidden) - Add glass effect #}
-<div class="row justify-content-center mt-4">
+{# --- Wheel Containers --- #}
+{# Use justify-content-around for potentially better spacing #}
+<div class="row justify-content-around mt-4 g-4"> {# Added gutter 'g-4' for more space #}
+
+    {# Player Wheel Container - using card structure #}
     <div class="col-md-6 col-lg-5 text-center wheel-container mb-4" id="playerWheelContainer-{{ challenge_index }}" style="display: none;">
-        <div class="p-3 rounded-md glass-effect"> {# Apply glass effect to container #}
-            <h6 class="text-secondary mb-3" id="playerWheelTitle-{{ challenge_index }}">Selecting Participant...</h6>
-            <canvas id="playerWheelCanvas-{{ challenge_index }}" width="280" height="280" style="max-width: 100%;">Canvas not supported</canvas>
-            {# Pointer can be styled in CSS if needed #}
-            {# <div class="wheel-pointer"></div> #}
+        <div class="card h-100 glass-effect shadow-sm"> {# Card with glass + shadow #}
+             <div class="card-header bg-transparent text-secondary fw-bold d-flex align-items-center justify-content-center py-2"> {# Styled header #}
+                 <i class="{{ bi_icon_prefix }}person-check-fill me-2 fs-5"></i> {# Icon #}
+                 <span id="playerWheelTitle-{{ challenge_index }}">Selecting Participant...</span> {# Title #}
+             </div>
+             <div class="card-body d-flex align-items-center justify-content-center p-2"> {# Reduced padding #}
+                 {# Canvas takes available space #}
+                 <canvas id="playerWheelCanvas-{{ challenge_index }}" width="280" height="280" style="max-width: 100%; max-height: 280px;">Canvas not supported</canvas>
+             </div>
         </div>
     </div>
+
+    {# Penalty Wheel Container - using card structure #}
     <div class="col-md-6 col-lg-5 text-center wheel-container mb-4" id="penaltyWheelContainer-{{ challenge_index }}" style="display: none;">
-         <div class="p-3 rounded-md glass-effect"> {# Apply glass effect to container #}
-            <h6 class="text-secondary mb-3">Selecting Penalty...</h6>
-            <canvas id="penaltyWheelCanvas-{{ challenge_index }}" width="280" height="280" style="max-width: 100%;">Canvas not supported</canvas>
-            {# <div class="wheel-pointer"></div> #}
-        </div>
+         <div class="card h-100 glass-effect shadow-sm"> {# Card with glass + shadow #}
+              <div class="card-header bg-transparent text-secondary fw-bold d-flex align-items-center justify-content-center py-2"> {# Styled header #}
+                   <i class="{{ bi_icon_prefix }}shield-exclamation me-2 fs-5"></i> {# Icon #}
+                   Selecting Penalty...
+              </div>
+              <div class="card-body d-flex align-items-center justify-content-center p-2"> {# Reduced padding #}
+                   <canvas id="penaltyWheelCanvas-{{ challenge_index }}" width="280" height="280" style="max-width: 100%; max-height: 280px;">Canvas not supported</canvas>
+              </div>
+         </div>
     </div>
 </div>
 
-{# Display area for the penalty result - styled by style.css #}
-<div id="penaltyResult-{{ challenge_index }}" class="mt-3 penalty-result-display" style="display: none;"></div>
-
+{# --- Result Display Area --- #}
+{# Use Bootstrap alert styling for the result #}
+<div id="penaltyResult-{{ challenge_index }}" class="mt-4 penalty-result-display alert alert-warning text-center fs-5 fw-semibold glass-effect shadow" style="display: none;" role="alert">
+    {# Content dynamically added by penalty.js #}
+</div>

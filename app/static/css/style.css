@@ -83,6 +83,7 @@
 html,
 body {
   /* --- FIX: Animated Gradient Background --- */
+
   background: linear-gradient(135deg, var(--base-bg), var(--accent-primary-glow), var(--base-bg-shift), var(--base-bg));
   background-size: 400% 400%;
   /* Make gradient large */
@@ -1121,7 +1122,7 @@ button.close {
 
 /* Custom bullets */
 .challenge-view-page .challenge-rules-list li::before {
-  content: '';
+  display:none;
   position: absolute;
   left: 0.5em;
   top: 0.45em;
@@ -1231,14 +1232,7 @@ button.close {
   padding: 0.75rem;
 }
 
-/* Hover for Other/Non-Active Cards */
-#otherGroupsContainer .group-card-wrapper:hover .card.group-card,
-.my-challenges-page .challenge-list-item:hover .card.list-card,
-.my-challenges-page .local-challenge-item:hover .card.list-card {
-  transform: translateY(-5px) scale(1.02);
-  border-color: var(--accent-primary);
-  box-shadow: 0 8px 20px var(--accent-primary-glow);
-}
+
 
 /* Styling for Joined Group Card */
 #myGroupContainer .group-card-wrapper {
@@ -1411,18 +1405,8 @@ button.close {
   }
 }
 
-/* My Challenges Page */
-.my-challenges-page .list-card {
-  /* Use shared list-card style */
-}
 
-.my-challenges-page .section-heading {
-  margin-bottom: 1.5rem !important;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--surface-border);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
+
 
 /* Games/Penalties Config Pages */
 .config-page-container .page-title {
@@ -1881,4 +1865,172 @@ button.close {
   background-color: var(--accent-secondary-hover, #f97316); /* Use darker hover color for active */
   border-color: var(--accent-secondary-hover, #f97316);
   box-shadow: 0 0 15px 3px var(--accent-secondary-glow, rgba(251, 146, 60, 0.4));
+}
+/* static/css/style.css */
+
+/* --- General Page Styles --- */
+.my-challenges-page .page-title {
+  /* Example: Add subtle gradient or effect */
+  color: var(--text-primary, #f8f9fa);
+}
+
+.my-challenges-page .section-heading {
+  color: var(--text-primary, #f8f9fa);
+  /* Add subtle bottom border */
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  display: flex; /* Align icon and text */
+  align-items: center;
+}
+
+.my-challenges-page .section-heading i {
+  color: var(--text-secondary, #adb5bd); /* Icon color for headings */
+  margin-right: 0.75rem;
+  font-size: 1.2em; /* Slightly larger icon */
+}
+
+.my-challenges-page .section-divider {
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  opacity: 0.5; /* Make divider less prominent */
+}
+
+/* --- Card Styles --- */
+.list-card {
+  /* Assuming glass-effect provides background/blur */
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  border-radius: var(--border-radius-lg, 0.5rem); /* Use theme variable */
+}
+
+.challenge-card-hover:hover {
+  transform: translateY(-5px) scale(1.02); /* Subtle lift and scale */
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2); /* Enhanced shadow on hover */
+}
+
+.list-card .card-body-link {
+  text-decoration: none;
+  color: var(--text-primary, #f8f9fa); /* Ensure link text matches theme */
+  display: block; /* Make link cover body */
+  height: 100%; /* Ensure link covers flex body */
+}
+
+.list-card .card-body {
+  display: flex;
+  flex-direction: column; /* Arrange title/subtitle/details vertically */
+  min-height: 150px; /* Ensure a minimum card height */
+}
+
+.list-card .card-title {
+  color: var(--text-primary, #f8f9fa);
+  font-weight: 600; /* Slightly bolder title */
+}
+
+.list-card .card-title i {
+  font-size: 1.1em; /* Adjust icon size */
+  vertical-align: middle;
+}
+
+
+.list-card .card-subtitle code {
+  background-color: rgba(255, 255, 255, 0.1); /* Subtle background for code */
+  padding: 0.1em 0.4em;
+  border-radius: var(--border-radius-sm, 0.2rem);
+  font-family: var(--font-mono, monospace); /* Use theme variable */
+}
+
+.list-card .card-text {
+  line-height: 1.4;
+}
+
+.list-card .card-text i {
+   vertical-align: middle; /* Align icons better */
+   font-size: 0.9em; /* Slightly smaller detail icons */
+   margin-right: 0.3rem;
+}
+
+.list-card .card-footer {
+  background-color: rgba(0, 0, 0, 0.1); /* Slightly different footer bg */
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+}
+
+/* --- Button Styles --- */
+.delete-challenge-btn,
+.delete-local-challenge-btn {
+  padding: 0.2rem 0.5rem; /* Smaller padding */
+  font-size: 0.8rem; /* Smaller font */
+}
+
+/* Optional: Hide text on small screens, show icon only */
+/* @media (max-width: 576px) {
+  .delete-challenge-btn .button-text,
+  .delete-local-challenge-btn .button-text {
+    display: none;
+  }
+   .delete-challenge-btn i,
+   .delete-local-challenge-btn i {
+      margin-right: 0 !important;
+   }
+} */
+
+/* --- Empty State Messages --- */
+.empty-section-message {
+  color: var(--text-secondary, #adb5bd);
+  text-align: center;
+  padding: 2rem 0;
+  font-style: italic;
+}
+
+#noChallengesMessageContainer .alert {
+  background-color: rgba(var(--bs-secondary-rgb, 108, 117, 125), 0.1); /* Use Bootstrap variable if available */
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-secondary);
+}
+
+#noChallengesMessageContainer .alert i {
+  color: var(--text-secondary);
+}
+
+
+/* In static/css/style.css */
+
+#sticky-progress-container {
+  position: fixed; /* Fix position relative to viewport */
+  bottom: 1.5rem;  /* Distance from bottom */
+  right: 1.5rem;   /* Distance from right */
+  z-index: 1050;   /* Ensure it's above most other elements */
+  display: none;   /* Hidden by default */
+  padding: 1rem;   /* Internal padding */
+  min-width: 250px; /* Minimum width */
+  max-width: 350px; /* Maximum width */
+  border: 1px solid var(--surface-border); /* Match theme */
+  /* Inherits glass-effect for background/blur */
+  transition: opacity 0.3s ease, transform 0.3s ease; /* Add transitions */
+  opacity: 0;
+  transform: translateY(20px); /* Start slightly off-screen */
+}
+
+#sticky-progress-container.visible {
+  display: block; /* Show when visible class is added */
+  opacity: 1;
+  transform: translateY(0); /* Animate into position */
+}
+
+/* Optional: Add a header inside the sticky container */
+#sticky-progress-container .sticky-progress-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+}
+#sticky-progress-container .sticky-progress-header i {
+    margin-right: 0.5rem;
+}
+
+/* Ensure progress bar inside fits well */
+#sticky-progress-container .progress {
+    height: 1rem; /* Example height */
 }

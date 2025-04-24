@@ -40,8 +40,7 @@ Challenge Not Found
     data-max-groups="{{ shared_challenge.max_groups if shared_challenge else 1 }}"
     data-authorize-user-url="{{ url_for('challenge_api.add_authorized_user', public_id=challenge_id) if not is_local else '' }}"
     data-remove-user-url-base="{{ url_for('challenge_api.remove_authorized_user', public_id=challenge_id, user_id=0) | replace('/0', '') if not is_local else '' }}"
-    data-is-creator="{{ is_creator | lower }}"
-    data-is-authorized="{{ is_authorized | lower }}">
+    data-is-creator="{{ is_creator | lower }}" data-is-authorized="{{ is_authorized | lower }}">
   </div>
   {% endif %}
   {# --- End Data Div --- #}
@@ -65,36 +64,23 @@ Challenge Not Found
     {% elif shared_challenge %}
     {# --- Database Challenge View --- #}
 
-    {# Row for Challenge Info and Rules Cards #}
-    <div class="row mb-5">
-      <div class="col-lg-5 mb-4 mb-lg-0"> {# Info Card #}
-        {# Apply glass effect #}
-        <div class="card h-100 shadow-md info-card glass-effect">
-          <div class="card-header">
-            <h3 class="h5 mb-0">Challenge Info</h3>
-          </div>
-          <div class="card-body">
-            <h4 class="card-title text-secondary-accent">{{ shared_challenge.name or "Unnamed Shared Challenge" }}</h4>
-            {# Use secondary accent #}
-            <p class="card-text small mb-1"><strong class="text-secondary">ID:</strong> <code
-                class="user-select-all">{{ shared_challenge.public_id }}</code></p>
-            <p class="card-text small mb-1"><strong class="text-secondary">Created by:</strong> {{
-              shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</p>
-            <p class="card-text small mb-3"><strong class="text-secondary">Mode:</strong> {% if is_multigroup
-              %}Multigroup (Max {{ shared_challenge.max_groups }}) | Players/Group: {{ num_players_per_group }}{% else
-              %}Single Group{% endif %}</p>
-            <p class="card-text small font-italic text-secondary">{% if is_multigroup %}Share URL to join!{% else
-              %}Track progress below.{% endif %}</p>
-          </div>
-        </div>
+    {# Row for Challenge Info Bar and Rules Card #}
+    <div class="row mb-4"> {# Adjusted margin slightly #}
+      {# Column for the Info Bar - spans full width initially, adjusts on larger screens #}
+      <div class="col-12 mb-4">
+        {# Include the updated info bar partial, passing necessary context #}
+        {% include 'challenge/_challenge_info_bar.html' ignore missing with context %}
+        {# 'with context' passes all current template variables like shared_challenge, is_multigroup etc. #}
       </div>
-      <div class="col-lg-7"> {# Rules Card #}
+
+      {# Column for the Rules Card - spans full width #}
+      <div class="col-12">
         {# Apply glass effect #}
         <div class="card h-100 shadow-md rules-card glass-effect">
           <div class="card-header">
             <h3 class="h5 mb-0">Challenge Rules</h3>
           </div>
-          <div class="card-body challenge-rules-list">
+          <div class="card-body challenge-rules-list"> {# Renamed class from challenge-rules-body #}
             {% set c = shared_challenge.challenge_data %}
             {% include 'challenge/_challenge_details.html' ignore missing %}
           </div>
@@ -273,6 +259,10 @@ Challenge Not Found
     {% endif %} {# End if is_local / elif shared_challenge #}
 
   </div> {# End challengeViewContainer #}
+  {# Container for the sticky progress bar (initially hidden) #}
+  <div id="sticky-progress-container" class="glass-effect shadow-lg rounded-lg">
+    {# Content will be added by JavaScript #}
+  </div>
 </div> {# End container #}
 
 {# --- Template for New Group Cards (Used by JS) --- #}

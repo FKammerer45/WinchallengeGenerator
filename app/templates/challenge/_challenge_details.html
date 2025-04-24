@@ -1,55 +1,91 @@
 {# templates/challenge/_challenge_details.html #}
-{# Displays the STATIC structure of normal and b2b win requirements #}
+{# Displays the STATIC structure using card and list group format #}
 {# Expects: c (challenge_data object, containing 'normal' and/or 'b2b') #}
 
+{% set bi_icon_prefix = 'bi bi-' %} {# Define icon prefix #}
+
 {% if c %}
-<div class="challenge-rules-body">
+<div class="challenge-rules-display"> {# Outer container #}
 
-  {# Normal Wins Section - Displays List #}
+  {# --- Normal Wins Section --- #}
   {% if c.normal %}
-  <h6 class="rules-subtitle text-info">Normal Wins Required:</h6> {# Use info color (blue) #}
-  <ul class="rules-list">
-    {% for key, info in c.normal.items()|sort %}
-    {# *** ADDED CLASS: normal-win-item *** #}
-    <li class="rules-list-item normal-win-item">
-        <span class="win-count">{{ info.count }}x</span>
-        <span class="win-name">{{ key | escape }}</span>
-         <small class="text-secondary"> (Diff: {{ "%.2f"|format(info.diff|float) if info.diff is defined else 'N/A' }})</small>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  {# Back-to-Back Wins Section - Displays List #}
-  {% if c.b2b %}
-  {% if c.normal %}<hr class="rules-separator">{% endif %}
-  <h6 class="rules-subtitle text-secondary-accent">Back-to-Back Segments Required:</h6> {# Use secondary accent (pink) #}
-  <ul class="rules-list">
-    {% for seg in c.b2b %}
-    {% set outer_loop_index = loop.index %}
-     {# *** ADDED CLASS: b2b-segment-item *** #}
-    <li class="rules-list-item b2b-segment-item">
-      <strong>Segment {{ outer_loop_index }}</strong> <small class="text-secondary">({{ seg.length }} wins, Diff: {{ "%.2f"|format(seg.seg_diff|float) }})</small>:
-      <ul class="b2b-segment-detail-list">
-        {% for key, count in seg.group.items()|sort %}
-         {# *** ADDED CLASS: b2b-win-item *** #}
-        <li class="b2b-win-item">
-            <span class="win-count">{{ count }}x</span>
-            <span class="win-name">{{ key | escape }}</span>
-        </li>
-        {% endfor %}
+  <div class="card glass-effect mb-4 result-section shadow-sm"> {# Added shadow-sm #}
+      <div class="card-header h6 d-flex align-items-center fw-bold text-info"> {# Added fw-bold #}
+           <i class="{{ bi_icon_prefix }}list-stars me-2 fs-5"></i> {# Slightly larger icon #}
+           Normal Wins Required
+      </div>
+      <ul class="list-group list-group-flush">
+          {% for key, info in c.normal.items()|sort %}
+          <li class="list-group-item px-3 py-2 d-flex flex-wrap justify-content-between align-items-center gap-2"> {# Added flex-wrap and gap #}
+              {# Left: Icon and Name #}
+              <div class="d-flex align-items-center me-auto"> {# Added me-auto to push right side #}
+                  <i class="{{ bi_icon_prefix }}joystick me-2 text-primary opacity-75 fs-5"></i>
+                  <span class="win-name fw-semibold">{{ key | escape }}</span> {# Changed to fw-semibold #}
+              </div>
+              {# Right: Count and Difficulty Badges #}
+              <div class="text-end d-flex gap-1"> {# Group badges #}
+                  <span class="badge bg-light text-dark rounded-pill px-2 py-1"> {# Adjusted padding #}
+                       {{ info.count }}x Wins
+                  </span>
+                   <span class="badge bg-secondary rounded-pill px-2 py-1"> {# Adjusted padding #}
+                       Diff: {{ "%.1f"|format(info.diff|float) if info.diff is defined else 'N/A' }}
+                   </span>
+              </div>
+          </li>
+          {% endfor %}
       </ul>
-    </li>
-    {% endfor %}
-  </ul>
-  {% endif %}
+  </div>
+  {% endif %} {# End Normal Wins #}
 
-  {# Fallback if no win data is present in 'c' #}
+  {# --- Back-to-Back Wins Section --- #}
+  {% if c.b2b %}
+  {% if c.normal %}<hr class="my-4 section-divider">{% endif %}
+
+  {% for seg in c.b2b %}
+  <div class="card glass-effect mb-4 result-section shadow-sm"> {# Card per segment #}
+      <div class="card-header h6 d-flex flex-wrap align-items-center justify-content-between gap-2 fw-bold text-secondary-accent"> {# Added flex-wrap, gap, fw-bold #}
+           <div class="d-flex align-items-center">
+               <i class="{{ bi_icon_prefix }}arrow-repeat me-2 fs-5"></i> {# Slightly larger icon #}
+               B2B Segment #{{ loop.index }} ({{ seg.length }} wins)
+           </div>
+           <span class="badge bg-warning text-dark rounded-pill px-2 py-1"> {# Adjusted padding #}
+               <i class="{{ bi_icon_prefix }}speedometer2 me-1 small"></i>Seg Diff: {{ "%.1f"|format(seg.seg_diff|float) }}
+           </span>
+      </div>
+      {# Sub-list for items within the B2B segment #}
+      <ul class="list-group list-group-flush">
+          {% for key, count in seg.group.items()|sort %}
+          <li class="list-group-item px-3 py-2 d-flex justify-content-between align-items-center gap-2"> {# Added gap #}
+              {# Left: Icon and Name #}
+              <div class="d-flex align-items-center me-auto"> {# Added me-auto #}
+                  <i class="{{ bi_icon_prefix }}joystick me-2 text-warning opacity-75 fs-5"></i>
+                   <span class="win-name fw-semibold">{{ key | escape }}</span> {# Changed to fw-semibold #}
+              </div>
+               {# Right: Count Badge #}
+              <div class="text-end">
+                   <span class="badge bg-light text-dark rounded-pill px-2 py-1"> {# Adjusted padding #}
+                       {{ count }}x Wins
+                   </span>
+              </div>
+          </li>
+          {% endfor %}
+      </ul>
+  </div>
+  {% endfor %} {# End segment loop #}
+  {% endif %} {# End B2B Wins #}
+
+  {# --- Fallback Message --- #}
   {% if not c.normal and not c.b2b %}
-  <p class="text-secondary">Challenge structure details missing or empty.</p>
+   <div class="alert alert-secondary glass-effect text-center"> {# Added text-center #}
+       No specific win requirements found for this challenge.
+   </div>
   {% endif %}
 
-</div> {# End challenge-rules-body #}
+</div> {# End challenge-rules-display #}
+
 {% else %}
-<p class="text-danger">Error: Challenge data ('c') not provided to _challenge_details.html partial.</p>
+ {# Error message if 'c' is not provided #}
+ <div class="alert alert-danger glass-effect">
+    Error: Challenge data ('c') not provided to _challenge_details.html partial.
+ </div>
 {% endif %}
