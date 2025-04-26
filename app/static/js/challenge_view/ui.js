@@ -355,7 +355,7 @@ export function addGroupToDOM(group, challengeConfig, myGroupContainerEl, otherG
     const wrapper = clone.querySelector('.group-card-wrapper');
     const title = clone.querySelector('.card-title');
     const progressContainer = clone.querySelector('.group-progress-container');
-    const progressBarContainer = clone.querySelector('.progress-bar-container'); // Added for consistency
+    const progressBarContainer = clone.querySelector('.group-progress-bar-container'); // Added for consistency
     const buttonContainer = clone.querySelector('.card-footer.join-leave-footer'); // Target specific footer
     const penaltyDisplayDiv = clone.querySelector('.active-penalty-display');
     const penaltyTextP = clone.querySelector('.penalty-text-content');
