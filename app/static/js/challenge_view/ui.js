@@ -122,39 +122,96 @@ export function renderOrUpdateProgressBar(container, challengeData, progressData
  * @param {object} challengeData - The core challenge structure {normal, b2b}.
  */
 export function renderStaticChallengeDetailsJS(container, challengeData) {
-    if (!container) return;
-    let html = '';
+    if (!container) {
+        console.error("renderStaticChallengeDetailsJS: Target container not provided.");
+        return;
+    }
+    // Clear placeholder
+    container.innerHTML = '';
+
+    let listGroupHtml = ''; // Build HTML for list groups
     const { normal: normalItems, b2b: b2bItems } = challengeData || {};
 
+    // --- Normal Wins Section ---
     if (normalItems && Object.keys(normalItems).length > 0) {
-        html += '<h6 class="card-subtitle mb-2 text-info small">Normal Wins Required:</h6><ul class="list-unstyled mb-3">';
+        let normalListItems = '';
         Object.entries(normalItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, info]) => {
-            html += `<li class="small">${info?.count || 0} x ${escapeHtml(key)} <span class="text-muted" style="font-size: 0.8em;">(Diff: ${info?.diff?.toFixed(2) || 'N/A'})</span></li>`;
+            normalListItems += `
+                <li class="list-group-item px-3 py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="d-flex align-items-center me-auto">
+                        <i class="bi bi-joystick me-2 text-primary opacity-75 fs-5"></i>
+                        <span class="win-name fw-semibold">${escapeHtml(key)}</span>
+                    </div>
+                    <div class="text-end d-flex gap-1">
+                        <span class="badge bg-light text-dark rounded-pill px-2 py-1">
+                            ${info?.count || 0}x Wins
+                        </span>
+                        <span class="badge bg-secondary rounded-pill px-2 py-1">
+                            Diff: ${typeof info?.diff === 'number' ? info.diff.toFixed(1) : 'N/A'}
+                        </span>
+                    </div>
+                </li>`;
         });
-        html += '</ul>';
+
+        listGroupHtml += `
+            <div class="card glass-effect mb-4 result-section shadow-sm">
+                <div class="card-header h6 d-flex align-items-center fw-bold text-info">
+                    <i class="bi bi-list-stars me-2 fs-5"></i>
+                    Normal Wins Required
+                </div>
+                <ul class="list-group list-group-flush">${normalListItems}</ul>
+            </div>`;
     }
 
+    // --- Back-to-Back Wins Section ---
     if (b2bItems?.length > 0) {
-        if (html) html += '<hr class="border-secondary my-2">'; // Separator
-        html += '<h6 class="mt-2 card-subtitle mb-2 text-warning small">Back-to-Back Segments Required:</h6><ul class="list-unstyled">';
+        if (listGroupHtml) listGroupHtml += '<hr class="my-4 section-divider">'; // Add divider if normal wins exist
+
         b2bItems.forEach((seg, segIndex) => {
-            // Display segment index starting from 1 for user readability
             const displaySegmentIdx = segIndex + 1;
-            html += `<li class="mb-2"><strong class="small">Segment ${displaySegmentIdx}</strong> <small class="text-muted">(${seg?.length || 0} wins, Diff: ${seg?.seg_diff?.toFixed(2) || 'N/A'})</small>:`;
+            let b2bListItems = '';
             if (seg?.group) {
-                html += '<ul class="list-unstyled ml-3 mt-1">';
                 Object.entries(seg.group).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, count]) => {
-                    html += `<li class="small">${count || 0} x ${escapeHtml(key)}</li>`;
+                    b2bListItems += `
+                        <li class="list-group-item px-3 py-2 d-flex justify-content-between align-items-center gap-2">
+                            <div class="d-flex align-items-center me-auto">
+                                <i class="bi bi-joystick me-2 text-warning opacity-75 fs-5"></i>
+                                <span class="win-name fw-semibold">${escapeHtml(key)}</span>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-light text-dark rounded-pill px-2 py-1">
+                                    ${count || 0}x Wins
+                                </span>
+                            </div>
+                        </li>`;
                 });
-                html += '</ul>';
             }
-            html += "</li>";
+
+            listGroupHtml += `
+                <div class="card glass-effect mb-4 result-section shadow-sm">
+                    <div class="card-header h6 d-flex flex-wrap align-items-center justify-content-between gap-2 fw-bold text-secondary-accent">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-arrow-repeat me-2 fs-5"></i>
+                            B2B Segment #${displaySegmentIdx} (${seg?.length || 0} wins)
+                        </div>
+                        <span class="badge bg-warning text-dark rounded-pill px-2 py-1">
+                            <i class="bi bi-speedometer2 me-1 small"></i>Seg Diff: ${typeof seg?.seg_diff === 'number' ? seg.seg_diff.toFixed(1) : 'N/A'}
+                        </span>
+                    </div>
+                    <ul class="list-group list-group-flush">${b2bListItems}</ul>
+                </div>`;
         });
-        html += '</ul>';
     }
 
-    if (!html) html = '<p class="text-muted small">Challenge structure details not available.</p>';
-    container.innerHTML = html;
+    // --- Fallback Message ---
+    if (!listGroupHtml) {
+        listGroupHtml = `
+            <div class="alert alert-secondary glass-effect text-center">
+                No specific win requirements found for this challenge.
+            </div>`;
+    }
+
+    container.innerHTML = listGroupHtml; // Render the generated list groups
 }
 
 /**
@@ -175,69 +232,95 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
     const isDisabled = !isInteractive;
     const safeProgressData = groupProgress || {};
 
-    // Helper to generate checkbox HTML
+    // Helper to generate checkbox HTML using Bootstrap 4 .custom-control structure
     const createCheckboxHtml = (itemType, itemKey, itemIndex, isChecked, isDisabledFlag, labelText, segmentIndex = null) => {
         // Use 0-based segmentIndex consistent with loop for key generation
         const progressKey = segmentIndex !== null
             ? `${itemType}_${segmentIndex}_${itemKey}_${itemIndex}` : `${itemType}_${itemKey}_${itemIndex}`;
         const safeProgressKey = progressKey.replace(/[^a-zA-Z0-9-_]/g, '_');
         const uniqueId = `check_${groupId}_${safeProgressKey}`;
-        // Include data-segment-index only if it's not null (for B2B items)
         const segmentAttr = segmentIndex !== null ? `data-segment-index="${segmentIndex}"` : '';
         const escapedItemKey = escapeHtml(String(itemKey));
-
         const completedClass = isChecked ? 'completed' : '';
 
+        // --- MODIFIED HTML using .custom-control ---
         return `
-            <div class="form-check form-check-inline progress-item ${completedClass}" data-progress-key="${progressKey}">
-              <input type="checkbox" class="form-check-input progress-checkbox" id="${uniqueId}"
+            <div class="custom-control custom-checkbox d-inline-block me-1 progress-item ${completedClass}"
+                 data-progress-key="${progressKey}"
+                 title="${escapeHtml(labelText)}">
+              <input type="checkbox"
+                     class="custom-control-input progress-checkbox"
+                     id="${uniqueId}"
                      aria-label="${escapeHtml(labelText)}"
                      data-group-id="${groupId}" data-item-type="${itemType}"
                      data-item-key="${escapedItemKey}" data-item-index="${itemIndex}"
                      ${segmentAttr}
                      ${isChecked ? 'checked' : ''}
                      ${isDisabledFlag ? 'disabled' : ''}>
-              <label class="form-check-label" for="${uniqueId}"><span class="sr-only">${escapeHtml(labelText)}</span></label>
+              <label class="custom-control-label" for="${uniqueId}">
+                <span class="sr-only">${escapeHtml(labelText)}</span>
+              </label>
             </div>`;
+        // --- END MODIFICATION ---
     };
 
     // --- Render Normal Wins ---
     if (challengeStructure?.normal && Object.keys(challengeStructure.normal).length > 0) {
-        html += '<h6 class="text-info small">Normal Wins Progress:</h6>';
+        // Use structure similar to _challenge_group_progress.html
+        html += `
+            <div class="d-flex align-items-center mb-2 text-info">
+                <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                <h6 class="mb-0 fw-bold small text-uppercase">Normal Wins Progress</h6>
+            </div>`;
         Object.entries(challengeStructure.normal).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, info]) => {
             const count = info?.count || 0;
             if (count > 0) {
-                html += `<div class="mb-2"><strong class="small d-block">${escapeHtml(key)} (${count} needed):</strong><div class="progress-markers pl-2">`;
+                html += `<div class="progress-category mb-3">
+                            <div class="d-flex align-items-center mb-1">
+                                <i class="bi bi-joystick me-2 opacity-75 text-primary"></i>
+                                <strong class="small text-light me-2">${escapeHtml(key)}</strong>
+                                <span class="badge bg-secondary rounded-pill fw-normal">${count} needed</span>
+                            </div>
+                            <div class="progress-markers ps-4">`; // Indent markers
                 for (let i = 0; i < count; i++) {
                     const progressKey = `normal_${key}_${i}`;
                     const isChecked = safeProgressData[progressKey] === true;
                     html += createCheckboxHtml('normal', key, i, isChecked, isDisabled, `Win ${i + 1} for ${key}`);
                 }
-                html += `</div></div>`;
+                html += `</div></div>`; // Close progress-markers and progress-category
             }
         });
     }
 
     // --- Render B2B Wins ---
     if (challengeStructure?.b2b?.length > 0) {
-        if (html) html += '<hr class="border-secondary my-2">'; // Separator
-        html += '<h6 class="text-warning small">B2B Segment Progress:</h6>';
+        if (html) html += '<hr class="my-3 section-divider">'; // Separator
+        html += `
+            <div class="d-flex align-items-center mb-2 text-secondary-accent">
+                <i class="bi bi-arrow-repeat me-2 fs-5"></i>
+                <h6 class="mb-0 fw-bold small text-uppercase">B2B Segment Progress</h6>
+            </div>`;
         challengeStructure.b2b.forEach((seg, segIndex) => {
-            // Use 0-based segIndex internally for consistency with keys
-            const segmentIdx = segIndex;
-            const displaySegmentIdx = segIndex + 1; // For user display
+            const segmentIdx = segIndex; // 0-based for keys
+            const displaySegmentIdx = segIndex + 1; // 1-based for display
             if (seg?.group && Object.keys(seg.group).length > 0) {
-                html += `<div class="mb-2"><strong class="small d-block">Segment ${displaySegmentIdx} (${seg.length || 0} wins):</strong>`;
+                html += `<div class="progress-category mb-3 ms-2">
+                            <strong class="small d-block text-light mb-1">Segment ${displaySegmentIdx} (${seg.length || 0} wins):</strong>`;
                 Object.entries(seg.group).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, count]) => {
                     if (count > 0) {
-                        html += `<div class="pl-2 mb-1"><span class="small d-inline-block mr-2">${escapeHtml(key)} (${count} needed):</span><div class="progress-markers d-inline-block">`;
+                        html += `<div class="mb-2">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <i class="bi bi-joystick me-2 opacity-75 text-warning"></i>
+                                        <span class="small text-light me-2">${escapeHtml(key)}</span>
+                                        <span class="badge bg-secondary rounded-pill fw-normal">${count} needed</span>
+                                    </div>
+                                    <div class="progress-markers ps-4">`; // Indent markers
                         for (let i = 0; i < count; i++) {
-                            // Pass 0-based segmentIdx to helper
                             const progressKey = `b2b_${segmentIdx}_${key}_${i}`;
                             const isChecked = safeProgressData[progressKey] === true;
                             html += createCheckboxHtml('b2b', key, i, isChecked, isDisabled, `Segment ${displaySegmentIdx} Win ${i + 1} for ${key}`, segmentIdx);
                         }
-                        html += `</div></div>`;
+                        html += `</div></div>`; // Close progress-markers and mb-2 div
                     }
                 });
                 html += `</div>`; // Close segment div
@@ -248,7 +331,6 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
     if (!html) html = '<p class="text-muted small">No progress items defined.</p>';
     container.innerHTML = html;
 }
-
 
 /**
  * Adds a new group card to the DOM based on API response.
