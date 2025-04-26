@@ -862,20 +862,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initial UI setup for DB challenge
         try {
-            // Use imported function
-            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
-            // Auto-join logic
-            if (!challengeConfig.isMultigroup && challengeConfig.initialGroupCount === 1 && challengeConfig.userJoinedGroupId === null) {
-                const firstId = challengeConfig.initialGroups[0]?.id;
-                if (firstId && challengeConfig.isAuthorized && challengeConfig.isLoggedIn) { // Only auto-join if authorized
-                    const card = otherGroupsContainerEl?.querySelector(`.group-card-wrapper[data-group-id="${firstId}"]`);
-                    if (card) { /* Visually move card */
-                        myGroupContainerEl.innerHTML = '';
-                        const h = document.createElement('h4'); h.className = 'text-primary-accent mb-3 text-center'; h.textContent = 'Your Group';
-                        myGroupContainerEl.appendChild(h); myGroupContainerEl.appendChild(card);
-                    }
-                    autoJoinGroup(firstId); // Attempt API join
-                }
+            // Render initial group cards and their states
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+
+            
+            const theOnlyGroup = challengeConfig.initialGroups?.[0]; // Get the first (only) group's data if it exists
+
+            if (
+                !challengeConfig.isMultigroup &&                     // It IS a single-group challenge
+                theOnlyGroup &&                                      // The group data actually exists
+                challengeConfig.isLoggedIn &&                        // The VIEWING user is logged in
+                challengeConfig.isAuthorized &&                      // The VIEWING user is authorized for THIS challenge
+                challengeConfig.userJoinedGroupId === null  &&      // The VIEWING user is NOT currently joined
+                theOnlyGroup.member_count < challengeConfig.numPlayersPerGroup // The group is not full
+            ) {
+                console.log(`Auto-joining authorized user to single group ${theOnlyGroup.id}...`); // Optional log
+                // Visually move the card immediately for better UX (if it exists in 'other' container)
+                const card = otherGroupsContainerEl?.querySelector(`.group-card-wrapper[data-group-id="${theOnlyGroup.id}"]`);
+                 if (card) {
+                    console.log("Moving card to 'Your Group' section visually.");
+                    myGroupContainerEl.innerHTML = ''; // Clear any previous placeholder/content
+                    const h = document.createElement('h4');
+                    h.className = 'text-primary-accent mb-3 text-center';
+                    h.textContent = 'Your Group';
+                    myGroupContainerEl.appendChild(h);
+                    // Move the card - ensure classes are correct for the joined view
+                    card.classList.remove(...OTHER_GROUP_COL_CLASSES);
+                    card.classList.add(...JOINED_GROUP_COL_CLASSES);
+                    myGroupContainerEl.appendChild(card);
+                 } else {
+                      console.warn("Could not find card visually for single group auto-join move.");
+                 }
+                // Attempt the API join in the background
+                autoJoinGroup(theOnlyGroup.id);
             }
             updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); //
             // Update penalty module config initially
