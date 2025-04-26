@@ -387,7 +387,7 @@ async function handleProgressChange(event) {
     const checkbox = event.target;
 
     // Authorization check (should match UI enablement)
-    const groupId = parseInt(checkbox.dataset.groupId, 10);
+    const groupId = parseInt(checkbox.dataset.groupId, 10); // This will be the local challenge ID for local challenges
     const isJoinedGroup = (challengeConfig.userJoinedGroupId === groupId);
     const canInteract = challengeConfig.isLocal || (challengeConfig.isLoggedIn && challengeConfig.isAuthorized && isJoinedGroup);
 
@@ -413,6 +413,7 @@ async function handleProgressChange(event) {
         const index = parseInt(itemData.itemIndex, 10);
         const segmentIndex = itemData.segmentIndex ? parseInt(itemData.segmentIndex, 10) : null;
         if (isNaN(index) || (segmentIndex !== null && isNaN(segmentIndex))) throw new Error("Invalid index.");
+        // Ensure segmentIndex is treated correctly (0-based in keys, 1-based in display)
         if (type === 'b2b' && segmentIndex !== null) progressKey = `${type}_${segmentIndex}_${key}_${index}`;
         else if (type === 'normal') progressKey = `${type}_${key}_${index}`;
         else throw new Error("Unknown progress item type.");
@@ -429,10 +430,20 @@ async function handleProgressChange(event) {
         let currentProgressData = {}; // To hold the relevant progress data for UI update
         if (challengeConfig.isLocal) {
             const newProgress = makeNewProgress(challengeConfig.progressData || {}, progressKey, isComplete);
-            challengeConfig.progressData = Object.freeze(newProgress);
+            // --- FIX: Don't freeze yet, allow potential revert on save failure ---
+            // challengeConfig.progressData = Object.freeze(newProgress);
+            const potentialNewProgressData = newProgress; // Hold temporarily
+
             const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete); //
-            if (!success) throw new Error("Failed to save progress locally.");
-            currentProgressData = newProgress; // Update local state for UI
+
+            if (!success) {
+                // --- FIX: If save fails, DON'T update the main config state ---
+                throw new Error("Failed to save progress locally.");
+            }
+            // --- FIX: If save succeeds, NOW update the main config state ---
+            challengeConfig.progressData = Object.freeze(potentialNewProgressData);
+            currentProgressData = potentialNewProgressData; // Use the updated progress for UI
+
         } else { // Database challenge
             const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
             const payload = {
@@ -456,12 +467,31 @@ async function handleProgressChange(event) {
         // Update visual state AFTER successful save
         if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
 
-        // Update the progress bar for the specific group (or local challenge)
-        const progressBarContainerId = challengeConfig.isLocal ? 'localProgressBarContainer' : `progressBarContainer-${groupId}`;
-        const progressBarContainer = document.getElementById(progressBarContainerId);
+        // --- FIX: Correctly select the progress bar container for LOCAL challenges ---
+        let progressBarContainer = null;
+        if (challengeConfig.isLocal) {
+            // Find the specific card for the local challenge, then find the container within it
+            const localCard = document.getElementById('local-group-card');
+            if (localCard) {
+                progressBarContainer = localCard.querySelector('.progress-bar-container');
+            }
+            if (!progressBarContainer) {
+                 console.error("Could not find '.progress-bar-container' within '#local-group-card'.");
+            }
+        } else {
+            // Keep original logic for shared challenges
+            const progressBarContainerId = `progressBarContainer-${groupId}`;
+            progressBarContainer = document.getElementById(progressBarContainerId);
+        }
+        // --- END FIX ---
+
+        // Now call the update function if the container was found
         if (progressBarContainer && challengeConfig.coreChallengeStructure) {
             renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressData); //
+        } else if (!progressBarContainer){
+            console.warn("Progress bar container could not be found for update.");
         }
+
 
     } catch (error) {
         console.error("Failed to update progress:", error);
@@ -471,12 +501,8 @@ async function handleProgressChange(event) {
             itemDiv.classList.add('error-flash');
             setTimeout(() => itemDiv.classList.remove('error-flash'), 1500);
         }
-        // Attempt to revert local state if save failed (only needed for local, DB state is unchanged)
-        if (challengeConfig.isLocal && challengeConfig.progressData) {
-            // This requires making progressData mutable again or handling it differently
-            // For simplicity, we might just warn the user that the UI might be out of sync.
-            console.warn("Local progress state might be out of sync after save failure.");
-        }
+        // No need to revert challengeConfig.progressData here, as it's only updated on SUCCESSFUL save now.
+
     } finally {
         // Re-enable checkbox based on original interaction logic
         checkbox.disabled = !canInteract;
