@@ -90,7 +90,10 @@ def challenge_view(challenge_id):
     user_joined_group_id = None
     is_multigroup = False # Default
     num_players_per_group = 1 # Default
-
+    is_creator = False
+    is_authorized = False
+    authorized_user_list = [] # Initialize
+    
     if challenge_id.startswith("local_"):
         is_local = True
         # For local challenges, JS handles loading data and rendering
@@ -123,9 +126,7 @@ def challenge_view(challenge_id):
     
 
 
-            is_creator = False
-            is_authorized = False
-            authorized_user_list = [] # Initialize
+
 
             if current_user.is_authenticated:
                 # Use the helper function (ensure it's accessible or redefined here)

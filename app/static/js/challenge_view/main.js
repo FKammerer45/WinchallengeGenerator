@@ -4,10 +4,10 @@
 
 // Import necessary modules (assuming these exist and are correct)
 import { apiFetch } from '../utils/api.js';
-import { setLoading, showError, escapeHtml, showFlash } from '../utils/helpers.js'; // Added showFlash
+import { setLoading, showError, escapeHtml, showFlash } from '../utils/helpers.js';
 import {
     updateGroupCountDisplay, renderProgressItems, addGroupToDOM,
-    updateUIAfterMembershipChange as updateUIAfterMembershipChangeOriginal, // Rename original
+    updateUIAfterMembershipChange, // Use the imported version directly
     renderOrUpdateProgressBar,
     renderStaticChallengeDetailsJS, updatePenaltyDisplay, renderPlayerNameInputs
 } from './ui.js';
@@ -34,7 +34,7 @@ let challengeConfig = {
     isAuthorized: false
 };
 
-const requestControllers = { join: null, leave: null, create: null, savePlayers: null, authorize: null, removeAuth: null }; // Added authorize/removeAuth
+const requestControllers = { join: null, leave: null, create: null, savePlayers: null, authorize: null, removeAuth: null };
 
 // --- DOM Element References ---
 let myGroupContainerEl = null;
@@ -66,7 +66,7 @@ function nextSignal(key) {
 function lockButton(btn, label) {
     if (!btn) return;
     btn.disabled = true;
-    const spinner = btn.querySelector('.spinner-border-sm'); // Corrected selector
+    const spinner = btn.querySelector('.spinner-border-sm');
     if (spinner) spinner.style.display = 'inline-block';
     // Store original text using firstChild assuming structure is <spinner><span>Text</span>
     const textSpan = btn.querySelector('span:not(.spinner-border-sm)');
@@ -78,7 +78,7 @@ function lockButton(btn, label) {
 
 function restoreButton(btn) {
     if (!btn) return;
-    const spinner = btn.querySelector('.spinner-border-sm'); // Corrected selector
+    const spinner = btn.querySelector('.spinner-border-sm');
     if (spinner) spinner.style.display = 'none';
     // Restore original text
     const textSpan = btn.querySelector('span:not(.spinner-border-sm)');
@@ -103,10 +103,11 @@ async function autoJoinGroup(groupId) {
             (grp.member_count || 0) + 1,
             challengeConfig.numPlayersPerGroup
         );
+        // Use the imported function
         updateUIAfterMembershipChange(
             challengeConfig, myGroupContainerEl, otherGroupsContainerEl
-        );
-      
+        ); //
+
     } catch (err) {
         console.error('Auto-join failed:', err);
         showError(
@@ -133,8 +134,6 @@ function initializeConfigFromDOM() {
         return false; // Stop initialization
     }
 
-
-
     try {
         // 2. Read all data attributes - store raw values first for debugging
         const rawData = {
@@ -159,12 +158,7 @@ function initializeConfigFromDOM() {
             savePlayersUrlBase: dataEl.dataset.savePlayersUrlBase,
             authorizeUserUrl: dataEl.dataset.authorizeUserUrl,
             removeUserUrlBase: dataEl.dataset.removeUserUrlBase
-            // Add penalty_info if needed by JS directly
         };
-
-        
-      
-
 
         // 4. Process and parse data into the challengeConfig object
         const joinedId = JSON.parse(rawData.userJoinedGroupId || 'null');
@@ -200,8 +194,6 @@ function initializeConfigFromDOM() {
             isAuthorized: rawData.isAuthorized === 'true' // Correct assignment
         };
 
-        
-
         // 6. Basic validation of essential config after processing
         if (!challengeConfig.id) {
             throw new Error("Essential config 'challengeId' missing or invalid.");
@@ -230,7 +222,7 @@ function updateUserJoinedGroupState(newGroupId) {
     }
     // Notify penalty module
     if (typeof updatePenaltyConfig === 'function') {
-        updatePenaltyConfig(challengeConfig); // Pass the whole updated config
+        updatePenaltyConfig(challengeConfig); // Pass the whole updated config //
     }
 }
 
@@ -278,10 +270,10 @@ async function handleCreateGroupSubmit(event) {
         });
         challengeConfig.initialGroupCount++;
         // Add to DOM, passing the necessary config
-        addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+        addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
+        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); //
         groupNameEl.value = '';
-        showFlash(`Group "${escapeHtml(data.group.name)}" created.`, 'success'); // Add feedback
+        showFlash(`Group "${escapeHtml(data.group.name)}" created.`, 'success');
     }
     catch (err) {
         console.error('create-group failed', err);
@@ -317,7 +309,7 @@ async function handleJoinGroupClick(_, joinBtn) {
             cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
             cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
             myGroupContainerEl.innerHTML = ''; // Clear previous content if any
-            const h = Object.assign(document.createElement('h4'), { className: 'text-primary-accent mb-3 text-center', textContent: 'Your Group' }); // Updated style
+            const h = Object.assign(document.createElement('h4'), { className: 'text-primary-accent mb-3 text-center', textContent: 'Your Group' });
             myGroupContainerEl.append(h, cardWrapper);
         } else {
             console.error("DOM structure error during join UI update.");
@@ -328,8 +320,9 @@ async function handleJoinGroupClick(_, joinBtn) {
         if (g) g.member_count = Math.min((g.member_count || 0) + 1, challengeConfig.numPlayersPerGroup);
 
         // Refresh UI for all cards (enables checkboxes, updates buttons)
-        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-     
+        // Use the imported function
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
+
 
     } catch (err) {
         console.error('join failed', err);
@@ -377,8 +370,9 @@ async function handleLeaveGroupClick(_, leaveBtn) {
         if (g) g.member_count = Math.max(0, (g.member_count || 0) - 1);
 
         // Refresh UI for all cards
-        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-        
+        // Use the imported function
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
+
 
     } catch (err) {
         console.error('leave failed', err);
@@ -436,7 +430,7 @@ async function handleProgressChange(event) {
         if (challengeConfig.isLocal) {
             const newProgress = makeNewProgress(challengeConfig.progressData || {}, progressKey, isComplete);
             challengeConfig.progressData = Object.freeze(newProgress);
-            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete);
+            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete); //
             if (!success) throw new Error("Failed to save progress locally.");
             currentProgressData = newProgress; // Update local state for UI
         } else { // Database challenge
@@ -466,7 +460,7 @@ async function handleProgressChange(event) {
         const progressBarContainerId = challengeConfig.isLocal ? 'localProgressBarContainer' : `progressBarContainer-${groupId}`;
         const progressBarContainer = document.getElementById(progressBarContainerId);
         if (progressBarContainer && challengeConfig.coreChallengeStructure) {
-            renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressData);
+            renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressData); //
         }
 
     } catch (error) {
@@ -531,7 +525,7 @@ async function handleSavePlayersClick(_, saveBtn) {
         // Update local state
         const g = challengeConfig.initialGroups.find(x => x.id === groupId);
         if (g) g.player_names = names;
-        updatePenaltyConfig(challengeConfig); // Notify penalty module if needed
+        updatePenaltyConfig(challengeConfig); // Notify penalty module if needed //
 
     } catch (err) {
         console.error('save players failed', err);
@@ -569,7 +563,7 @@ async function handleClearPenaltyClick(_, clearBtn) {
             { method: 'POST', body: { penalty_text: '' } }, // Send empty string to clear
             challengeConfig.csrfToken
         );
-        updatePenaltyDisplay(groupId, ''); // Update UI
+        updatePenaltyDisplay(groupId, ''); // Update UI //
         // Update local state
         const g = challengeConfig.initialGroups.find(x => x.id === groupId);
         if (g) g.active_penalty_text = '';
@@ -720,160 +714,113 @@ async function handleRemoveUserClick(removeBtn) {
     // Don't need finally restore here if item is removed on success
 }
 
-
-// --- Reworked: updateUIAfterMembershipChange to handle auth states ---
-export function updateUIAfterMembershipChange(config, myGroupEl, otherGroupsEl) {
-    const yourGroupCards = myGroupEl ? Array.from(myGroupEl.querySelectorAll('.group-card-wrapper')) : [];
-    const otherGroupCards = otherGroupsEl ? Array.from(otherGroupsEl.querySelectorAll('.group-card-wrapper')) : [];
-    const allGroupCards = [...yourGroupCards, ...otherGroupCards];
-
-    const noGroupsMsg = document.getElementById('noGroupsMessageContainer');
-    if (noGroupsMsg) noGroupsMsg.classList.toggle('d-none', allGroupCards.length > 0);
-
-    if (allGroupCards.length === 0) return; // Exit if no cards to update
-
-    allGroupCards.forEach(cardWrapper => {
-        const card = cardWrapper.querySelector('.card.group-card');
-        if (!card) return;
-
-        const cardGroupId = parseInt(cardWrapper.dataset.groupId, 10);
-        if (isNaN(cardGroupId)) return;
-
-        const groupData = config.initialGroups?.find(g => g.id === cardGroupId);
-        const groupProgress = groupData?.progress || {};
-        const isUserMember = (config.userJoinedGroupId === cardGroupId); // Is the CURRENT user viewing this page a member?
-        const memberCount = groupData?.member_count ?? 0;
-        const maxPlayers = config.numPlayersPerGroup || 1;
-        const isFull = memberCount >= maxPlayers;
-
-        // Determine if the CURRENT viewing user can interact with THIS group's items
-        const canInteractWithGroupItems = config.isLocal || (config.isLoggedIn && config.isAuthorized && isUserMember);
-
-        // --- 1. Visual State (Highlighting) ---
-        cardWrapper.classList.toggle('joined-group-active', isUserMember);
-
-        // --- 2. Penalty Display & Clear Button ---
-        const penaltyDisplayDiv = cardWrapper.querySelector('.active-penalty-display');
-        if (penaltyDisplayDiv) {
-            updatePenaltyDisplay(cardGroupId, groupData?.active_penalty_text || '');
-            let clearButton = penaltyDisplayDiv.querySelector('.clear-penalty-btn');
-            // Show clear button ONLY if the current user is authorized AND a member of this group
-            if (canInteractWithGroupItems) {
-                if (!clearButton) {
-                    clearButton = document.createElement('button');
-                    clearButton.className = 'btn btn-xs btn-outline-light clear-penalty-btn mt-1'; // Adjusted size
-                    clearButton.dataset.groupId = cardGroupId;
-                    clearButton.innerHTML = `<span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Clear</span>`;
-                    const penaltyTextP = penaltyDisplayDiv.querySelector('.penalty-text-content');
-                    if (penaltyTextP) penaltyTextP.insertAdjacentElement('afterend', clearButton);
-                    else penaltyDisplayDiv.appendChild(clearButton);
-                }
-                clearButton.style.display = (groupData?.active_penalty_text) ? 'inline-block' : 'none'; // Show only if penalty exists
-            } else if (clearButton) {
-                clearButton.remove(); // Remove if not authorized/member
-            }
-        }
-
-        // --- 3. Progress Checkbox Interactivity ---
-        const checkBoxes = cardWrapper.querySelectorAll('.progress-checkbox');
-        checkBoxes.forEach(cb => cb.disabled = !canInteractWithGroupItems); // Enable only if authorized member
-
-        // --- 4. Player Name Section ---
-        const playerNamesSection = card.querySelector('.player-names-section');
-        if (playerNamesSection) {
-            // Show/render inputs ONLY if the current user is authorized AND a member
-            if (config.isMultigroup && canInteractWithGroupItems) {
-                renderPlayerNameInputs(
-                    playerNamesSection, cardGroupId,
-                    groupData?.player_names || [], maxPlayers
-                );
-            } else { // Hide otherwise
-                playerNamesSection.style.display = 'none';
-                const inputsContainer = playerNamesSection.querySelector('.player-name-inputs');
-                if (inputsContainer) inputsContainer.innerHTML = ''; // Clear inputs if hidden
-            }
-        }
-
-
-        // --- 5. Footer Button State (Join/Leave/Full/Login/Unauthorized) ---
-        const footer = card.querySelector('.card-footer.join-leave-footer');
-        if (footer) {
-            footer.innerHTML = ''; // Clear previous button
-            let buttonHtml = '';
-            if (!config.isMultigroup) { /* No button needed for single group mode */ }
-            else if (isUserMember) { // User IS a member of THIS group
-                // Only show Leave if logged in and authorized
-                if (config.isLoggedIn && config.isAuthorized) {
-                    buttonHtml = `<button class="btn btn-sm btn-danger leave-group-btn" data-group-id="${cardGroupId}"><span class="spinner-border spinner-border-sm"></span><span>Leave Group</span></button>`;
-                } else {
-                    buttonHtml = `<span class="text-secondary small">Joined (Cannot Leave)</span>`; // Or login prompt if somehow joined while logged out?
-                }
-            } else { // User is NOT a member of THIS group
-                if (!config.isLoggedIn) { // Needs login first
-                    const loginUrl = `/auth/login?next=${window.location.pathname}`; // Redirect back here
-                    buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Join</a>`;
-                } else if (!config.isAuthorized) { // Logged in, but not authorized for *this challenge*
-                    buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled title="You are not authorized by the creator for this challenge."><span>Join (Unauthorized)</span></button>`;
-                } else if (config.userJoinedGroupId !== null) { // Logged in, authorized, but already in *another* group
-                    buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled title="You are already in another group for this challenge."><span>Joined Other</span></button>`;
-                } else if (isFull) { // Logged in, authorized, not in another group, but *this group* is full
-                    buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled><span>Full</span></button>`;
-                } else { // Logged in, authorized, not in another group, group not full -> CAN JOIN
-                    buttonHtml = `<button class="btn btn-sm btn-success join-group-btn" data-group-id="${cardGroupId}"><span class="spinner-border spinner-border-sm"></span><span>Join</span></button>`;
-                }
-            }
-            footer.innerHTML = buttonHtml; // Set the appropriate button/message
-        }
-
-        // --- 6. Progress Bar Update ---
-        const progressBarContainer = cardWrapper.querySelector(`#progressBarContainer-${cardGroupId}`);
-        if (progressBarContainer && config.coreChallengeStructure) {
-            renderOrUpdateProgressBar(progressBarContainer, config.coreChallengeStructure, groupProgress);
-        } else if (progressBarContainer) {
-            progressBarContainer.innerHTML = '<p class="text-muted small mb-0">Progress unavailable.</p>';
-        }
-    }); // End forEach card
-}
-
-
 // --- Page Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     pageContainer = document.getElementById('challengeViewContainer'); // Assign pageContainer
     if (!pageContainer) { console.error("CRITICAL: #challengeViewContainer missing!"); return; }
 
     if (!initializeConfigFromDOM()) { return; } // Read config, exit if failed
 
     // Initialize Timer
-    try { initializeTimer(TIMER_ID); }
+    try { initializeTimer(TIMER_ID); } //
     catch (timerError) { console.error("Failed to initialize timer:", timerError); showError(statusDiv, "Timer could not be initialized.", "warning"); }
 
     // --- Branch Logic: Local vs. Database Challenge ---
     if (challengeConfig.isLocal) {
         // --- LOCAL CHALLENGE ---
-        const localData = getLocalChallengeById(challengeConfig.id);
+        const localData = getLocalChallengeById(challengeConfig.id); // [cite: 1]
+
         if (localData) {
             challengeConfig.coreChallengeStructure = localData.challengeData || {};
             challengeConfig.progressData = localData.progressData || {};
-            renderLocalChallengeView(localData); // Defined in ui.js (or needs to be)
-            const displayContainer = document.getElementById('localChallengeDisplay');
-            if (displayContainer) displayContainer.addEventListener('change', handleProgressChange); // Attach listener for local checkboxes
-            else console.error("Could not attach local progress listener.");
-            // Initialize penalty module if needed for local view
-            if (localData.penalty_info && typeof updatePenaltyConfig === 'function') {
-                updatePenaltyConfig({ // Pass relevant local data
-                    userJoinedGroupId: challengeConfig.id, // Use local ID as 'group' context
-                    numPlayersPerGroup: 1, // Local challenges are single player
+            challengeConfig.penaltyInfo = localData.penalty_info || null; // Store penalty info
+
+            // --- Target new placeholder elements ---
+            const titleEl = document.getElementById('local-challenge-title');
+            const rulesContainer = document.getElementById('local-rules-content');
+            const progressBarContainer = document.getElementById('local-group-card')?.querySelector('.progress-bar-container'); // Find within card
+            const progressItemsContainer = document.getElementById('local-group-card')?.querySelector('.group-progress-container'); // Find within card
+            const penaltySectionContainer = document.getElementById('local-penalty-section-container');
+            const penaltyBody = document.getElementById('local-penalty-body');
+            const penaltyButton = penaltyBody?.querySelector('.lostGameBtn-local');
+            const activePenaltyDisplay = document.getElementById('local-group-card')?.querySelector('.active-penalty-display');
+
+            // Populate Title
+            if (titleEl) {
+                titleEl.textContent = localData.name || 'Local Challenge';
+            }
+
+            // Populate Rules
+            if (rulesContainer && challengeConfig.coreChallengeStructure) {
+                renderStaticChallengeDetailsJS(rulesContainer, challengeConfig.coreChallengeStructure); // [cite: 1]
+            } else if (rulesContainer) {
+                rulesContainer.innerHTML = '<p class="text-muted small">Rules not available.</p>';
+            }
+
+            // Populate Progress Bar
+            if (progressBarContainer && challengeConfig.coreChallengeStructure) {
+                renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData); // [cite: 1]
+            } else if (progressBarContainer) {
+                progressBarContainer.innerHTML = '<p class="text-muted small">Progress bar unavailable.</p>';
+            }
+
+            // Populate Progress Items (ensure container is found)
+            if (progressItemsContainer && challengeConfig.coreChallengeStructure) {
+                renderProgressItems(progressItemsContainer, challengeConfig.coreChallengeStructure, challengeConfig.id, challengeConfig.progressData, true); // [cite: 1]
+                // Attach change listener to the specific card or a parent container
+                const localCard = document.getElementById('local-group-card');
+                if (localCard) {
+                    localCard.addEventListener('change', handleProgressChange);
+                } else {
+                    console.error("Cannot attach progress listener: local card not found.");
+                }
+            } else if (progressItemsContainer) {
+                progressItemsContainer.innerHTML = '<p class="text-muted small">Progress items unavailable.</p>';
+                console.error("Could not render local progress items. Container or structure missing.");
+            } else {
+                console.error("Progress items container '.group-progress-container' not found within '#local-group-card'.");
+            }
+
+            // Populate/Show Penalty Section (if applicable)
+            if (penaltySectionContainer && penaltyBody && penaltyButton && challengeConfig.penaltyInfo) {
+                const tabId = challengeConfig.penaltyInfo.tab_id;
+                if (tabId) {
+                    penaltyButton.dataset.penaltyTabId = tabId;
+                    penaltySectionContainer.style.display = 'block'; // Show the section
+                    // Maybe clear placeholder text
+                    // penaltyBody.querySelector('p.text-secondary')?.remove();
+                    // Penalty JS should initialize based on presence of elements
+                } else {
+                    console.warn("Local challenge has penalty info but no tab_id");
+                }
+            }
+
+            // Populate Active Penalty Display (if needed)
+            if (activePenaltyDisplay && localData.active_penalty_text) { // Check if local storage stores this
+                updatePenaltyDisplay(challengeConfig.id, localData.active_penalty_text); // [cite: 1]
+            }
+
+
+            // Initialize Timer (using placeholder)
+            initializeTimer('main'); // [cite: 1] Assuming the timer in the placeholder uses 'main' ID
+
+
+            // Initialize penalty module config if needed
+            if (challengeConfig.penaltyInfo && typeof updatePenaltyConfig === 'function') {
+                updatePenaltyConfig({ // [cite: 1]
+                    userJoinedGroupId: challengeConfig.id,
+                    numPlayersPerGroup: 1,
                     isMultigroup: false,
-                    initialGroups: [{ // Simulate a group for player names if needed
-                        id: challengeConfig.id,
-                        player_names: ['You'] // Or allow storing names?
-                    }]
+                    initialGroups: [{ id: challengeConfig.id, player_names: ['You'] }]
                 });
             }
+
         } else {
             const errorMsg = `Error: Could not load local challenge data (ID: ${escapeHtml(challengeConfig.id)}). It might have been deleted.`;
-            showError(document.getElementById('localChallengeDisplay') || statusDiv, errorMsg, 'danger');
+            // Try to display error in a general status area if local structure failed
+            const statusDisplay = document.getElementById('pageStatusDisplay');
+            showError(statusDisplay || document.body, errorMsg, 'danger');
         }
     } else {
         // --- DATABASE CHALLENGE ---
@@ -889,8 +836,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initial UI setup for DB challenge
         try {
-            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-            // Auto-join logic (kept from previous version, check if still desired)
+            // Use imported function
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
+            // Auto-join logic
             if (!challengeConfig.isMultigroup && challengeConfig.initialGroupCount === 1 && challengeConfig.userJoinedGroupId === null) {
                 const firstId = challengeConfig.initialGroups[0]?.id;
                 if (firstId && challengeConfig.isAuthorized && challengeConfig.isLoggedIn) { // Only auto-join if authorized
@@ -903,17 +851,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     autoJoinGroup(firstId); // Attempt API join
                 }
             }
-            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); //
             // Update penalty module config initially
             if (typeof updatePenaltyConfig === 'function') {
-                updatePenaltyConfig(challengeConfig);
+                updatePenaltyConfig(challengeConfig); //
             }
 
         } catch (uiError) {
             console.error("Error during initial UI update:", uiError);
             showError(statusDiv, "Error initializing UI state.", "danger");
         }
-        
+
 
         // Attach Create Group Form Listener (only if creator)
         if (addGroupForm && challengeConfig.isCreator) {
@@ -951,5 +899,5 @@ document.addEventListener('DOMContentLoaded', () => {
         // Attach change listener for progress checkboxes (delegated)
         pageContainer.addEventListener('change', handleProgressChange);
     }
-    
+
 }); // End DOMContentLoaded

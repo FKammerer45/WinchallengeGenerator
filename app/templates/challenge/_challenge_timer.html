@@ -1,24 +1,26 @@
 {# templates/challenge/_challenge_timer.html #}
-{# Expects: loop_index (int) passed from the include #}
+{# Uses static 'main' timer_id consistent with initializeTimer('main') in JS #}
 
 {# Use glass effect instead of card #}
 <div class="mb-3 p-3 rounded-md glass-effect shadow-sm challenge-timer-container">
      <div class="d-flex align-items-center flex-wrap">
-       {# Timer Display - Style with CSS using .timer-display class #}
-       <div id="timerDisplay-{{ loop_index }}" class="mr-3 timer-display">00:00:00</div>
+       {# Timer Display - Uses static ID 'main' #}
+       <div id="timerDisplay-main" class="mr-3 timer-display">00:00:00</div>
 
        {# Buttons aligned to the right #}
        <div class="ml-auto button-group">
-          {# Apply modern button styles #}
-          <button id="btnStart-{{ loop_index }}" class="btn btn-success btn-sm mr-1 timer-start" title="Start Timer">
-             <span class="spinner-border spinner-border-sm"></span><span>Start</span>
-          </button>
-          <button id="btnStop-{{ loop_index }}" class="btn btn-warning btn-sm mr-1 timer-stop" title="Stop Timer">
-             <span class="spinner-border spinner-border-sm"></span><span>Stop</span>
-          </button>
-          <button id="btnReset-{{ loop.index }}" class="btn btn-danger btn-sm timer-reset" title="Reset Timer">
-             <span class="spinner-border spinner-border-sm"></span><span>Reset</span>
-          </button>
+         {# Apply modern button styles - Use static ID 'main' #}
+         <button id="btnStart-main" class="btn btn-success btn-sm mr-1 timer-start" title="Start Timer">
+             <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Start</span>
+         </button>
+         {# Use static ID 'main' #}
+         <button id="btnStop-main" class="btn btn-warning btn-sm mr-1 timer-stop" title="Stop Timer">
+             <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Stop</span>
+         </button>
+         {# Use static ID 'main' #}
+         <button id="btnReset-main" class="btn btn-danger btn-sm timer-reset" title="Reset Timer">
+              <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Reset</span>
+         </button>
        </div>
      </div>
 </div>
