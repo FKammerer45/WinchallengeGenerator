@@ -1,26 +1,27 @@
 {# templates/challenge/_challenge_timer.html #}
-{# Uses static 'main' timer_id consistent with initializeTimer('main') in JS #}
+{# Side-by-Side Layout Version with Internal Centering #}
 
-{# Use glass effect instead of card #}
-<div class="mb-3 p-3 rounded-md glass-effect shadow-sm challenge-timer-container">
-     <div class="d-flex align-items-center flex-wrap">
-       {# Timer Display - Uses static ID 'main' #}
-       <div id="timerDisplay-main" class="mr-3 timer-display">00:00:00</div>
+{# Add h-100 to make card fill column height #}
+<div class="card shadow-sm glass-effect h-100">
+    <div class="card-header h6 fw-bold text-light py-2">
+         <i class="bi bi-clock me-1"></i> Timer
+    </div>
+    {# Use flexbox in card-body for alignment #}
+    <div class="card-body p-3 d-flex flex-column justify-content-center align-items-center">
+        {# Timer Display - Larger font, centered #}
+        <div id="timerDisplay-main" class="timer-display mb-3" style="font-size: 2rem; font-family: 'Fira Code', monospace;">00:00:00</div>
 
-       {# Buttons aligned to the right #}
-       <div class="ml-auto button-group">
-         {# Apply modern button styles - Use static ID 'main' #}
-         <button id="btnStart-main" class="btn btn-success btn-sm mr-1 timer-start" title="Start Timer">
-             <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Start</span>
-         </button>
-         {# Use static ID 'main' #}
-         <button id="btnStop-main" class="btn btn-warning btn-sm mr-1 timer-stop" title="Stop Timer">
-             <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Stop</span>
-         </button>
-         {# Use static ID 'main' #}
-         <button id="btnReset-main" class="btn btn-danger btn-sm timer-reset" title="Reset Timer">
-              <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Reset</span>
-         </button>
-       </div>
-     </div>
+        {# Button Group - Centered #}
+        <div class="button-group text-center">
+             <button id="btnStart-main" class="btn btn-success btn-sm me-1 timer-start" title="Start Timer">
+                <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Start</span>
+            </button>
+             <button id="btnStop-main" class="btn btn-warning btn-sm me-1 timer-stop" title="Stop Timer">
+                <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Stop</span>
+            </button>
+             <button id="btnReset-main" class="btn btn-danger btn-sm timer-reset" title="Reset Timer">
+                 <span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Reset</span>
+            </button>
+        </div>
+    </div>
 </div>

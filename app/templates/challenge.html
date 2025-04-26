@@ -59,29 +59,29 @@ Challenge Not Found
     <div class="row mb-4">
       <div class="col-12">
         <div id="local-info-bar-card" class="card shadow-sm glass-effect"> {# Gave card an ID #}
-           {# --- MODIFICATION START: Added Header with Button --- #}
+          {# --- MODIFICATION START: Added Header with Button --- #}
           <div class="card-header d-flex justify-content-between align-items-center p-3">
-              <h5 class="mb-0 h6">Challenge Info</h5> {# Simple title #}
-              <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                      data-target="#localInfoBody" aria-expanded="true" aria-controls="localInfoBody"
-                      title="Toggle Info Section">
-                <i class="bi bi-chevron-expand"></i>
-              </button>
+            <h5 class="mb-0 h6">Challenge Info</h5> {# Simple title #}
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+              data-target="#localInfoBody" aria-expanded="true" aria-controls="localInfoBody"
+              title="Toggle Info Section">
+              <i class="bi bi-chevron-expand"></i>
+            </button>
           </div>
           {# --- Wrap body content in collapse div --- #}
           <div class="collapse show" id="localInfoBody">
-             <div class="card-body p-3"> {# Keep original padding #}
-                <div class="row align-items-center">
-                    <div class="col-md-6">
-                        <h2 id="local-challenge-title" class="h4 mb-2 mb-md-0 text-primary-accent">Loading Title...</h2>
-                    </div>
-                    <div class="col-md-6 d-flex justify-content-md-end align-items-center">
-                        <div id="local-timer-placeholder" class="me-3">
-                             {% include 'challenge/_challenge_timer.html' ignore missing %}
-                        </div>
-                    </div>
+            <div class="card-body p-3"> {# Keep original padding #}
+              <div class="row align-items-center">
+                <div class="col-md-6">
+                  <h2 id="local-challenge-title" class="h4 mb-2 mb-md-0 text-primary-accent">Loading Title...</h2>
                 </div>
-             </div>
+                <div class="col-md-6 d-flex justify-content-md-end align-items-center">
+                  <div id="local-timer-placeholder" class="me-3">
+                    {% include 'challenge/_challenge_timer.html' ignore missing %}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           {# --- MODIFICATION END --- #}
         </div>
@@ -96,15 +96,15 @@ Challenge Not Found
           <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="h5 mb-0">Challenge Rules</h3>
             <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                    data-target="#localRulesBody" aria-expanded="true" aria-controls="localRulesBody"
-                    title="Toggle Rules Section">
+              data-target="#localRulesBody" aria-expanded="true" aria-controls="localRulesBody"
+              title="Toggle Rules Section">
               <i class="bi bi-chevron-expand"></i>
             </button>
           </div>
-           {# --- Wrap body content in collapse div --- #}
+          {# --- Wrap body content in collapse div --- #}
           <div class="collapse show" id="localRulesBody">
             <div id="local-rules-content" class="card-body challenge-rules-list">
-                <p class="text-secondary small">Loading rules...</p>
+              <p class="text-secondary small">Loading rules...</p>
             </div>
           </div>
           {# --- MODIFICATION END --- #}
@@ -115,39 +115,40 @@ Challenge Not Found
     {# Penalty Section #}
     {# Add check in JS: if localData.penalty_info exists, populate and show #}
     <div id="local-penalty-section-container" class="mb-5 card shadow-sm" style="display: none;">
-        {# --- MODIFICATION START: Added Header with Button --- #}
+      {# --- MODIFICATION START: Added Header with Button --- #}
       <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="h5 mb-0">Penalties</h3>
-         <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                    data-target="#localPenaltyBody" aria-expanded="true" aria-controls="localPenaltyBody"
-                    title="Toggle Penalty Section">
-              <i class="bi bi-chevron-expand"></i>
-          </button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+          data-target="#localPenaltyBody" aria-expanded="true" aria-controls="localPenaltyBody"
+          title="Toggle Penalty Section">
+          <i class="bi bi-chevron-expand"></i>
+        </button>
       </div>
       {# --- Wrap body content in collapse div --- #}
       <div class="collapse show" id="localPenaltyBody">
-         <div class="card-body"> {# Removed extra id="local-penalty-body" from here #}
-            {# Existing penalty content... #}
-            <p class="text-secondary small">Loading penalties...</p>
-            <div id="penaltyResult-local" class="mt-3 penalty-result-display" style="display: none;"></div>
-            <div id="playerWheelContainer-local" style="display: none;" class="text-center">
-              <h6 id="playerWheelTitle-local">Participant</h6>
-              <canvas id="playerWheelCanvas-local" width="200" height="200"></canvas>
-            </div>
-            <div id="penaltyWheelContainer-local" style="display: none;" class="text-center mt-3">
-              <h6>Penalty</h6>
-              <canvas id="penaltyWheelCanvas-local" width="280" height="280"></canvas>
-            </div>
-            <div class="text-center mb-4 pb-2">
-                <button class="btn btn-lg btn-warning lostGameBtn-local shadow-md d-inline-flex align-items-center justify-content-center"
-                        data-penalty-tab-id="" title="Click if a game was lost">
-                    <i class="bi bi-dice-6 me-2"></i>
-                    <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
-                    <span>Lost Game - Spin Penalty</span>
-                </button>
-                <p class="text-secondary small mt-2">Click above to spin for a randomly assigned penalty.</p>
-            </div>
-         </div>
+        <div class="card-body"> {# Removed extra id="local-penalty-body" from here #}
+          {# Existing penalty content... #}
+          <p class="text-secondary small">Loading penalties...</p>
+          <div id="penaltyResult-local" class="mt-3 penalty-result-display" style="display: none;"></div>
+          <div id="playerWheelContainer-local" style="display: none;" class="text-center">
+            <h6 id="playerWheelTitle-local">Participant</h6>
+            <canvas id="playerWheelCanvas-local" width="200" height="200"></canvas>
+          </div>
+          <div id="penaltyWheelContainer-local" style="display: none;" class="text-center mt-3">
+            <h6>Penalty</h6>
+            <canvas id="penaltyWheelCanvas-local" width="280" height="280"></canvas>
+          </div>
+          <div class="text-center mb-4 pb-2">
+            <button
+              class="btn btn-lg btn-warning lostGameBtn-local shadow-md d-inline-flex align-items-center justify-content-center"
+              data-penalty-tab-id="" title="Click if a game was lost">
+              <i class="bi bi-dice-6 me-2"></i>
+              <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+              <span>Lost Game - Spin Penalty</span>
+            </button>
+            <p class="text-secondary small mt-2">Click above to spin for a randomly assigned penalty.</p>
+          </div>
+        </div>
       </div>
       {# --- MODIFICATION END --- #}
     </div>
@@ -159,34 +160,35 @@ Challenge Not Found
     <div class="row justify-content-center">
       <div class="col-md-10 col-lg-8 mx-auto">
         <div id="local-group-card" class="card group-card h-100 glass-effect">
-            {# --- MODIFICATION START: Added Header with Button --- #}
-            <div class="card-header d-flex justify-content-between align-items-center">
-                 <h5 class="mb-0 h6">Progress Details</h5> {# Simple Title #}
-                 <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                    data-target="#localProgressBody" aria-expanded="true" aria-controls="localProgressBody"
-                    title="Toggle Progress Section">
-                   <i class="bi bi-chevron-expand"></i>
-                 </button>
+          {# --- MODIFICATION START: Added Header with Button --- #}
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 h6">Progress Details</h5> {# Simple Title #}
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+              data-target="#localProgressBody" aria-expanded="true" aria-controls="localProgressBody"
+              title="Toggle Progress Section">
+              <i class="bi bi-chevron-expand"></i>
+            </button>
+          </div>
+          {# --- Wrap body content in collapse div --- #}
+          <div class="collapse show" id="localProgressBody">
+            <div class="card-body p-4">
+              {# Existing progress content... #}
+              <div class="progress-bar-container mb-4">
+                <p class="text-secondary small">Loading progress bar...</p>
+              </div>
+              <div class="group-progress-container border-top pt-3">
+                <h6 class="text-muted small mb-2">PROGRESS:</h6>
+                <p class="text-secondary small">Loading progress items...</p>
+              </div>
+              {# Player names section was removed previously #}
+              <div class="active-penalty-display mt-2 border-top pt-2 mx-0 mb-2" data-group-id="{{ challenge_id }}"
+                style="display: none;">
+                <h6 class="small mb-1">Active Penalty:</h6>
+                <p class="mb-0 small penalty-text-content"></p>
+              </div>
             </div>
-            {# --- Wrap body content in collapse div --- #}
-            <div class="collapse show" id="localProgressBody">
-               <div class="card-body p-4">
-                 {# Existing progress content... #}
-                 <div class="progress-bar-container mb-4">
-                   <p class="text-secondary small">Loading progress bar...</p>
-                 </div>
-                 <div class="group-progress-container border-top pt-3">
-                   <h6 class="text-muted small mb-2">PROGRESS:</h6>
-                   <p class="text-secondary small">Loading progress items...</p>
-                 </div>
-                 {# Player names section was removed previously #}
-                 <div class="active-penalty-display mt-2 border-top pt-2 mx-0 mb-2" data-group-id="{{ challenge_id }}" style="display: none;">
-                   <h6 class="small mb-1">Active Penalty:</h6>
-                   <p class="mb-0 small penalty-text-content"></p>
-                 </div>
-               </div>
-            </div>
-            {# --- MODIFICATION END --- #}
+          </div>
+          {# --- MODIFICATION END --- #}
         </div>
       </div>
     </div>
@@ -194,21 +196,46 @@ Challenge Not Found
     {% elif shared_challenge %}
     {# --- Database Challenge View --- #}
 
-    {# Row for Challenge Info Bar and Rules Card #}
-    <div class="row mb-4"> {# Adjusted margin slightly #}
-      {# Column for the Info Bar - spans full width initially, adjusts on larger screens #}
-      <div class="col-12 mb-4">
-        {# Include the updated info bar partial, passing necessary context #}
-        {% include 'challenge/_challenge_info_bar.html' ignore missing with context %}
-        {# 'with context' passes all current template variables like shared_challenge, is_multigroup etc. #}
+    <div class="card shadow-sm glass-effect mb-4"> {# New outer card #}
+      <div class="card-header d-flex justify-content-between align-items-center"> {# Header for the wrapper #}
+        <h3 class="h5 mb-0">
+          <i class="bi bi-layout-text-sidebar me-1"></i> Challenge Overview
+        </h3>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+          data-target="#challengeOverviewBody" aria-expanded="true" aria-controls="challengeOverviewBody"
+          title="Toggle Overview Section">
+          <i class="bi bi-chevron-expand"></i>
+        </button>
       </div>
+      {# Collapsible body containing the row with info bar and timer #}
+      <div class="collapse show" id="challengeOverviewBody">
 
-      {# Column for the Rules Card - spans full width #}
+        {# Add some padding to the wrapper body if needed: <div class="card-body p-3"> #}
+          <div class="row p-3 align-items-stretch"> {# Added p-3 padding and kept align-items-stretch #}
+
+            {# Column for the Info Bar #}
+            <div class="col-lg-8 col-md-7 mb-3 mb-md-0"> {# Use mb-3 for spacing when stacked #}
+              {% include 'challenge/_challenge_info_bar.html' ignore missing with context %}
+            </div>
+
+            {# Column for the Timer #}
+            <div class="col-lg-4 col-md-5">
+              {% include 'challenge/_challenge_timer.html' ignore missing %}
+            </div>
+
+          </div> {# End of the inner row containing info bar and timer #}
+          {# Maybe close card-body if you added one:
+        </div> #}
+      </div> {# End collapse show #}
+    </div> {# End of New outer card #}
+
+    {# Column for the Rules Card - spans full width #}
+    <div class="row mb-4">
       <div class="col-12">
         {# Apply glass effect #}
         <div class="card h-100 shadow-md rules-card glass-effect">
           <div class="card-header d-flex justify-content-between align-items-center"> {# Added flex classes #}
-            <h3 class="h5 mb-0">Challenge Rules</h3>
+            <h3 class="h5 mb-0"><i class="bi bi-list-check me-1"></i> Challenge Rules</h3>
             {# Added Collapse Button #}
             <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
               data-target="#rulesBody" aria-expanded="true" aria-controls="rulesBody" title="Toggle Rules Section">
@@ -230,7 +257,7 @@ Challenge Not Found
     <hr class="my-5"> {# Optional separator #}
     <div class="card shadow-md mb-5 management-card glass-effect"> {# Added glass-effect #}
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="h5 mb-0">Manage Authorized Users</h3>
+        <h3 class="h5 mb-0"><i class="bi bi-people me-1"></i> Manage Authorized Users</h3>
         <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
           data-target="#manageUsersBody" aria-expanded="false" aria-controls="manageUsersBody"
           title="Toggle User Management">
@@ -291,7 +318,7 @@ Challenge Not Found
     {# Use standard opaque card for better contrast with wheels? Or glass? Let's try standard. #}
     <div id="penaltySectionContainer" class="mb-5 card shadow-sm">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="h5 mb-0">Penalties</h3>
+        <h3 class="h5 mb-0"><i class="bi bi-lightning me-1"></i> Penalties</h3>
         <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse" data-target="#penaltyBody"
           aria-expanded="true" aria-controls="penaltyBody" title="Toggle Penalty Section">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
@@ -322,7 +349,7 @@ Challenge Not Found
     {# Use standard opaque card for form readability #}
     <div class="mb-5 card shadow-md">
       <div class="card-header d-flex justify-content-between align-items-center"> {# Added Header #}
-        <h4 class="h5 mb-0 text-secondary-accent">Create or Join Group</h4> {# Moved title here #}
+        <h4 class="h5 mb-0 text-secondary-accent"><i class="bi bi-person-plus me-1"></i> Create or Join Group</h4> {# Moved title here #}
         {# Added Collapse Button #}
         <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
           data-target="#createGroupBody" aria-expanded="true" aria-controls="createGroupBody"

@@ -1,64 +1,75 @@
 {# templates/_challenge_info_bar.html #}
-{# Displays core challenge info using modern theme #}
+{# Displays core challenge info - Side-by-Side Layout Version #}
 {# Expects: shared_challenge (object), is_multigroup (boolean), num_players_per_group (int) #}
 
-{% set bi_icon_prefix = 'bi bi-' %} {# Define icon prefix #}
+{% set bi_icon_prefix = 'bi bi-' %}
 
 {% if shared_challenge %}
-{# Use flexbox for layout, add MORE padding (p-4), glass effect, etc. #}
-<div class="p-4 mb-4 rounded-lg glass-effect info-bar shadow-sm d-flex flex-wrap justify-content-center justify-content-md-start align-items-center gap-3">
-    {# Gap adds space between items #}
-
-    {# Challenge Name (If provided) - NEW ITEM #}
-    {% if shared_challenge.name %}
-    <div class="info-item badge bg-light text-dark rounded-pill px-3 py-2 d-flex align-items-center" title="Challenge Name">
-        <i class="{{ bi_icon_prefix }}trophy-fill me-2 fs-4 opacity-75"></i> {# Larger Icon #}
-        <span class="fw-bold challenge-name-display">{{ shared_challenge.name | escape }}</span> {# Bolder Name #}
+{# Add h-100 to make card fill column height #}
+<div class="card shadow-sm glass-effect h-100">
+    <div class="card-header h6 fw-bold text-light py-2">
+        <i class="{{ bi_icon_prefix }}info-circle me-1"></i> Info
     </div>
-    {% endif %}
+    <div class="card-body p-3">
+        {# Main flex container for badges - allow wrapping, align items center, add gap #}
+        <div class="d-flex flex-wrap align-items-center gap-2">
 
-    {# Creator Info Item #}
-    <div class="info-item badge bg-light text-dark rounded-pill px-3 py-2 d-flex align-items-center" title="Challenge Creator">
-        <i class="{{ bi_icon_prefix }}person-fill me-2 fs-4 opacity-75"></i> {# Larger Icon #}
-        <span class="fw-semibold">{{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</span>
-    </div>
-
-    {# Mode Info Item #}
-    <div class="info-item badge bg-primary-subtle text-primary-emphasis rounded-pill px-3 py-2 d-flex align-items-center" title="Challenge Mode">
-         <i class="{{ bi_icon_prefix }}diagram-3-fill me-2 fs-4"></i> {# Mode icon - Larger #}
-         <span class="fw-semibold">
-            {% if is_multigroup %}
-                Multigroup (Max: {{ shared_challenge.max_groups }}, Players/Group: {{ num_players_per_group }})
-            {% else %}
-                Single Group
+            {# Challenge Name Badge #}
+            {% if shared_challenge.name %}
+            <div class="info-item badge bg-light text-dark rounded-pill px-3 py-2 d-flex align-items-center" title="Challenge Name">
+                <i class="{{ bi_icon_prefix }}trophy-fill me-2 fs-5 opacity-75"></i>
+                {# Added info-badge-text class for potential CSS styling #}
+                <span class="fw-bold challenge-name-display info-badge-text">{{ shared_challenge.name | escape }}</span>
+            </div>
             {% endif %}
-        </span>
-    </div>
 
-    {# Creation Date - NEW ITEM #}
-    <div class="info-item badge bg-secondary-subtle text-secondary-emphasis rounded-pill px-3 py-2 d-flex align-items-center" title="Creation Date">
-        <i class="{{ bi_icon_prefix }}calendar-event-fill me-2 fs-4 opacity-75"></i> {# Calendar Icon - Larger #}
-        <span class="fw-semibold">Created: {{ shared_challenge.created_at.strftime('%Y-%m-%d') if shared_challenge.created_at else 'N/A' }}</span> {# Format date #}
-    </div>
+            {# Creator Badge #}
+            <div class="info-item badge bg-light text-dark rounded-pill px-3 py-2 d-flex align-items-center" title="Challenge Creator">
+                <i class="{{ bi_icon_prefix }}person-fill me-2 fs-5 opacity-75"></i>
+                {# Added info-badge-text class #}
+                <span class="fw-semibold info-badge-text">{{ shared_challenge.creator.username if shared_challenge.creator else "Unknown" }}</span>
+            </div>
 
-    {# Penalty Info Item #}
-    {% set penalty_tab_id = shared_challenge.get_penalty_tab_id() %}
-    <div class="info-item badge rounded-pill px-3 py-2 d-flex align-items-center
-        {% if penalty_tab_id %} bg-success-subtle text-success-emphasis {% else %} bg-danger-subtle text-danger-emphasis {% endif %}"
-        title="Penalty Status">
-        {# Dynamic background/text color based on status #}
+            {# Mode Badge #}
+            <div class="info-item badge bg-primary-subtle text-primary-emphasis rounded-pill px-3 py-2 d-flex align-items-center" title="Challenge Mode">
+                <i class="{{ bi_icon_prefix }}diagram-3-fill me-2 fs-5"></i>
+                {# Added info-badge-text class #}
+                <span class="fw-semibold info-badge-text">
+                    {% if is_multigroup %}
+                        Multigroup (Max: {{ shared_challenge.max_groups }}, Players/Group: {{ num_players_per_group }})
+                    {% else %}
+                        Single Group
+                    {% endif %}
+                </span>
+            </div>
 
-        {% if penalty_tab_id %}
-            <i class="{{ bi_icon_prefix }}shield-check-fill me-2 fs-4"></i> {# Enabled icon - Larger #}
-            <span class="fw-semibold">Penalties Enabled</span>
-             <span class="text-muted ms-2 small d-none d-sm-inline">(Source: {{ penalty_tab_id | escape }})</span>
-        {% else %}
-             <i class="{{ bi_icon_prefix }}shield-slash-fill me-2 fs-4"></i> {# Disabled icon - Larger #}
-            <span class="fw-semibold">Penalties Disabled</span>
-        {% endif %}
-    </div>
+            {# Creation Date Badge #}
+            <div class="info-item badge bg-secondary-subtle text-secondary-emphasis rounded-pill px-3 py-2 d-flex align-items-center" title="Creation Date">
+                <i class="{{ bi_icon_prefix }}calendar-event-fill me-2 fs-5 opacity-75"></i>
+                {# Added info-badge-text class #}
+                <span class="fw-semibold info-badge-text">Created: {{ shared_challenge.created_at.strftime('%Y-%m-%d') if shared_challenge.created_at else 'N/A' }}</span>
+            </div>
 
-</div>
+            {# Penalty Status Badge #}
+            {% set penalty_tab_id = shared_challenge.get_penalty_tab_id() %}
+            <div class="info-item badge rounded-pill px-3 py-2 d-flex align-items-center
+                {% if penalty_tab_id %} bg-success-subtle text-success-emphasis {% else %} bg-danger-subtle text-danger-emphasis {% endif %}"
+                title="Penalty Status">
+                {% if penalty_tab_id %}
+                    <i class="{{ bi_icon_prefix }}shield-check-fill me-2 fs-5"></i>
+                    {# Added info-badge-text class #}
+                    <span class="fw-semibold info-badge-text">Penalties Enabled</span>
+                    <span class="text-muted ms-2 small d-none d-sm-inline">(Source: {{ penalty_tab_id | escape }})</span>
+                {% else %}
+                    <i class="{{ bi_icon_prefix }}shield-slash-fill me-2 fs-5"></i>
+                    {# Added info-badge-text class #}
+                    <span class="fw-semibold info-badge-text">Penalties Disabled</span>
+                {% endif %}
+            </div>
+
+        </div> {# End flex container #}
+    </div> {# End card-body #}
+</div> {# End card #}
 {% else %}
  <div class="alert alert-warning small">Info bar could not be loaded.</div>
 {% endif %}
