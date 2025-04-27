@@ -1,5 +1,11 @@
 # app/__init__.py
+import eventlet
 
+if not eventlet.patcher.is_monkey_patched('socket'):
+    print("--- Patching standard libraries for eventlet ---")
+    eventlet.monkey_patch()
+else:
+    print("--- Standard libraries already patched for eventlet ---")
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -8,10 +14,10 @@ from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_socketio import SocketIO # <--- Import SocketIO
+from flask_socketio import SocketIO 
 from config import config
 import logging
-import eventlet # <--- Import eventlet
+
 
 # Initialize extensions globally
 db = SQLAlchemy()
@@ -20,7 +26,7 @@ csrf = CSRFProtect()
 migrate = Migrate()
 # Initialize SocketIO - async_mode='eventlet' is recommended for performance
 # Ensure CORS allows your frontend origin, or use "*" for development
-socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet') # <--- Initialize SocketIO
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 
 # Configure login manager
 login_manager.login_view = 'auth.login'
@@ -41,13 +47,6 @@ def load_user(user_id):
 def create_app(config_name=None):
     # Patch standard libraries for eventlet BEFORE creating app
     # Check if already patched to avoid issues during reloads
-    if not eventlet.patcher.is_monkey_patched('socket'):
-         print("--- Patching std libraries for eventlet ---")
-         eventlet.monkey_patch()
-    else:
-         print("--- Std libraries already patched for eventlet ---")
-
-
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
         if config_name not in config:

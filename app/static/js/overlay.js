@@ -60,71 +60,91 @@ function escapeHtml(str) {
 
 // --- Rendering Functions ---
 function renderOverlayRules(container, challengeStructure, groupProgressData) {
-     if (!container) { console.error("Rules container not found"); return; }
-     if (!challengeStructure || (!challengeStructure.normal && !challengeStructure.b2b)) {
-         container.innerHTML = '<p class="loading-text small fst-italic text-white-50">No rules defined.</p>';
-         stopAutoScroll(); // Stop scroll if no rules
-         return;
-     }
-     if (!groupProgressData) groupProgressData = {};
+    if (!container) { console.error("Rules container not found"); return; }
+    if (!challengeStructure || (!challengeStructure.normal && !challengeStructure.b2b)) {
+        container.innerHTML = '<p class="loading-text small fst-italic text-white-50">No rules defined.</p>';
+        stopAutoScroll(); // Stop scroll if no rules
+        return;
+    }
+    if (!groupProgressData) groupProgressData = {};
 
-     container.innerHTML = ''; // Clear loading/previous
-     let html = '';
-     const bi_icon_prefix = 'bi bi-';
+    container.innerHTML = ''; // Clear loading/previous
+    let html = '';
+    const bi_icon_prefix = 'bi bi-';
 
-     const createRuleItemHtml = (key, count, completedCount, isB2B = false) => {
-        let itemHtml = `<div class="progress-item ${completedCount >= count ? 'completed' : ''}">`;
-        itemHtml += `<span class="checkbox-icons me-2">`;
-        for(let i = 0; i < count; i++) {
-            itemHtml += `<i class="${bi_icon_prefix}${i < completedCount ? 'check-square-fill' : 'square'}"></i> `;
-        }
-        itemHtml += `</span>`;
-        itemHtml += `<span class="rule-text">${escapeHtml(key)}</span>`;
-        itemHtml += `</div>`;
-        return itemHtml;
-     };
+    // Helper to create list item HTML - NOW includes a wrapper for markers
+    const createRuleItemHtml = (key, count, completedCount, itemType, segmentIndex = null) => {
+       let itemHtml = `<div class="progress-category mb-2">`; // Container for one rule type
+       // Rule Text Label
+       itemHtml += `<div class="rule-label mb-1">`;
+       itemHtml += `<i class="${bi_icon_prefix}joystick me-2 opacity-75"></i>`; // Generic icon
+       itemHtml += `<span class="rule-text fw-semibold">${escapeHtml(key)}</span>`;
+       itemHtml += `<span class="badge bg-secondary rounded-pill fw-normal ms-2">${count} needed</span>`;
+       itemHtml += `</div>`;
 
-     // Normal Wins
-     const normalItems = challengeStructure.normal || {};
-     if (Object.keys(normalItems).length > 0) {
-        html += `<h6 class="section-title small text-info">Normal Wins:</h6>`;
-        Object.entries(normalItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, info]) => {
-            const count = info?.count || 0;
-            let completedCount = 0;
-            for(let i = 0; i < count; i++) {
-                if(groupProgressData[`normal_${key}_${i}`] === true) completedCount++;
+       // Container for Checkboxes (Markers) - Apply flex wrap via CSS to this class
+       itemHtml += `<div class="overlay-progress-markers">`;
+       for(let i = 0; i < count; i++) {
+           // Construct progress key based on type and index
+           const progressKey = segmentIndex !== null
+               ? `${itemType}_${segmentIndex}_${key}_${i}`
+               : `${itemType}_${key}_${i}`;
+           const isChecked = groupProgressData[progressKey] === true;
+
+           // Individual checkbox item (no d-inline-block needed)
+           itemHtml += `<div class="progress-item ${isChecked ? 'completed' : ''}" title="Win ${i+1} for ${escapeHtml(key)}">`;
+           itemHtml += `<i class="${bi_icon_prefix}${isChecked ? 'check-square-fill' : 'square'}"></i>`;
+           itemHtml += `</div>`; // Close progress-item
+       }
+       itemHtml += `</div>`; // Close overlay-progress-markers
+       itemHtml += `</div>`; // Close progress-category
+       return itemHtml;
+    };
+
+    // --- Render Normal Wins ---
+    const normalItems = challengeStructure.normal || {};
+    if (Object.keys(normalItems).length > 0) {
+       html += `<h6 class="section-title small text-info">Normal Wins:</h6>`;
+       Object.entries(normalItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, info]) => {
+           const count = info?.count || 0;
+           let completedCount = 0;
+           for(let i = 0; i < count; i++) {
+               if(groupProgressData[`normal_${key}_${i}`] === true) completedCount++;
+           }
+           // Pass 'normal' as itemType
+           html += createRuleItemHtml(key, count, completedCount, 'normal');
+       });
+    }
+
+    // --- Render B2B Wins ---
+    const b2bItems = challengeStructure.b2b || [];
+    if (b2bItems.length > 0) {
+        if (html) html += '<hr class="my-2 opacity-25">';
+        html += `<h6 class="section-title small text-warning">B2B Segments:</h6>`;
+        b2bItems.forEach((seg, segIndex) => {
+            const displaySegmentIdx = segIndex + 1;
+            const groupItems = seg?.group || {};
+            if (Object.keys(groupItems).length > 0) {
+                html += `<div class="mb-3 ms-2"><strong class="small d-block text-white-50 mb-2">Segment ${displaySegmentIdx}:</strong>`; // Segment title
+                Object.entries(groupItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, count]) => {
+                    let completedCount = 0;
+                    for(let i = 0; i < count; i++) {
+                        // Use 0-based segIndex for key matching backend/main.js
+                        if(groupProgressData[`b2b_${segIndex}_${key}_${i}`] === true) completedCount++;
+                    }
+                    // Pass 'b2b' as itemType and segIndex
+                    html += createRuleItemHtml(key, count, completedCount, 'b2b', segIndex);
+                });
+                 html += `</div>`; // Close segment container
             }
-            html += createRuleItemHtml(key, count, completedCount);
         });
-     }
+    }
 
-     // B2B Wins
-     const b2bItems = challengeStructure.b2b || [];
-     if (b2bItems.length > 0) {
-         if (html) html += '<hr class="my-2 opacity-25">';
-         html += `<h6 class="section-title small text-warning">B2B Segments:</h6>`;
-         b2bItems.forEach((seg, segIndex) => {
-             const displaySegmentIdx = segIndex + 1;
-             const groupItems = seg?.group || {};
-             if (Object.keys(groupItems).length > 0) {
-                 html += `<div class="mb-2 ms-2"><strong class="small d-block text-white-50 mb-1">Segment ${displaySegmentIdx}:</strong>`;
-                 Object.entries(groupItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, count]) => {
-                     let completedCount = 0;
-                     for(let i = 0; i < count; i++) {
-                         if(groupProgressData[`b2b_${segIndex}_${key}_${i}`] === true) completedCount++;
-                     }
-                     html += createRuleItemHtml(key, count, completedCount, true);
-                 });
-                 html += `</div>`;
-             }
-         });
-     }
+    if (!html) html = '<p class="loading-text small fst-italic text-white-50">No rules defined.</p>';
+    container.innerHTML = html;
 
-     if (!html) html = '<p class="loading-text small fst-italic text-white-50">No rules defined.</p>';
-     container.innerHTML = html;
-
-     // --- Restart scrolling after content update ---
-     startAutoScroll(container);
+    // Restart scrolling after content update
+    startAutoScroll(container);
 }
 
 // ... (renderOverlayProgressBar, renderOtherGroups, updateActivePenalty remain the same) ...
@@ -178,179 +198,180 @@ function updateActivePenalty(container, textEl, penaltyText) {
         container.classList.add('hidden');
     }
 }
-// ... (setupWheels, triggerPenaltySpinAnimation remain the same) ...
+
 function setupWheels() {
     if (!playerWheelCanvas || !penaltyWheelCanvas) {
-        console.error("Cannot setup wheels, canvas element(s) missing.");
+        console.error("Cannot setup wheels, missing canvases.");
         return;
     }
-    const commonWheelOptions = {
-        'textFontSize': 10,
-        'textFillStyle': '#ccc', // Lighter text for dark bg
-        'lineWidth': 1,
-        'strokeStyle': '#444',
-        'animation': { 'type': 'spinToStop', 'easing': 'Power4.easeOut' }
-    };
-    const playerWheelConfig = {
-        ...commonWheelOptions,
-        'canvasId': playerWheelCanvas.id, // Use the actual ID
-        'numSegments': 1,
-        'outerRadius': 70,
-        'innerRadius': 10,
-        'fillStyle': '#666',    // Default segment color
-        'animation': { ...commonWheelOptions.animation, 'duration': 5, 'spins': 6 }
-    };
-     const penaltyWheelConfig = {
-        ...commonWheelOptions,
-        'canvasId': penaltyWheelCanvas.id, // Use the actual ID
-        'numSegments': 1,
-        'outerRadius': 95,
-        'innerRadius': 15,
-        'fillStyle': '#555',
-        'animation': { ...commonWheelOptions.animation, 'duration': 8, 'spins': 10 }
-    };
+    const baseAnim = { type: 'spinToStop', easing: 'Power4.easeOut' };
     try {
-        // Create placeholder wheels - need segments to draw initially
-        playerWheel = new Winwheel({...playerWheelConfig, 'segments': [{'fillStyle': '#888', 'text': '?'}]}, false); // drawWheel = false
-        penaltyWheel = new Winwheel({...penaltyWheelConfig, 'segments': [{'fillStyle': '#555', 'text': '?'}]}, false); // drawWheel = false
-        console.log("WinWheel instances created.");
+        playerWheel = new Winwheel({
+            canvasId: playerWheelCanvas.id,
+            numSegments: 1,
+            outerRadius: 70,
+            innerRadius: 10,
+            fillStyle: '#666',
+            textFontSize: 10,
+            textFillStyle: '#ccc',
+            lineWidth: 1,
+            strokeStyle: '#444',
+            animation: { ...baseAnim, duration: 5, spins: 6 }
+        }, false);
+        penaltyWheel = new Winwheel({
+            canvasId: penaltyWheelCanvas.id,
+            numSegments: 1,
+            outerRadius: 95,
+            innerRadius: 15,
+            fillStyle: '#555',
+            textFontSize: 10,
+            textFillStyle: '#ccc',
+            lineWidth: 1,
+            strokeStyle: '#444',
+            animation: { ...baseAnim, duration: 8, spins: 10 }
+        }, false);
+        console.log("Wheels ready (GSAP-aware).");
     } catch (e) {
-        console.error("Error creating WinWheel instances:", e);
-        // Disable penalty display if wheels fail?
+        console.error("Wheel setup failed:", e);
         penaltyWheelsContainer?.classList.add('hidden');
     }
 }
 
 function triggerPenaltySpinAnimation(resultData) {
-     if (!penaltyWheelsContainer || !resultData || !resultData.result) {
-         console.error("Cannot trigger penalty spin: Missing container or result data.");
-         return;
-     }
-     if (!playerWheel || !penaltyWheel) {
-          console.error("Cannot trigger penalty spin: Wheel instances not initialized.");
-          penaltyResultDisplay.textContent = resultData.result.name || 'Error';
-          penaltyWheelsContainer.classList.remove('hidden'); // Show result area
-          playerWheelWrapper?.classList.add('hidden');
-          penaltyWheelWrapper?.classList.add('hidden');
-          return;
-     }
+    if (!penaltyWheelsContainer || !resultData?.result) {
+        return console.error("Missing data/container");
+    }
+    if (!playerWheel || !penaltyWheel) {
+        console.error("Wheels not initialized");
+        penaltyResultDisplay.textContent = resultData.result.name || 'Error';
+        penaltyWheelsContainer.classList.remove('hidden');
+        playerWheelWrapper.classList.add('hidden');
+        penaltyWheelWrapper.classList.add('hidden');
+        return;
+    }
 
-     console.log("Triggering penalty spin animation with data:", resultData);
-     penaltyResultDisplay.textContent = 'Spinning...'; // Clear previous result text
-     penaltyWheelsContainer.classList.remove('hidden');
-     playerWheelWrapper?.classList.remove('hidden');
-     penaltyWheelWrapper?.classList.remove('hidden');
+    const { player, name, description, stopAngle, winningSegmentIndex } = resultData.result;
+    penaltyResultDisplay.textContent = 'Spinning...';
+    penaltyWheelsContainer.classList.remove('hidden');
+    playerWheelWrapper.classList.remove('hidden');
+    penaltyWheelWrapper.classList.remove('hidden');
 
+    // --- DRAW PLAYER wheel statically ---
+    playerWheel.stopAnimation();              // safe now that GSAP is present
+    playerWheel.rotationAngle = 0;
+    playerWheel.segments = [
+        null,                                  // dummy index 0
+        { fillStyle: '#8dd3c7', text: escapeHtml(player || '?') }
+    ];
+    playerWheel.numSegments = 1;
+    playerWheel.draw();
 
-     const penaltyResult = resultData.result;
-     const finalPenaltyText = penaltyResult.name === "No Penalty"
-         ? `${escapeHtml(penaltyResult.player || 'Participant')}: ${escapeHtml(penaltyResult.description || 'No penalty.')}`
-         : `${escapeHtml(penaltyResult.player || 'Participant')} receives: ${escapeHtml(penaltyResult.name)}`;
+    // --- PREPARE PENALTY wheel animation ---
+    if (name !== "No Penalty" && typeof stopAngle === 'number') {
+        penaltyWheel.stopAnimation();
+        penaltyWheel.rotationAngle = 0;
+        const colors = ['#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00','#a65628','#f781bf','#999999'];
+        const baseSegments = Array.from({length: 8}, (_, i) => ({
+            fillStyle: colors[i],
+            text: '?'
+        }));
 
-     // --- Player Wheel (Static Display) ---
-     playerWheel.stopAnimation(false); // Stop any previous animation
-     playerWheel.rotationAngle = 0;
-     playerWheel.numSegments = 1;
-     playerWheel.segments = [{'fillStyle': '#8dd3c7', 'text': escapeHtml(penaltyResult.player || '?')}];
-     playerWheel.draw(); // Draw static wheel showing the player
+        // insert winning text, highlight
+        const idx = (winningSegmentIndex > 0 && winningSegmentIndex <= 8) ? winningSegmentIndex-1 : 0;
+        baseSegments[idx].text = escapeHtml(name);
+        baseSegments[idx].fillStyle = '#FFD700';
 
-     // --- Penalty Wheel Animation ---
-     if (penaltyResult.name !== "No Penalty" && penaltyResult.stopAngle !== undefined) {
-         penaltyWheel.stopAnimation(false); // Stop previous
-         penaltyWheel.rotationAngle = 0; // Reset angle
+        // make it 1-indexed
+        penaltyWheel.segments = [null, ...baseSegments];
+        penaltyWheel.numSegments = 8;
+        penaltyWheel.animation.stopAngle = stopAngle;
+        penaltyWheel.animation.callbackFinished = () => {
+            penaltyResultDisplay.textContent = `${escapeHtml(player)} receives: ${escapeHtml(name)}`;
+        };
 
-         // Reconfigure penalty wheel - Use dummy segments for visual spin
-         // Ideally, backend would send actual segments used if they vary.
-         penaltyWheel.numSegments = 8; // Assume 8 segments visually
-         const dummySegments = Array.from({length: 8}, (_, i) => ({
-             'fillStyle': ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'][i % 8],
-             'text': `?` // Placeholder text
-         }));
-         // Place the actual result name in the winning segment if index provided
-         const winIndex = penaltyResult.winningSegmentIndex;
-         if (winIndex !== undefined && winIndex > 0 && winIndex <= 8) {
-              dummySegments[winIndex - 1].text = escapeHtml(penaltyResult.name);
-              dummySegments[winIndex - 1].fillStyle = '#FFD700'; // Highlight winning segment
-         } else {
-             dummySegments[0].text = escapeHtml(penaltyResult.name); // Fallback
-         }
-         penaltyWheel.segments = dummySegments;
-
-         // Set animation properties
-         penaltyWheel.animation.stopAngle = penaltyResult.stopAngle;
-         penaltyWheel.animation.callbackFinished = () => {
-             console.log("Penalty animation finished.");
-             penaltyResultDisplay.textContent = finalPenaltyText;
-             // Optionally hide wheels after a delay
-             // setTimeout(() => { penaltyWheelsContainer.classList.add('hidden'); }, 5000);
-         };
-         penaltyWheel.draw(); // Draw initial state before spin
-         penaltyWheel.startAnimation();
-         console.log(`Starting penalty wheel animation to stop at: ${penaltyResult.stopAngle}`);
-     } else {
-         // No penalty or no animation data - just show the result text immediately
-         console.log("No penalty or missing animation data, showing text result.");
-         penaltyResultDisplay.textContent = finalPenaltyText;
-         penaltyWheelWrapper?.classList.add('hidden'); // Hide penalty wheel canvas
-         // Keep player wheel visible to show who got "No Penalty"
-     }
+        penaltyWheel.draw();        // initial draw
+        penaltyWheel.startAnimation();
+    } else {
+        // no penalty case
+        const text = name === "No Penalty"
+            ? `${escapeHtml(player)}: ${escapeHtml(description || 'No penalty.')}`
+            : `${escapeHtml(player)}: ${escapeHtml(name)}`;
+        penaltyResultDisplay.textContent = text;
+        penaltyWheelWrapper.classList.add('hidden');
+    }
 }
+
 
 // --- Auto-Scrolling Function ---
 function startAutoScroll(element) {
-    if (!element) return;
-    stopAutoScroll(); // Clear existing interval before starting new one
+    if (!element) {
+        console.error("[Scroll] startAutoScroll called without a valid element.");
+        return;
+    }
+    // --- ALWAYS clear previous interval first ---
+    stopAutoScroll();
+    // --- Reset state flags ---
     isPausedAtEdge = false;
+    // isHoveringScroll = false; // Don't reset hover flag here, mouse might still be over
 
-    // Check if content actually overflows AFTER rendering (wait slight delay)
-    setTimeout(() => {
+    // Check if content actually overflows AFTER rendering might have happened
+    // Use requestAnimationFrame to check after browser has painted
+    requestAnimationFrame(() => {
         const needsScroll = element.scrollHeight > element.clientHeight;
         console.log(`[Scroll] Check for ${element.id}: scrollHeight=${element.scrollHeight}, clientHeight=${element.clientHeight}, needsScroll=${needsScroll}`);
 
         if (needsScroll) {
-            console.log(`[Scroll] Starting auto-scroll for: ${element.id}`);
-            // Reset scroll position to top before starting
+            // Reset scroll position and direction only when starting fresh
             element.scrollTop = 0;
-            scrollDirection = 1; // Start going down
+            scrollDirection = 1;
+            console.log(`[Scroll] Starting new auto-scroll interval for: ${element.id}`);
 
             scrollInterval = setInterval(() => {
-                if (isPausedAtEdge || isHoveringScroll) return; // Do nothing if paused or hovered
+                // Check pause flags *inside* the interval callback
+                if (isPausedAtEdge || isHoveringScroll) {
+                    // console.log("[Scroll] Interval running but paused (edge/hover)."); // Debug log if needed
+                    return;
+                }
 
                 const currentScroll = element.scrollTop;
                 const maxScroll = element.scrollHeight - element.clientHeight;
 
-                // Check edges with a small tolerance (e.g., 1 pixel)
-                if (scrollDirection === 1 && currentScroll >= maxScroll - AUTO_SCROLL_STEP) { // Reached bottom
-                    element.scrollTop = maxScroll; // Ensure it's exactly at the bottom
+                // Check edges with tolerance
+                if (scrollDirection === 1 && currentScroll >= maxScroll - AUTO_SCROLL_STEP) {
+                    element.scrollTop = maxScroll;
                     console.log("[Scroll] Reached bottom, pausing.");
-                    scrollDirection = -1; // Change direction
+                    scrollDirection = -1;
                     isPausedAtEdge = true;
                     setTimeout(() => { isPausedAtEdge = false; console.log("[Scroll] Resuming scroll upwards."); }, AUTO_SCROLL_PAUSE);
-                } else if (scrollDirection === -1 && currentScroll <= AUTO_SCROLL_STEP) { // Reached top
-                    element.scrollTop = 0; // Ensure it's exactly at the top
+                } else if (scrollDirection === -1 && currentScroll <= AUTO_SCROLL_STEP) {
+                    element.scrollTop = 0;
                     console.log("[Scroll] Reached top, pausing.");
-                    scrollDirection = 1; // Change direction
+                    scrollDirection = 1;
                     isPausedAtEdge = true;
                     setTimeout(() => { isPausedAtEdge = false; console.log("[Scroll] Resuming scroll downwards."); }, AUTO_SCROLL_PAUSE);
                 } else {
-                    // Scroll smoothly
                     element.scrollTop += scrollDirection * AUTO_SCROLL_STEP;
                 }
             }, AUTO_SCROLL_DELAY);
+             console.log("[Scroll] New interval ID set:", scrollInterval); // Log the new ID
         } else {
             console.log("[Scroll] Auto-scroll not needed for:", element.id);
-            element.scrollTop = 0; // Ensure it's at the top if no scroll needed
+            element.scrollTop = 0; // Ensure it's at the top
         }
-    }, 100); // Short delay to allow DOM update
+    }); // End requestAnimationFrame
 }
 
 function stopAutoScroll() {
-     if (scrollInterval) {
-        clearInterval(scrollInterval);
-        scrollInterval = null;
-        console.log("[Scroll] Auto-scroll stopped.");
+    // Check if interval ID exists before trying to clear
+    if (scrollInterval !== null) {
+       clearInterval(scrollInterval);
+       console.log("[Scroll] Cleared interval ID:", scrollInterval); // Log cleared ID
+       scrollInterval = null; // Explicitly set to null
+    } else {
+       // console.log("[Scroll] stopAutoScroll called, but no active interval found."); // Optional log
     }
 }
+
 
 // --- WebSocket Connection ---
 function connectWebSocket() {
@@ -407,32 +428,15 @@ function connectWebSocket() {
             console.log('Received progress_update:', data);
             try {
                  if (!data || !data.challenge_id || data.challenge_id !== challengeId || !currentChallengeStructure) return;
-                 // Check if the update is for the streamer's group
                  if (data.group_id === streamerGroupId) {
                      if (streamerProgressBar && streamerProgressLabel && data.progress_stats) {
                          renderOverlayProgressBar(streamerProgressBar, streamerProgressLabel, data.progress_stats);
                      }
                      if (rulesListEl && data.progress_data) {
-                         // Store current scroll position before re-rendering
-                         const currentScrollTop = rulesListEl.scrollTop;
-                         const currentDirection = scrollDirection; // Store direction too
-                         const currentlyPaused = isPausedAtEdge;
-
-                         renderOverlayRules(rulesListEl, currentChallengeStructure, data.progress_data);
-
-                         // Restore scroll position and direction if not paused at edge
-                         if (!currentlyPaused) {
-                             rulesListEl.scrollTop = currentScrollTop;
-                             scrollDirection = currentDirection; // Keep scrolling same way
-                         } else {
-                             // If paused at edge, restart logic will handle it
-                             console.log("[Scroll] Was paused at edge during progress update, letting restart handle position.");
-                         }
-                         // Restart scroll logic after render (startAutoScroll handles check if needed)
-                         startAutoScroll(rulesListEl);
+                         // --- No need to store/restore scroll position if startAutoScroll resets it ---
+                         renderOverlayRules(rulesListEl, currentChallengeStructure, data.progress_data); // Re-render & restart scroll
                      }
                  }
-                 // Update other groups list regardless
                  if (otherGroupsListEl && data.other_groups_progress) {
                      renderOtherGroups(otherGroupsListEl, data.other_groups_progress);
                  }
