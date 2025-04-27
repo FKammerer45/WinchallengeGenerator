@@ -217,3 +217,13 @@ def challenge_view(challenge_id):
         logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")
         abort(500)
 
+@main.route("/overlay/<string:challenge_public_id>")
+def overlay_view(challenge_public_id):
+    """Renders the minimal HTML page for the OBS Browser Source overlay."""
+    # This route doesn't need to fetch challenge data itself.
+    # It just renders the HTML shell. JS will handle data fetching via WebSockets.
+    # We pass the challenge ID just so the template *could* use it if needed,
+    # but primarily the JS will get it from the URL.
+    logger.info(f"Serving overlay page for challenge ID: {challenge_public_id}")
+    # We don't need to validate the API key here; the WebSocket connection will do that.
+    return render_template("overlay/overlay.html", challenge_public_id=challenge_public_id)

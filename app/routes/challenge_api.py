@@ -19,6 +19,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import func
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm import joinedload, selectinload 
+from ..sockets import (emit_progress_update, emit_active_penalty_update,
+                       emit_penalty_spin_result)
 
 logger = logging.getLogger(__name__)
 
@@ -443,6 +445,7 @@ def update_group_progress(public_id, group_id):
             flag_modified(group, "progress_data") # Explicitly flag for safety
             db.session.commit() # Commit the changes
             logger.info(f"Progress updated for group {group_id} by user {current_user.username}. Key: {progress_key}, Complete: {is_complete}")
+            emit_progress_update(public_id, group_id, group.progress_data)
         # else: # No change needed, no commit needed
             # logger.debug(f"No change needed for progress data group {group_id}, key {progress_key}")
 
@@ -731,12 +734,18 @@ def set_group_penalty(group_id):
 
         # Update the penalty text (allow empty string to clear)
         stripped_penalty_text = penalty_text.strip()
-        group.active_penalty_text = stripped_penalty_text if stripped_penalty_text else None # Store None if empty/whitespace only
-        
-        flag_modified(group, "active_penalty_text") # Ensure modification is tracked
-        db.session.commit() # Commit the change
+        if group.active_penalty_text != stripped_penalty_text:
+            group.active_penalty_text = stripped_penalty_text if stripped_penalty_text else None
+            flag_modified(group, "active_penalty_text")
+            db.session.commit() # Commit FIRST
+            logger.info(f"Set penalty for group {group_id} to: '{group.active_penalty_text}'")
 
-        logger.info(f"Successfully set penalty for group {group_id} by user {current_user.id}")
+
+            emit_active_penalty_update(challenge.public_id, group_id, group.active_penalty_text)
+
+        else:
+             logger.debug(f"No change needed for active penalty text for group {group_id}")
+
         return jsonify({"status": "success", "message": "Penalty updated."}), 200
 
     except SQLAlchemyError as e:
@@ -816,3 +825,64 @@ def remove_authorized_user(public_id, user_id):
      db.session.commit()
      logger.info(f"User {user_to_remove.username} authorization revoked for challenge {public_id} by {current_user.username}.")
      return jsonify({"status": "success", "message": f"User {user_to_remove.username} removed."}), 200
+
+
+@challenge_api.route("/groups/<int:group_id>/penalty_spin_result", methods=["POST"])
+@login_required
+def record_penalty_spin_result(group_id):
+    """Records the penalty result determined client-side and emits it."""
+    data = request.get_json()
+    penalty_result = data.get('penalty_result') # Expect object like {'name':.., 'description':.., 'stopAngle':.., 'winningSegmentIndex':..}
+
+    if not penalty_result or not isinstance(penalty_result, dict) or 'name' not in penalty_result:
+        return jsonify({"error": "Invalid 'penalty_result' data provided."}), 400
+
+    logger.info(f"Received penalty spin result for group {group_id} from user {current_user.id}: {penalty_result.get('name')}")
+
+    try:
+        # Find group, check authorization (user must be member)
+        group = db.session.query(ChallengeGroup).options(
+             selectinload(ChallengeGroup.members),
+             joinedload(ChallengeGroup.shared_challenge) # Need challenge for auth/emit
+        ).filter(ChallengeGroup.id == group_id).first()
+
+        if not group: return jsonify({"error": "Group not found."}), 404
+        challenge = group.shared_challenge
+        if not challenge: return jsonify({"error": "Challenge not found."}), 500
+
+        if not is_user_authorized(challenge, current_user):
+             return jsonify({"error": "Not authorized for this challenge."}), 403
+
+        is_member = any(member.id == current_user.id for member in group.members)
+        if not is_member:
+             return jsonify({"error": "Not authorized to record penalties for this group."}), 403
+
+        # Construct the text to save (similar to penalty.js logic)
+        penalty_text_to_save = ""
+        if penalty_result.get('name') and penalty_result['name'] != "No Penalty":
+             baseText = f"{penalty_result.get('player', 'Participant')} receives penalty: {penalty_result['name']}" # Assume player name might be in result?
+             penalty_text_to_save = baseText
+             if penalty_result.get('description'):
+                 penalty_text_to_save += f" ({penalty_result['description']})"
+
+        # Save the text to the group's active_penalty_text field
+        if group.active_penalty_text != penalty_text_to_save:
+             group.active_penalty_text = penalty_text_to_save if penalty_text_to_save else None
+             flag_modified(group, "active_penalty_text")
+             db.session.commit() # Commit FIRST
+             logger.info(f"Saved active penalty text for group {group_id}: '{group.active_penalty_text}'")
+             # Emit update for the text display as well
+             emit_active_penalty_update(challenge.public_id, group_id, group.active_penalty_text)
+        else:
+             logger.debug(f"No change needed for active penalty text after spin result for group {group_id}")
+
+        # --- Emit WebSocket Event with Full Result (including animation data) ---
+        emit_penalty_spin_result(challenge.public_id, group_id, penalty_result)
+        # --- End Emit ---
+
+        return jsonify({"status": "success", "message": "Penalty result recorded."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error recording penalty spin result for group {group_id}: {e}")
+        return jsonify({"error": "Server error recording penalty result."}), 500

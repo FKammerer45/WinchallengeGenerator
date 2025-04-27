@@ -89,6 +89,110 @@ function restoreButton(btn) {
     btn.disabled = false;
 }
 
+async function handleShowOverlayLink() { // Make the function async
+    const displayDiv = document.getElementById('overlayLinkDisplay');
+    const inputEl = document.getElementById('overlayLinkInput');
+    const errorDiv = document.getElementById('overlayLinkError');
+    const copyBtn = document.getElementById('copyOverlayLinkBtn');
+    const showBtn = document.getElementById('showOverlayLinkBtn');
+
+    if (!displayDiv || !inputEl || !errorDiv || !copyBtn || !showBtn) {
+        console.error("Overlay link DOM elements missing.");
+        return;
+    }
+
+    errorDiv.textContent = ''; // Clear previous errors
+    inputEl.value = 'Fetching API Key...'; // Placeholder text
+    displayDiv.style.display = 'flex'; // Show the input group temporarily
+    showBtn.disabled = true; // Disable show button while processing
+    showBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading...'; // Add loading state
+
+    try {
+        // --- FETCH API KEY ---
+        console.log("Fetching API key from /api/profile/get_key...");
+        // Pass CSRF token if your GET API requires it (depends on CSRF setup)
+        const keyData = await apiFetch('/api/profile/get_key', {}, challengeConfig.csrfToken);
+        console.log("API Key response:", keyData);
+
+        const userApiKey = keyData?.api_key;
+
+        if (!userApiKey) {
+            errorDiv.textContent = keyData?.message || "Overlay API Key not found. Please generate one in your profile.";
+            inputEl.value = ''; // Clear placeholder
+            displayDiv.style.display = 'none'; // Hide input group
+            showBtn.disabled = false; // Re-enable show button
+            showBtn.innerHTML = 'Show Overlay Link'; // Restore button text
+            console.error("API Key retrieval failed or key is null.");
+            return;
+        }
+        // --- END FETCH API KEY ---
+
+
+        // 2. Get Challenge ID from config
+        const challengeId = challengeConfig.id;
+        if (!challengeId || challengeConfig.isLocal) {
+            errorDiv.textContent = "Cannot generate link for local or invalid challenge.";
+            inputEl.value = '';
+            displayDiv.style.display = 'none';
+            showBtn.disabled = false;
+            showBtn.innerHTML = 'Show Overlay Link';
+            return;
+        }
+
+        // 3. Construct URL
+        // Use window.location.origin for a reliable base URL
+        const overlayUrl = `${window.location.origin}/overlay/${challengeId}?key=${encodeURIComponent(userApiKey)}`;
+
+        // 4. Display URL
+        inputEl.value = overlayUrl;
+        displayDiv.style.display = 'flex'; // Ensure it's visible
+        showBtn.style.display = 'none'; // Hide the "Show" button permanently after success
+
+        // 5. Add Copy functionality
+        if (copyBtn && inputEl) {
+            // Remove previous listener if any to prevent duplicates
+            const newCopyBtn = copyBtn.cloneNode(true); // Clone to easily remove old listeners
+            copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn); // Replace old button with clone
+
+            newCopyBtn.addEventListener('click', () => {
+                inputEl.select();
+                inputEl.setSelectionRange(0, 99999);
+                try {
+                    // Use Clipboard API if available
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(inputEl.value).then(() => {
+                            showFlash('Overlay link copied!', 'success');
+                        }).catch(err => {
+                            console.error('Clipboard API copy failed:', err);
+                            showFlash('Failed to copy link (Clipboard API).', 'danger');
+                        });
+                    } else {
+                        // Fallback for older browsers
+                        const successful = document.execCommand('copy');
+                        if (successful) {
+                            showFlash('Overlay link copied! (fallback)', 'success');
+                        } else {
+                            throw new Error('Fallback copy command failed');
+                        }
+                    }
+                } catch (err) {
+                    console.error('Copy error:', err);
+                    showFlash('Failed to copy link.', 'danger');
+                }
+                window.getSelection()?.removeAllRanges(); // Deselect
+            });
+        }
+
+    } catch (error) {
+        console.error("Error in handleShowOverlayLink:", error);
+        errorDiv.textContent = `Error fetching key or generating link: ${error.message}`;
+        inputEl.value = '';
+        displayDiv.style.display = 'none';
+        showBtn.disabled = false; // Re-enable button on error
+        showBtn.innerHTML = 'Show Overlay Link'; // Restore button text
+    }
+}
+
 async function autoJoinGroup(groupId) {
     if (!challengeConfig.urls.joinLeaveBase || !groupId) return;
     try {
@@ -476,7 +580,7 @@ async function handleProgressChange(event) {
                 progressBarContainer = localCard.querySelector('.progress-bar-container');
             }
             if (!progressBarContainer) {
-                 console.error("Could not find '.progress-bar-container' within '#local-group-card'.");
+                console.error("Could not find '.progress-bar-container' within '#local-group-card'.");
             }
         } else {
             // Keep original logic for shared challenges
@@ -488,7 +592,7 @@ async function handleProgressChange(event) {
         // Now call the update function if the container was found
         if (progressBarContainer && challengeConfig.coreChallengeStructure) {
             renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressData); //
-        } else if (!progressBarContainer){
+        } else if (!progressBarContainer) {
             console.warn("Progress bar container could not be found for update.");
         }
 
@@ -771,7 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const penaltyBody = document.getElementById('local-penalty-body');
             const penaltyButton = penaltyBody?.querySelector('.lostGameBtn-local');
             const activePenaltyDisplay = document.getElementById('local-group-card')?.querySelector('.active-penalty-display');
-
+            
             // Populate Title
             if (titleEl) {
                 titleEl.textContent = localData.name || 'Local Challenge';
@@ -784,6 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rulesContainer.innerHTML = '<p class="text-muted small">Rules not available.</p>';
             }
 
+            
             // Populate Progress Bar
             if (progressBarContainer && challengeConfig.coreChallengeStructure) {
                 renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData); // [cite: 1]
@@ -865,7 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Render initial group cards and their states
             updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
 
-            
+
             const theOnlyGroup = challengeConfig.initialGroups?.[0]; // Get the first (only) group's data if it exists
 
             if (
@@ -873,13 +978,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 theOnlyGroup &&                                      // The group data actually exists
                 challengeConfig.isLoggedIn &&                        // The VIEWING user is logged in
                 challengeConfig.isAuthorized &&                      // The VIEWING user is authorized for THIS challenge
-                challengeConfig.userJoinedGroupId === null  &&      // The VIEWING user is NOT currently joined
+                challengeConfig.userJoinedGroupId === null &&      // The VIEWING user is NOT currently joined
                 theOnlyGroup.member_count < challengeConfig.numPlayersPerGroup // The group is not full
             ) {
                 console.log(`Auto-joining authorized user to single group ${theOnlyGroup.id}...`); // Optional log
                 // Visually move the card immediately for better UX (if it exists in 'other' container)
                 const card = otherGroupsContainerEl?.querySelector(`.group-card-wrapper[data-group-id="${theOnlyGroup.id}"]`);
-                 if (card) {
+                if (card) {
                     console.log("Moving card to 'Your Group' section visually.");
                     myGroupContainerEl.innerHTML = ''; // Clear any previous placeholder/content
                     const h = document.createElement('h4');
@@ -890,9 +995,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.classList.remove(...OTHER_GROUP_COL_CLASSES);
                     card.classList.add(...JOINED_GROUP_COL_CLASSES);
                     myGroupContainerEl.appendChild(card);
-                 } else {
-                      console.warn("Could not find card visually for single group auto-join move.");
-                 }
+                } else {
+                    console.warn("Could not find card visually for single group auto-join move.");
+                }
                 // Attempt the API join in the background
                 autoJoinGroup(theOnlyGroup.id);
             }
@@ -930,14 +1035,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const savePlayersBtn = btn.closest('.save-player-names-btn');
             // Penalty Clear Button
             const clearPenaltyBtn = btn.closest('.clear-penalty-btn');
-
+            const showOverlayBtn = document.getElementById('showOverlayLinkBtn');
+            if (showOverlayBtn) {
+                showOverlayBtn.addEventListener('click', handleShowOverlayLink);
+                console.log("Attached listener for showOverlayLinkBtn");
+            } else {
+                // Only log warning if it's NOT a local challenge page
+                const dataEl = document.getElementById('challengeData');
+                const isLocal = dataEl?.dataset?.isLocal === 'true';
+                if (!isLocal) { // Only warn if it's expected (shared challenge)
+                    console.warn("showOverlayLinkBtn not found (expected on shared challenge view).");
+                }
+            }
             if (authorizeBtn) { handleAuthorizeUserClick(authorizeBtn); return; }
             if (removeBtn) { handleRemoveUserClick(removeBtn); return; }
             if (joinBtn) { handleJoinGroupClick(evt, joinBtn); return; }
             if (leaveBtn) { handleLeaveGroupClick(evt, leaveBtn); return; }
             if (savePlayersBtn) { handleSavePlayersClick(evt, savePlayersBtn); return; }
             if (clearPenaltyBtn) { handleClearPenaltyClick(evt, clearPenaltyBtn); return; }
-            // Note: Penalty Spin button listener is likely attached separately in penalty.js or its init
+
+
 
         });
 

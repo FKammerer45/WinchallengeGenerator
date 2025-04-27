@@ -228,7 +228,38 @@ Challenge Not Found
         </div> #}
       </div> {# End collapse show #}
     </div> {# End of New outer card #}
-
+    {# --- Overlay Link Section (Only for Shared Challenges) --- #}
+    <div class="card shadow-sm glass-effect mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 h6">
+          <i class="bi bi-broadcast me-1"></i> OBS Overlay
+        </h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+          data-target="#overlayLinkBody" aria-expanded="false" aria-controls="overlayLinkBody"
+          title="Toggle Overlay Link Section">
+          <i class="bi bi-chevron-expand"></i>
+        </button>
+      </div>
+      <div class="collapse" id="overlayLinkBody"> {# Start collapsed #}
+        <div class="card-body">
+          <p class="text-secondary small">
+            Use the link below as a Browser Source in OBS Studio to display challenge progress on your stream.
+            Generate your API key in your profile first.
+          </p>
+          <button id="showOverlayLinkBtn" class="btn btn-primary btn-sm mb-2">Show Overlay Link</button>
+          <div id="overlayLinkDisplay" class="input-group" style="display: none;">
+            <input type="text" class="form-control form-control-sm" id="overlayLinkInput" readonly>
+            <div class="input-group-append">
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="copyOverlayLinkBtn" title="Copy Link">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </div>
+          </div>
+          <div id="overlayLinkError" class="text-danger small mt-1"></div>
+        </div>
+      </div>
+    </div>
+    {# --- End Overlay Link Section --- #}
     {# Column for the Rules Card - spans full width #}
     <div class="row mb-4">
       <div class="col-12">
@@ -349,7 +380,8 @@ Challenge Not Found
     {# Use standard opaque card for form readability #}
     <div class="mb-5 card shadow-md">
       <div class="card-header d-flex justify-content-between align-items-center"> {# Added Header #}
-        <h4 class="h5 mb-0 text-secondary-accent"><i class="bi bi-person-plus me-1"></i> Create or Join Group</h4> {# Moved title here #}
+        <h4 class="h5 mb-0 text-secondary-accent"><i class="bi bi-person-plus me-1"></i> Create or Join Group</h4> {#
+        Moved title here #}
         {# Added Collapse Button #}
         <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
           data-target="#createGroupBody" aria-expanded="true" aria-controls="createGroupBody"

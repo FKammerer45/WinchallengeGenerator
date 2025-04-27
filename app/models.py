@@ -1,6 +1,7 @@
 # app/models.py
 import logging
 import datetime
+import secrets
 from typing import Dict, Any
 from sqlalchemy import (Table, Column, Integer, String, Float, Text, DateTime,
                         ForeignKey, Index, Boolean)
@@ -116,7 +117,7 @@ class User(db.Model):
     username = Column(String(50), unique=True, nullable=False, index=True)
     twitch_id = Column(String(50), unique=True, nullable=True, index=True)
     password_hash = Column(String(255), nullable=False) # Consider increasing length for future hash algorithms
-
+    overlay_api_key = Column(String(64), unique=True, nullable=True, index=True)
     # Relationships using db.relationship
     created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select")
     joined_groups = db.relationship(
@@ -142,7 +143,13 @@ class User(db.Model):
         
     def check_password(self, password: str) -> bool: 
         return check_password_hash(self.password_hash, password)
-
+    
+    def generate_overlay_key(self) -> str:
+        """Generates a new secure random API key."""
+        new_key = secrets.token_urlsafe(32) # Generate a 32-byte URL-safe key
+        self.overlay_api_key = new_key
+        return new_key
+        
     def __repr__(self):
         return f"<User {self.username}>"
 

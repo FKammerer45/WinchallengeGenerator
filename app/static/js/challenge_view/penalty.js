@@ -134,6 +134,7 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
 
     // --- Construct display message and text to save ---
     if (chosenEntity && chosenPenalty && chosenPenalty.name && chosenPenalty.name !== "No Penalty") {
+        // *** Include player name in base text if available ***
         const baseText = `${escapeHtml(chosenEntity)} receives penalty: ${escapeHtml(chosenPenalty.name)}`;
         message = `<strong>${baseText}</strong>`;
         penaltyTextToSave = baseText;
@@ -145,7 +146,7 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
         type = 'warning';
     } else {
         message = `<strong>${escapeHtml(chosenEntity)}</strong>: ${escapeHtml(chosenPenalty?.description || 'No penalty assigned.')}`;
-        penaltyTextToSave = '';
+        penaltyTextToSave = ''; // No penalty text to save if "No Penalty"
         type = 'success';
     }
 
@@ -154,57 +155,49 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
     resultDisplay.className = `mt-3 penalty-result-display alert alert-${type}`;
     resultDisplay.style.display = 'block';
 
-    // --- API Call to save the penalty ---
-    const dataEl = document.getElementById('challengeData'); // Get the data div
-    const setPenaltyUrlBase = dataEl?.dataset.setPenaltyUrlBase;
+    // --- Get necessary info for API calls ---
+    const dataEl = document.getElementById('challengeData');
     const csrfToken = dataEl?.dataset.csrfToken;
-
-    // *** FIX: Get userJoinedGroupId from dataEl dataset ***
+    const challengeId = dataEl?.dataset.challengeId; // Get challenge public ID
     let userJoinedGroupId = null;
     try {
-        // Parse the userJoinedGroupId from the data attribute
         const parsedId = JSON.parse(dataEl?.dataset.userJoinedGroupId || 'null');
-        if (typeof parsedId === 'number') {
-            userJoinedGroupId = parsedId;
-        }
-    } catch (e) {
-        console.error("Error parsing userJoinedGroupId from data attribute:", e);
-    }
-    // *** END FIX ***
+        if (typeof parsedId === 'number') userJoinedGroupId = parsedId;
+    } catch (e) { console.error("Error parsing userJoinedGroupId:", e); }
 
-    // Determine which group ID to use (adjust logic if necessary)
-    const targetGroupId = userJoinedGroupId;
-
-    if (targetGroupId && setPenaltyUrlBase && csrfToken) {
-        const url = `${setPenaltyUrlBase}/${targetGroupId}/penalty`;
-        try {
-            console.log(`Saving penalty to backend for group ${targetGroupId}: "${penaltyTextToSave}"`);
-            await apiFetch(url, {
-                method: 'POST',
-                body: { penalty_text: penaltyTextToSave }
-            }, csrfToken);
-            console.log("Backend penalty save successful.");
-
-            // Trigger UI update (assuming updatePenaltyDisplay is imported/available)
-            // Make sure updatePenaltyDisplay is exported from challenge_ui.js and imported here,
-            // or move the function if more appropriate.
-            if (typeof updatePenaltyDisplay === "function") { // Check if function exists
-                updatePenaltyDisplay(targetGroupId, penaltyTextToSave);
-            } else {
-                console.warn("updatePenaltyDisplay function not found/imported - UI won't update immediately.");
+    // --- NEW: API Call to record spin result and trigger WebSocket emit ---
+    if (userJoinedGroupId && challengeId && csrfToken) {
+        const recordUrl = `/api/challenge/groups/${userJoinedGroupId}/penalty_spin_result`;
+        const payload = {
+            penalty_result: {
+                name: chosenPenalty.name,
+                description: chosenPenalty.description || null,
+                player: chosenEntity, // Include the chosen player/entity
+                // *** Include animation details if available ***
+                // These depend on how your WinWheel logic calculates them
+                // Example: Assuming getPenaltyWheel(idx) holds the wheel instance
+                stopAngle: getPenaltyWheel(idx)?.animation?.stopAngle,
+                winningSegmentIndex: getPenaltyWheel(idx)?.getIndicatedSegmentNumber() // Or calculate based on stopAngle
             }
-
-
+        };
+        try {
+            console.log(`Recording penalty spin result to backend for group ${userJoinedGroupId}:`, payload.penalty_result);
+            await apiFetch(recordUrl, {
+                method: 'POST',
+                body: payload
+            }, csrfToken);
+            console.log("Backend penalty spin result recording successful.");
+            // NOTE: We no longer call updatePenaltyDisplay directly here.
+            // The active penalty display will be updated via WebSocket message
+            // triggered by the backend after it saves the penalty text.
         } catch (error) {
-            console.error("Failed to save penalty state to backend:", error);
-            resultDisplay.innerHTML += `<br><small class="text-danger">Error saving penalty state: ${error.message}</small>`;
+            console.error("Failed to record penalty spin result to backend:", error);
+            resultDisplay.innerHTML += `<br><small class="text-danger">Error recording spin result: ${error.message}</small>`;
         }
     } else {
-        console.warn("Cannot save penalty state: Missing Group ID, URL base, or CSRF token.");
-        if (!targetGroupId) console.warn("Reason: User is not in a group or target group determination failed.");
+        console.warn("Cannot record penalty spin result: Missing Group ID, Challenge ID, or CSRF token.");
     }
-    // --- End API Call ---
-
+  
     if (button) button.disabled = false;
 }
 

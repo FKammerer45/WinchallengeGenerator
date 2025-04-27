@@ -1,6 +1,6 @@
 # run.py
 import os
-from app import create_app, db
+from app import create_app, db, socketio
 from app.commands import register_commands 
 # Import models needed for shell context or potential startup tasks
 # Corrected imports based on app/models.py
@@ -30,7 +30,8 @@ def make_shell_context():
     """Provides database instance and models to the Flask shell context."""
     # Use the correct model names imported above
     return {
-        'db': db, 
+        'db': db,
+        'socketio': socketio, 
         'User': User, 
         'SavedPenaltyTab': SavedPenaltyTab,
         'SavedGameTab': SavedGameTab,
@@ -53,10 +54,10 @@ if __name__ == '__main__':
     host = os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
     port = int(os.environ.get('FLASK_RUN_PORT', 5000))
 
-    print(f"--- Starting Flask development server ---")
+    print(f"--- Starting Flask-SocketIO server with eventlet ---")
     print(f"--- Environment: {os.environ.get('FLASK_ENV', 'N/A')} ---")
     print(f"--- Debug Mode: {debug_mode} ---")
     print(f"--- Running on http://{host}:{port} ---")
-    
+    socketio.run(app, host=host, port=port, debug=debug_mode, use_reloader=debug_mode)
     # Run the Flask development server
     app.run(host=host, port=port, debug=debug_mode)

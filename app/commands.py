@@ -131,9 +131,41 @@ def seed_db_command():
         pass
     print("Database seeding finished.") # Keep print for CLI feedback
 
+
+
+@click.command("generate-key")
+@click.argument("username")
+@with_appcontext
+def generate_key_command(username):
+    """Generates or regenerates an overlay API key for a user."""
+    user = db.session.query(User).filter_by(username=username).first()
+    if not user:
+        print(f"Error: User '{username}' not found.")
+        logger.warning(f"generate-key command failed: User '{username}' not found.")
+        return
+
+    try:
+        old_key = user.overlay_api_key
+        new_key = user.generate_overlay_key() # Call the new method
+        db.session.commit()
+        if old_key:
+            print(f"Successfully regenerated overlay API key for user '{username}'.")
+            print(f"New Key: {new_key}")
+            logger.info(f"Regenerated overlay key for user '{username}'.")
+        else:
+            print(f"Successfully generated overlay API key for user '{username}'.")
+            print(f"Key: {new_key}")
+            logger.info(f"Generated initial overlay key for user '{username}'.")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error generating key for user '{username}': {e}")
+        logger.exception(f"Error generating key for user '{username}'")
+
+
 # Function to register command(s) with the Flask app
 def register_commands(app):
     app.cli.add_command(seed_db_command)
+    app.cli.add_command(generate_key_command)
     # Add other custom commands here if you create more
     # app.cli.add_command(another_command)
 
