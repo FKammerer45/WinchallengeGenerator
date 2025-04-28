@@ -124,7 +124,7 @@ function resetPenaltyUI(idx) {
     console.log("Penalty UI Reset");
 }
 
-async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
+async function displayFinalResult(idx, chosenEntity, chosenPenalty, allPlayers, allPenaltiesForWheel, playerStopAngle, playerWinningSegmentIndex, button) {
     const resultDisplay = document.getElementById(`penaltyResult-${idx}`);
     if (!resultDisplay) return;
 
@@ -132,9 +132,8 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
     let type = 'info';
     let penaltyTextToSave = '';
 
-    // --- Construct display message and text to save ---
+    // Construct display message and text to save (same as before)
     if (chosenEntity && chosenPenalty && chosenPenalty.name && chosenPenalty.name !== "No Penalty") {
-        // *** Include player name in base text if available ***
         const baseText = `${escapeHtml(chosenEntity)} receives penalty: ${escapeHtml(chosenPenalty.name)}`;
         message = `<strong>${baseText}</strong>`;
         penaltyTextToSave = baseText;
@@ -146,40 +145,46 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
         type = 'warning';
     } else {
         message = `<strong>${escapeHtml(chosenEntity)}</strong>: ${escapeHtml(chosenPenalty?.description || 'No penalty assigned.')}`;
-        penaltyTextToSave = ''; // No penalty text to save if "No Penalty"
+        penaltyTextToSave = '';
         type = 'success';
     }
 
-    // --- Update result display UI ---
     resultDisplay.innerHTML = message;
     resultDisplay.className = `mt-3 penalty-result-display alert alert-${type}`;
     resultDisplay.style.display = 'block';
 
-    // --- Get necessary info for API calls ---
     const dataEl = document.getElementById('challengeData');
     const csrfToken = dataEl?.dataset.csrfToken;
-    const challengeId = dataEl?.dataset.challengeId; // Get challenge public ID
+    const challengeId = dataEl?.dataset.challengeId;
     let userJoinedGroupId = null;
     try {
         const parsedId = JSON.parse(dataEl?.dataset.userJoinedGroupId || 'null');
         if (typeof parsedId === 'number') userJoinedGroupId = parsedId;
     } catch (e) { console.error("Error parsing userJoinedGroupId:", e); }
 
-    // --- NEW: API Call to record spin result and trigger WebSocket emit ---
     if (userJoinedGroupId && challengeId && csrfToken) {
         const recordUrl = `/api/challenge/groups/${userJoinedGroupId}/penalty_spin_result`;
+
+        // --- MODIFIED PAYLOAD ---
         const payload = {
             penalty_result: {
+                // Existing winner info
                 name: chosenPenalty.name,
                 description: chosenPenalty.description || null,
-                player: chosenEntity, // Include the chosen player/entity
-                // *** Include animation details if available ***
-                // These depend on how your WinWheel logic calculates them
-                // Example: Assuming getPenaltyWheel(idx) holds the wheel instance
+                player: chosenEntity,
+                // Existing penalty wheel animation info
                 stopAngle: getPenaltyWheel(idx)?.animation?.stopAngle,
-                winningSegmentIndex: getPenaltyWheel(idx)?.getIndicatedSegmentNumber() // Or calculate based on stopAngle
+                winningSegmentIndex: getPenaltyWheel(idx)?.getIndicatedSegmentNumber(),
+                // --- NEW DATA ---
+                playerStopAngle: playerStopAngle,                   // Add player wheel angle
+                playerWinningSegmentIndex: playerWinningSegmentIndex, // Add player wheel index
+                all_players: allPlayers || [],                      // Add full player list used
+                all_penalties: allPenaltiesForWheel || []           // Add full penalty list used
+                // Note: all_penalties contains objects like {name:.., description:.., probability:..}
             }
         };
+        // --- END MODIFICATION ---
+
         try {
             console.log(`Recording penalty spin result to backend for group ${userJoinedGroupId}:`, payload.penalty_result);
             await apiFetch(recordUrl, {
@@ -187,9 +192,7 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
                 body: payload
             }, csrfToken);
             console.log("Backend penalty spin result recording successful.");
-            // NOTE: We no longer call updatePenaltyDisplay directly here.
-            // The active penalty display will be updated via WebSocket message
-            // triggered by the backend after it saves the penalty text.
+            // Backend will emit the full payload via WebSocket now
         } catch (error) {
             console.error("Failed to record penalty spin result to backend:", error);
             resultDisplay.innerHTML += `<br><small class="text-danger">Error recording spin result: ${error.message}</small>`;
@@ -197,7 +200,7 @@ async function displayFinalResult(idx, chosenEntity, chosenPenalty, button) {
     } else {
         console.warn("Cannot record penalty spin result: Missing Group ID, Challenge ID, or CSRF token.");
     }
-  
+
     if (button) button.disabled = false;
 }
 
@@ -258,7 +261,7 @@ function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelTyp
 
 // --- Core Wheel Logic ---
 
-function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button) {
+function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button, participants, playerStopAngle, playerWinningSegmentIndex) { // Added arguments
     console.log("Participant selected, preparing penalty wheel...");
     const resultDisplay = document.getElementById(`penaltyResult-${idx}`);
     const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
@@ -274,7 +277,7 @@ function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button) {
     resultDisplay.style.display = 'block';
     penaltyWheelContainer.style.display = 'block';
 
-    let chosenPenalty, penaltyWheelSegments;
+    let chosenPenalty, penaltyWheelSegments, wheelSegmentPenalties = []; // Declare wheelSegmentPenalties here
     const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'];
     const NUM_PENALTY_SEGMENTS = 8;
 
@@ -285,37 +288,58 @@ function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button) {
         console.log("Chosen Penalty (Weighted):", chosenPenalty);
 
         if (!chosenPenalty || chosenPenalty.name === "No Penalty") {
-            displayFinalResult(idx, chosenEntity, chosenPenalty, button);
+            // Pass necessary arguments even for no penalty
+            displayFinalResult(idx, chosenEntity, chosenPenalty, participants, [], playerStopAngle, playerWinningSegmentIndex, button);
             penaltyWheelContainer.style.display = 'none'; return;
         }
 
-        let wheelSegmentPenalties = [];
+        // --- Logic to build wheelSegmentPenalties (same as before) ---
         let displayablePenalties = penaltyList.filter(p => p?.name && parseFloat(p.probability) > 0);
         if (displayablePenalties.length > 0) {
-            // Ensure chosen is included, add others, pad, shuffle
-            // (Keeping the complex segment logic from previous version, assuming it worked)
             wheelSegmentPenalties.push(chosenPenalty); let otherPenalties = displayablePenalties.filter(p => p.id !== chosenPenalty.id); shuffleArray(otherPenalties); let needed = NUM_PENALTY_SEGMENTS - wheelSegmentPenalties.length; wheelSegmentPenalties = wheelSegmentPenalties.concat(otherPenalties.slice(0, needed)); let pool = otherPenalties.length > 0 ? otherPenalties : [chosenPenalty]; let padIdx = 0; while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) { wheelSegmentPenalties.push(pool[padIdx % pool.length]); padIdx++; } if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) { wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS); if (!wheelSegmentPenalties.some(p => p.id === chosenPenalty.id)) wheelSegmentPenalties[0] = chosenPenalty; } if (wheelSegmentPenalties.length > 1) shuffleArray(wheelSegmentPenalties);
         } else { wheelSegmentPenalties.push(chosenPenalty); }
+        // --- End logic ---
 
+        // Ensure the list has the correct number of segments (important for index calculation)
+        while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
+            wheelSegmentPenalties.push(wheelSegmentPenalties[0]); // Pad with first if needed
+        }
+        if(wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) {
+             wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS);
+        }
+         // Ensure chosen penalty is still in the final list if truncated/padded
+        if (!wheelSegmentPenalties.some(p => p.id === chosenPenalty.id)) {
+            wheelSegmentPenalties[0] = chosenPenalty; // Replace first if missing
+        }
+
+        // Create segments using the names from the final list
         penaltyWheelSegments = createSegments(wheelSegmentPenalties.map(p => p.name), penaltyColors);
         if (penaltyWheelSegments.length === 0) throw new Error("Failed to create penalty segments.");
 
     } catch (e) { console.error("Error preparing penalty segments:", e); showError(errorTarget, "Error loading penalties!", 'danger'); if (button) button.disabled = false; penaltyWheelContainer.style.display = 'none'; return; }
 
+    // Find the index based on the *final* segment list used for the wheel
     const penaltyWinningSegmentIndex = penaltyWheelSegments.findIndex(seg => seg.text === chosenPenalty.name) + 1;
-    if (penaltyWinningSegmentIndex <= 0) { console.error("Chosen penalty missing from visual segments!"); displayFinalResult(idx, chosenEntity, chosenPenalty, button); penaltyWheelContainer.style.display = 'none'; return; }
+    if (penaltyWinningSegmentIndex <= 0) {
+        console.error("Chosen penalty missing from final visual segments!");
+        // Pass necessary arguments
+        displayFinalResult(idx, chosenEntity, chosenPenalty, participants, wheelSegmentPenalties, playerStopAngle, playerWinningSegmentIndex, button);
+        penaltyWheelContainer.style.display = 'none'; return;
+    }
 
-    // Create and start the wheel
     if (getPenaltyWheel(idx)) setPenaltyWheel(idx, null);
     try {
         const config = getPenaltyWheelConfig(
             penaltyWheelSegments,
             penaltyWinningSegmentIndex,
-            () => displayFinalResult(idx, chosenEntity, chosenPenalty, button),
+            // --- MODIFIED CALLBACK ---
+            // Pass the captured lists and player wheel data to the final step
+            () => displayFinalResult(idx, chosenEntity, chosenPenalty, participants, wheelSegmentPenalties, playerStopAngle, playerWinningSegmentIndex, button),
+            // --- END MODIFICATION ---
             idx,
             'Penalty'
         );
-        if (!config) { button.disabled = false; return; }   // guard again
+        if (!config) { button.disabled = false; return; }
         const wheel = new Winwheel(config);
         setPenaltyWheel(idx, wheel);
         wheel.startAnimation();
@@ -325,9 +349,8 @@ function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button) {
 
 /** Main Handler for the "Lost Game" Button Click */
 function handleLostGameClick(event) {
-    if (!winwheelLoaded) return; // bail if lib missing
+    if (!winwheelLoaded) return;
 
-    // find the button we clicked (shared vs local)
     const button = event.target.closest('.lostGameBtn-Shared, .lostGameBtn-local');
     if (!button) return;
 
@@ -339,22 +362,19 @@ function handleLostGameClick(event) {
     const playerCanvas = document.getElementById(`playerWheelCanvas-${idx}`);
     const playerWheelTitle = document.getElementById(`playerWheelTitle-${idx}`);
     const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
-    const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-${idx}`);
 
-    // ensure all needed elements exist
-    if (!resultDisplay || !playerWheelContainer || !playerCanvas ||
-        !playerWheelTitle || !penaltyWheelContainer || !penaltyCanvas) {
+    if (!resultDisplay || !playerWheelContainer || !playerCanvas || !playerWheelTitle || !penaltyWheelContainer) {
         showError(errorTarget, "Error: Penalty UI components missing.", "danger");
         return;
     }
 
-    resetPenaltyUI(idx);          // clear any prior wheel/UI
-    button.disabled = true;       // prevent double‐click
+    resetPenaltyUI(idx);
+    button.disabled = true;
     resultDisplay.style.display = 'block';
     resultDisplay.className = 'mt-3 penalty-result-display alert alert-info';
     resultDisplay.innerHTML = `<span class="text-info">Determining participants…</span>`;
 
-    // build participant list
+    // --- CAPTURE PARTICIPANTS LIST ---
     let participants = [];
     let titleText = "Challenge Participant";
     const { userJoinedGroupId, numPlayersPerGroup, isMultigroup, initialGroups } = penaltyPageConfig;
@@ -370,25 +390,37 @@ function handleLostGameClick(event) {
             titleText = `Selecting Player (Default Names)`;
         }
     } else {
-        participants = ['Participant'];
+        participants = ['Participant']; // Single player mode or local
     }
     playerWheelTitle.textContent = titleText;
-    console.log("Participants:", participants);
+    console.log("Participants for player wheel:", participants);
+    // --- END CAPTURE ---
 
-    // choose one at random and build their wheel
+    if (participants.length === 0) { // Add check for empty participants list
+         showError(resultDisplay, "Error: No participants found to select from.", "danger");
+         button.disabled = false;
+         return;
+    }
+
     const chosen = participants[Math.floor(Math.random()*participants.length)];
-    const entitySegments = createSegments(participants, [
-        '#8dd3c7','#ffffb3','#bebada','#fb8072',
-        '#80b1d3','#fdb462','#b3de69','#fccde5'
-    ]);
+    const playerColors = ['#8dd3c7','#ffffb3','#bebada','#fb8072', '#80b1d3','#fdb462','#b3de69','#fccde5'];
+    const entitySegments = createSegments(participants, playerColors);
     if (!entitySegments.length) {
-        showError(resultDisplay, "Error creating segments.", "danger");
+        showError(resultDisplay, "Error creating player segments.", "danger");
         button.disabled = false;
         return;
     }
-    const winIndex = entitySegments.findIndex(s=>s.text===chosen)+1;
+    const playerWinningSegmentIndex = entitySegments.findIndex(s=>s.text===chosen)+1;
+    if (playerWinningSegmentIndex <= 0) { // Add check if winner not found in segments
+         console.error("Chosen player not found in segments:", chosen, entitySegments);
+         showError(resultDisplay, "Internal error selecting player.", "danger");
+         button.disabled = false;
+         return;
+    }
+    // --- CALCULATE PLAYER STOP ANGLE ---
+    const playerStopAngle = calculateStopAngle(entitySegments.length, playerWinningSegmentIndex);
+    // --- END CALCULATION ---
 
-    // clear old player‐wheel
     const oldWheel = getPlayerWheel(idx);
     if (oldWheel) {
         oldWheel.stopAnimation(false);
@@ -396,19 +428,25 @@ function handleLostGameClick(event) {
     }
 
     try {
-        // build config & spin
         const cfg = getPenaltyWheelConfig(
             entitySegments,
-            winIndex,
-            () => spinPenaltyWheel(idx, penaltyTabId, chosen, button),
+            playerWinningSegmentIndex, // Use the calculated index
+             // --- MODIFIED CALLBACK ---
+             // Pass required data to the next step (spinPenaltyWheel)
+             () => spinPenaltyWheel(idx, penaltyTabId, chosen, button, participants, playerStopAngle, playerWinningSegmentIndex),
+             // --- END MODIFICATION ---
             idx,
             'Player'
         );
+         // --- Set the calculated player stopAngle in the config ---
+         cfg.animation.stopAngle = playerStopAngle;
+         // --- End Set ---
+
         const wheel = new Winwheel(cfg);
         setPlayerWheel(idx, wheel);
         playerWheelContainer.style.display = 'block';
         resultDisplay.className = 'mt-3 penalty-result-display alert alert-warning';
-        resultDisplay.innerHTML = `<span class="text-warning">Spinning for ${escapeHtml(chosen)}…</span>`;
+        resultDisplay.innerHTML = `<span class="text-warning">Spinning for participant...</span>`; // Updated text
         wheel.startAnimation();
     } catch (e) {
         console.error("Error creating Participant WinWheel:", e);
@@ -416,6 +454,7 @@ function handleLostGameClick(event) {
         button.disabled = false;
     }
 }
+
 
 
 // --- Initialize Penalty Logic ---
