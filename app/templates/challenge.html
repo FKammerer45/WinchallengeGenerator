@@ -40,7 +40,8 @@ Challenge Not Found
     data-max-groups="{{ shared_challenge.max_groups if shared_challenge else 1 }}"
     data-authorize-user-url="{{ url_for('challenge_api.add_authorized_user', public_id=challenge_id) if not is_local else '' }}"
     data-remove-user-url-base="{{ url_for('challenge_api.remove_authorized_user', public_id=challenge_id, user_id=0) | replace('/0', '') if not is_local else '' }}"
-    data-is-creator="{{ is_creator | lower }}" data-is-authorized="{{ is_authorized | lower }}">
+    data-is-creator="{{ is_creator | lower }}" data-is-authorized="{{ is_authorized | lower }}"
+    data-profile-url="{{ url_for('profile.profile_view') }}">
   </div>
   {% endif %}
   {# --- End Data Div --- #}
@@ -228,6 +229,8 @@ Challenge Not Found
         </div> #}
       </div> {# End collapse show #}
     </div> {# End of New outer card #}
+    {# Inside challenge.html #}
+
     {# --- Overlay Link Section (Only for Shared Challenges) --- #}
     <div class="card shadow-sm glass-effect mb-4">
       <div class="card-header d-flex justify-content-between align-items-center">
@@ -242,24 +245,43 @@ Challenge Not Found
       </div>
       <div class="collapse" id="overlayLinkBody"> {# Start collapsed #}
         <div class="card-body">
-          <p class="text-secondary small">
-            Use the link below as a Browser Source in OBS Studio to display challenge progress on your stream.
-            Generate your API key in your profile first.
+          <p class="text-secondary small mb-3">
+            Use the overlay link as a Browser Source in OBS Studio. Generate your unique API key in your profile first
+            if you haven't already.
+            <strong class="text-warning d-block">Keep your API key private!</strong>
           </p>
-          <button id="showOverlayLinkBtn" class="btn btn-primary btn-sm mb-2">Show Overlay Link</button>
-          <div id="overlayLinkDisplay" class="input-group" style="display: none;">
-            <input type="text" class="form-control form-control-sm" id="overlayLinkInput" readonly>
-            <div class="input-group-append">
-              <button class="btn btn-outline-secondary btn-sm" type="button" id="copyOverlayLinkBtn" title="Copy Link">
-                <i class="bi bi-clipboard"></i>
-              </button>
-            </div>
-          </div>
-          <div id="overlayLinkError" class="text-danger small mt-1"></div>
+
+          {# --- MODIFIED STRUCTURE --- #}
+          {# Initial button to trigger the key fetch #}
+          <button id="showOverlayLinkBtn" class="btn btn-primary btn-sm mb-2">
+            <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# For loading state #}
+            <span>Show/Copy Overlay Link</span> {# Updated Text #}
+          </button>
+
+          {# Standalone Copy button - initially hidden #}
+          <button id="copyOverlayLinkBtn" class="btn btn-secondary btn-sm mb-2" style="display: none;">
+            <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# For loading state #}
+            <span><i class="bi bi-clipboard me-1"></i> Copy Overlay Link</span>
+          </button>
+
+          {# Error/Message Display Area - Allow HTML for the link #}
+          <div id="overlayLinkError" class="text-warning small mt-1"></div>
+          {# --- END MODIFIED STRUCTURE --- #}
+
         </div>
       </div>
     </div>
     {# --- End Overlay Link Section --- #}
+
+    {# --- Add Profile URL to the #challengeData div --- #}
+    {# Find your existing #challengeData div and add the data-profile-url attribute #}
+    <div id="challengeData" style="display: none;" aria-hidden="true"
+    data-challenge-id="{{ challenge_id }}"
+    data-is-local="{{ is_local | lower }}"
+    {# ... other data attributes ... #}
+    data-profile-url="{{ url_for('profile.profile_view') }}"
+    data-is-authorized="{{ is_authorized | lower }}">
+</div>
     {# Column for the Rules Card - spans full width #}
     <div class="row mb-4">
       <div class="col-12">

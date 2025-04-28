@@ -8,12 +8,15 @@
 <style>
     /* Optional: Style for the read-only input */
     #overlayApiKey {
-        background-color: var(--surface-secondary); /* Match theme */
-        cursor: text; /* Indicate it's selectable */
+        background-color: var(--surface-secondary);
+        /* Match theme */
+        cursor: text;
+        /* Indicate it's selectable */
     }
+
     .input-group-append .btn {
-         border-top-left-radius: 0;
-         border-bottom-left-radius: 0;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
     }
 </style>
 {% endblock %}
@@ -32,54 +35,68 @@
         </div>
         <div class="card-body">
             <p class="text-secondary small mb-3">
-                Use this key in your OBS Browser Source URL (e.g., <code>.../overlay/CHALLENGE_ID?key=YOUR_KEY</code>) to connect the overlay to your challenges.
+                Used for the OBS overlay feature. This key allows you to connect your current challenge to OBS Studio.
                 <br>
-                <strong class="text-warning">Keep this key private!</strong> Treat it like a password. If you suspect it's compromised, regenerate it immediately.
+                <strong class="text-warning">Keep this key private!</strong> Treat it like a password. If you suspect
+                it's compromised, regenerate it immediately.
             </p>
 
             {% if current_user.overlay_api_key %}
-                {# Display Existing Key #}
-                <label for="overlayApiKey" class="form-label small text-muted">Your Current Key:</label>
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control form-control-sm" id="overlayApiKey" value="{{ current_user.overlay_api_key }}" readonly title="Your overlay API key">
-                    <div class="input-group-append">
-                        <button class="btn btn-outline-secondary btn-sm" type="button" id="copyApiKeyBtn" title="Copy Key">
-                            <i class="bi bi-clipboard me-1"></i> Copy
-                        </button>
-                    </div>
-                </div>
-                {# Regenerate Button (inside a form for POST) #}
-                {# --- FIX url_for --- #}
-                <form action="{{ url_for('profile.regenerate_overlay_key') }}" method="POST" onsubmit="return confirm('Are you sure you want to regenerate your key? Your existing overlay URL will stop working.');" class="d-inline-block">
-                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Add CSRF token #}
-                     <button type="submit" class="btn btn-warning btn-sm">
-                         <i class="bi bi-arrow-repeat"></i> Regenerate Key
-                     </button>
-                </form>
-            {% else %}
-                {# Generate Button (if no key exists) #}
-                <p>You haven't generated an overlay key yet.</p>
-                 {# Use a form for the POST request #}
-                 {# --- FIX url_for --- #}
-                <form action="{{ url_for('profile.regenerate_overlay_key') }}" method="POST" class="d-inline-block">
-                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Add CSRF token #}
-                    <button type="submit" class="btn btn-success btn-sm">
-                        <i class="bi bi-plus-circle"></i> Generate Key
+            {# Display Existing Key #}
+            <label for="overlayApiKey" class="form-label small text-muted">Your Current Key:</label>
+            <div class="input-group mb-3">
+                <input type="password" class="form-control form-control-sm" id="overlayApiKey"
+                    value="{{ current_user.overlay_api_key }}" readonly
+                    title="Your overlay API key (click Show/Hide or Copy)">
+                <div class="input-group-append">
+                    {# --- ADDED Show/Hide Button --- #}
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="toggleApiKeyBtn"
+                        title="Show/Hide Key">
+                        {# Start with the "Show" icon (eye) #}
+                        <i class="bi bi-eye-fill"></i>
                     </button>
-                </form>
+                    {# --- END ADDED Button --- #}
+
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="copyApiKeyBtn" title="Copy Key">
+                        <i class="bi bi-clipboard me-1"></i> Copy
+                    </button>
+                </div>
+            </div>
+            {# Regenerate Button (inside a form for POST) #}
+            {# --- FIX url_for --- #}
+            <form action="{{ url_for('profile.regenerate_overlay_key') }}" method="POST"
+                onsubmit="return confirm('Are you sure you want to regenerate your key? Your existing overlay URL will stop working.');"
+                class="d-inline-block">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Add CSRF token #}
+                <button type="submit" class="btn btn-warning btn-sm">
+                    <i class="bi bi-arrow-repeat"></i> Regenerate Key
+                </button>
+            </form>
+            {% else %}
+            {# Generate Button (if no key exists) #}
+            <p>You haven't generated an overlay key yet.</p>
+            {# Use a form for the POST request #}
+            {# --- FIX url_for --- #}
+            <form action="{{ url_for('profile.regenerate_overlay_key') }}" method="POST" class="d-inline-block">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Add CSRF token #}
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="bi bi-plus-circle"></i> Generate Key
+                </button>
+            </form>
             {% endif %}
         </div>
     </div>
 
     {# Account Security Card (Example) #}
     <div class="card shadow-sm glass-effect mb-4">
-         <div class="card-header h5 d-flex align-items-center">
+        <div class="card-header h5 d-flex align-items-center">
             <i class="bi bi-shield-lock-fill me-1"></i> Account Security
-         </div>
-         <div class="card-body">
-             <a href="{{ url_for('auth.change_password') }}" class="btn btn-secondary btn-sm me-2 mb-2">Change Password</a>
-             <a href="{{ url_for('auth.confirm_delete_account') }}" class="btn btn-danger btn-sm mb-2">Delete Account</a>
-         </div>
+        </div>
+        <div class="card-body">
+            <a href="{{ url_for('auth.change_password') }}" class="btn btn-secondary btn-sm me-2 mb-2">Change
+                Password</a>
+            <a href="{{ url_for('auth.confirm_delete_account') }}" class="btn btn-danger btn-sm mb-2">Delete Account</a>
+        </div>
     </div>
 
 </div>
@@ -92,7 +109,7 @@
     const copyBtn = document.getElementById('copyApiKeyBtn');
     const keyInput = document.getElementById('overlayApiKey');
     // Assuming showFlash is globally available or imported via a base script
-    const showFlash = window.showFlash || function(msg, type) { console.log(`${type}: ${msg}`); alert(`${type}: ${msg}`); };
+    const showFlash = window.showFlash || function (msg, type) { console.log(`${type}: ${msg}`);  };
 
     if (copyBtn && keyInput) {
         copyBtn.addEventListener('click', () => {
@@ -116,10 +133,10 @@
                     successful = document.execCommand('copy');
                     const msgLog = successful ? 'successful' : 'unsuccessful';
                     console.log('Fallback: Copying text command was ' + msgLog);
-                    if(successful) {
-                         showFlash('API Key copied! (fallback)', 'success');
+                    if (successful) {
+                        showFlash('API Key copied! (fallback)', 'success');
                     } else {
-                         throw new Error('document.execCommand failed');
+                        throw new Error('document.execCommand failed');
                     }
                 }
             } catch (err) {
@@ -127,12 +144,32 @@
                 showFlash('Failed to copy key.', 'danger');
             }
             // Deselect text after attempt
-             if (window.getSelection) { // Modern browsers
+            if (window.getSelection) { // Modern browsers
                 window.getSelection().removeAllRanges();
-             } else if (document.selection) { // IE <= 8
+            } else if (document.selection) { // IE <= 8
                 document.selection.empty();
-             }
+            }
+        });
+    }
+    const toggleBtn = document.getElementById('toggleApiKeyBtn');
+    // const keyInput = document.getElementById('overlayApiKey'); // Already defined above
+
+    if (toggleBtn && keyInput) {
+        toggleBtn.addEventListener('click', () => {
+            const currentType = keyInput.type;
+            if (currentType === 'password') {
+                // Switch to text (Show)
+                keyInput.type = 'text';
+                toggleBtn.innerHTML = '<i class="bi bi-eye-slash-fill"></i>'; // Change icon to "Hide" (eye-slash)
+                toggleBtn.title = 'Hide Key';
+            } else {
+                // Switch to password (Hide)
+                keyInput.type = 'password';
+                toggleBtn.innerHTML = '<i class="bi bi-eye-fill"></i>'; // Change icon back to "Show" (eye)
+                toggleBtn.title = 'Show Key';
+            }
         });
     }
 </script>
+
 {% endblock %}

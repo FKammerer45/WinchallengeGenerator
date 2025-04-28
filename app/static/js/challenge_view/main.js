@@ -89,107 +89,98 @@ function restoreButton(btn) {
     btn.disabled = false;
 }
 
-async function handleShowOverlayLink() { // Make the function async
-    const displayDiv = document.getElementById('overlayLinkDisplay');
-    const inputEl = document.getElementById('overlayLinkInput');
+async function handleShowOverlayLink() {
+    // Get references to the relevant elements
     const errorDiv = document.getElementById('overlayLinkError');
-    const copyBtn = document.getElementById('copyOverlayLinkBtn');
-    const showBtn = document.getElementById('showOverlayLinkBtn');
+    const copyBtn = document.getElementById('copyOverlayLinkBtn'); // The standalone copy button
+    const showBtn = document.getElementById('showOverlayLinkBtn'); // The initial trigger button
 
-    if (!displayDiv || !inputEl || !errorDiv || !copyBtn || !showBtn) {
-        console.error("Overlay link DOM elements missing.");
+    // Basic check for elements
+    if (!errorDiv || !copyBtn || !showBtn) {
+        console.error("Overlay link relevant DOM elements missing.");
         return;
     }
 
-    errorDiv.textContent = ''; // Clear previous errors
-    inputEl.value = 'Fetching API Key...'; // Placeholder text
-    displayDiv.style.display = 'flex'; // Show the input group temporarily
-    showBtn.disabled = true; // Disable show button while processing
-    showBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading...'; // Add loading state
+    // Check prerequisites from config
+    if (challengeConfig.isLocal || !challengeConfig.isLoggedIn || !challengeConfig.isAuthorized) {
+         showError(errorDiv, "Overlay links are only available for logged-in, authorized users on shared challenges.");
+         return;
+    }
+
+    // Clear previous errors/state and show loading on trigger button
+    errorDiv.innerHTML = ''; // Use innerHTML to allow links later
+    errorDiv.style.display = 'none';
+    copyBtn.style.display = 'none'; // Ensure copy button is hidden initially
+    setLoading(showBtn, true, 'Loading...'); // Show loading state on the "Show" button
+
+    let overlayUrl = null; // Store the generated URL
 
     try {
         // --- FETCH API KEY ---
-        console.log("Fetching API key from /api/profile/get_key...");
-        // Pass CSRF token if your GET API requires it (depends on CSRF setup)
-        const keyData = await apiFetch('/api/profile/get_key', {}, challengeConfig.csrfToken);
-        console.log("API Key response:", keyData);
-
+        console.log("Fetching API key...");
+        const keyData = await apiFetch('/api/profile/get_key', {}, challengeConfig.csrfToken); //
         const userApiKey = keyData?.api_key;
 
         if (!userApiKey) {
-            errorDiv.textContent = keyData?.message || "Overlay API Key not found. Please generate one in your profile.";
-            inputEl.value = ''; // Clear placeholder
-            displayDiv.style.display = 'none'; // Hide input group
-            showBtn.disabled = false; // Re-enable show button
-            showBtn.innerHTML = 'Show Overlay Link'; // Restore button text
-            console.error("API Key retrieval failed or key is null.");
-            return;
+            // --- No Key Found ---
+            const profileUrl = challengeConfig.urls.profile || '#'; // Get profile URL from config
+            // Display message with link in the error div
+            errorDiv.innerHTML = `No overlay key found. Please <a href="${profileUrl}" class="link-warning">generate one in your profile</a>.`; //
+            errorDiv.style.display = 'block';
+            showBtn.style.display = 'none'; // Hide the "Show" button after check
+            console.log("API key not found.");
+            setLoading(showBtn, false, 'Show/Copy Overlay Link'); // Reset show button state
+            return; // Stop processing
         }
-        // --- END FETCH API KEY ---
+        // --- END No Key Found ---
 
-
-        // 2. Get Challenge ID from config
+        // --- Key Found - Construct URL ---
         const challengeId = challengeConfig.id;
-        if (!challengeId || challengeConfig.isLocal) {
-            errorDiv.textContent = "Cannot generate link for local or invalid challenge.";
-            inputEl.value = '';
-            displayDiv.style.display = 'none';
-            showBtn.disabled = false;
-            showBtn.innerHTML = 'Show Overlay Link';
-            return;
-        }
+        if (!challengeId) throw new Error("Challenge ID missing in config."); // Should not happen
 
-        // 3. Construct URL
-        // Use window.location.origin for a reliable base URL
-        const overlayUrl = `${window.location.origin}/overlay/${challengeId}?key=${encodeURIComponent(userApiKey)}`;
+        overlayUrl = `${window.location.origin}/overlay/${challengeId}?key=${encodeURIComponent(userApiKey)}`;
+        console.log("Overlay URL constructed.");
 
-        // 4. Display URL
-        inputEl.value = overlayUrl;
-        displayDiv.style.display = 'flex'; // Ensure it's visible
-        showBtn.style.display = 'none'; // Hide the "Show" button permanently after success
+        // --- Setup Copy Button ---
+        // Remove previous listener by replacing the button
+        const newCopyBtn = copyBtn.cloneNode(true);
+        copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
+        // Set final button text
+        newCopyBtn.querySelector('span:not(.spinner-border-sm)').innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Overlay Link';
 
-        // 5. Add Copy functionality
-        if (copyBtn && inputEl) {
-            // Remove previous listener if any to prevent duplicates
-            const newCopyBtn = copyBtn.cloneNode(true); // Clone to easily remove old listeners
-            copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn); // Replace old button with clone
+        // Attach new listener to the *new* button
+        newCopyBtn.addEventListener('click', async () => {
+            if (!overlayUrl) return; // Should not happen if button is visible
+            setLoading(newCopyBtn, true, 'Copying...');
+            try {
+                await navigator.clipboard.writeText(overlayUrl);
+                showFlash('Overlay link copied!', 'success'); //
+            } catch (err) {
+                console.error('Clipboard API copy failed:', err);
+                showFlash('Failed to copy link automatically.', 'danger'); //
+                // Optionally show the link in errorDiv as fallback if copy fails
+                errorDiv.innerHTML = `Auto-copy failed. Link: <input type='text' value='${escapeHtml(overlayUrl)}' readonly size='40' class='form-control form-control-sm d-inline-block w-auto'>`;
+                errorDiv.style.display = 'block';
+            } finally {
+                 setLoading(newCopyBtn, false, '<i class="bi bi-clipboard me-1"></i> Copy Overlay Link');
+            }
+        });
 
-            newCopyBtn.addEventListener('click', () => {
-                inputEl.select();
-                inputEl.setSelectionRange(0, 99999);
-                try {
-                    // Use Clipboard API if available
-                    if (navigator.clipboard && window.isSecureContext) {
-                        navigator.clipboard.writeText(inputEl.value).then(() => {
-                            showFlash('Overlay link copied!', 'success');
-                        }).catch(err => {
-                            console.error('Clipboard API copy failed:', err);
-                            showFlash('Failed to copy link (Clipboard API).', 'danger');
-                        });
-                    } else {
-                        // Fallback for older browsers
-                        const successful = document.execCommand('copy');
-                        if (successful) {
-                            showFlash('Overlay link copied! (fallback)', 'success');
-                        } else {
-                            throw new Error('Fallback copy command failed');
-                        }
-                    }
-                } catch (err) {
-                    console.error('Copy error:', err);
-                    showFlash('Failed to copy link.', 'danger');
-                }
-                window.getSelection()?.removeAllRanges(); // Deselect
-            });
-        }
+        // --- Update UI ---
+        showBtn.style.display = 'none'; // Hide the "Show" button
+        newCopyBtn.style.display = 'inline-block'; // Show the "Copy" button
+        errorDiv.style.display = 'none'; // Hide error div
 
     } catch (error) {
         console.error("Error in handleShowOverlayLink:", error);
-        errorDiv.textContent = `Error fetching key or generating link: ${error.message}`;
-        inputEl.value = '';
-        displayDiv.style.display = 'none';
-        showBtn.disabled = false; // Re-enable button on error
-        showBtn.innerHTML = 'Show Overlay Link'; // Restore button text
+        // Show error message in the dedicated div
+        errorDiv.textContent = `Error: ${error.message}`;
+        errorDiv.style.display = 'block';
+        // Hide both buttons on error
+        showBtn.style.display = 'none';
+        copyBtn.style.display = 'none';
+         setLoading(showBtn, false, 'Show/Copy Overlay Link'); // Reset show button
+
     }
 }
 
@@ -261,7 +252,8 @@ function initializeConfigFromDOM() {
             setPenaltyUrlBase: dataEl.dataset.setPenaltyUrlBase,
             savePlayersUrlBase: dataEl.dataset.savePlayersUrlBase,
             authorizeUserUrl: dataEl.dataset.authorizeUserUrl,
-            removeUserUrlBase: dataEl.dataset.removeUserUrlBase
+            removeUserUrlBase: dataEl.dataset.removeUserUrlBase,
+            profileUrl: dataEl.dataset.profileUrl
         };
 
         // 4. Process and parse data into the challengeConfig object
@@ -290,7 +282,8 @@ function initializeConfigFromDOM() {
                 setPenaltyUrlBase: rawData.setPenaltyUrlBase,
                 savePlayersBase: rawData.savePlayersUrlBase,
                 authorizeUser: rawData.authorizeUserUrl,
-                removeUserBase: rawData.removeUserUrlBase
+                removeUserBase: rawData.removeUserUrlBase,
+                profile: rawData.profileUrl
             },
             // --- Assign booleans using strict comparison ---
             isLoggedIn: rawData.isLoggedIn === 'true',
