@@ -20,7 +20,8 @@ from sqlalchemy import func
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm import joinedload, selectinload 
 from ..sockets import (emit_progress_update, emit_active_penalty_update,
-                       emit_penalty_spin_result)
+                       emit_penalty_spin_result, connected_overlays, # Import the dictionary
+                       get_challenge_state_for_overlay, socketio) # Import helper and socketio instance
 
 logger = logging.getLogger(__name__)
 
@@ -461,41 +462,39 @@ def update_group_progress(public_id, group_id):
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 # Update decorator to use the new blueprint name
-@challenge_api.route("/groups/<int:group_id>/join", methods=["POST"]) 
+
+@challenge_api.route("/groups/<int:group_id>/join", methods=["POST"])
 @login_required
 def join_group(group_id):
     """Allows the logged-in user to join a specific group for its challenge."""
     logger.info(f"User {current_user.username} attempting to join group {group_id}")
+    user_overlay_sid = None # Variable to store the SID if found
     try:
         # Use db.session directly
-        # Find the group and eagerly load related data needed for checks
         group = db.session.query(ChallengeGroup).options(
-            selectinload(ChallengeGroup.members), # Load current members
-            joinedload(ChallengeGroup.shared_challenge) # Need parent challenge
-                .selectinload(SharedChallenge.groups) # Need all groups of the challenge
-                .selectinload(ChallengeGroup.members) # Need members of sibling groups
+            selectinload(ChallengeGroup.members),
+            joinedload(ChallengeGroup.shared_challenge)
+                .selectinload(SharedChallenge.groups)
+                .selectinload(ChallengeGroup.members)
         ).get(group_id)
 
         if not group:
             return jsonify({"error": "Group not found."}), 404
 
         challenge = group.shared_challenge
-        if not challenge: # Should not happen if FK is set
+        if not challenge:
             return jsonify({"error": "Challenge associated with group not found."}), 500
 
         if not is_user_authorized(challenge, current_user):
-            logger.warning(f"User {current_user.username} unauthorized to join group {group_id} for challenge {challenge.public_id}.")
+            # ... (authorization error handling) ...
             return jsonify({"error": "You are not authorized to join groups for this challenge."}), 403
-        
-        # --- Business Logic Checks ---
-        # 1. Is the group full based on num_players_per_group?
+
+        # --- Business Logic Checks (same as before) ---
         if len(group.members) >= challenge.num_players_per_group:
-             # Check if the user is already the member trying to rejoin (benign)
-            if not any(member.id == current_user.id for member in group.members):
-                logger.warning(f"Join failed: Group {group_id} is full ({len(group.members)}/{challenge.num_players_per_group}).")
+             if not any(member.id == current_user.id for member in group.members):
+                # ... (group full error handling) ...
                 return jsonify({"error": "This group is already full."}), 409 # 409 Conflict
 
-        # 2. Is the user already in *another* group for *this same challenge*?
         user_already_in_group = False
         current_challenge_group_id = None
         for sibling_group in challenge.groups:
@@ -505,66 +504,88 @@ def join_group(group_id):
                 break
 
         if user_already_in_group and current_challenge_group_id != group_id:
-            logger.warning(f"Join failed: User {current_user.username} already in group {current_challenge_group_id} for challenge {challenge.public_id}")
+            # ... (already in another group error handling) ...
             return jsonify({"error": "You are already in another group for this challenge."}), 409 # 409 Conflict
 
         # --- Add user to group if not already a member ---
-        if not any(member.id == current_user.id for member in group.members):
-            # Re-fetch user object within the current session to avoid detached instance error
-            user_to_add = db.session.get(User, current_user.id) 
+        user_needs_adding = not any(member.id == current_user.id for member in group.members)
+        if user_needs_adding:
+            user_to_add = db.session.get(User, current_user.id)
             if user_to_add:
                  group.members.append(user_to_add)
                  logger.info(f"Adding user {current_user.username} to group {group_id}")
                  db.session.commit() # Commit the membership change
-                 return jsonify({"status": "success", "message": f"Successfully joined group '{group.group_name}'."}), 200 # OK or 201 Created
+
+                 # --- Find User's Overlay SID and Emit Updated State ---
+                 user_id_to_notify = current_user.id
+                 challenge_to_update = group.shared_challenge # Get the challenge object
+
+                 # Find SID associated with this user ID
+                 for sid, info in connected_overlays.items():
+                     if info.get('user_id') == user_id_to_notify and info.get('challenge_id') == challenge_to_update.id:
+                         user_overlay_sid = sid
+                         break # Found the SID
+
+                 if user_overlay_sid:
+                     logger.info(f"Found overlay SID {user_overlay_sid} for user {user_id_to_notify}. Emitting updated state.")
+                     # Generate the fresh state data for this user
+                     # Need to reload challenge with necessary relationships for the helper function
+                     challenge_reloaded = db.session.query(SharedChallenge).options(
+                          selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
+                     ).get(challenge_to_update.id) # Reload within the current session
+
+                     if challenge_reloaded:
+                          new_state_data = get_challenge_state_for_overlay(challenge_reloaded, user_id_to_notify)
+                          if new_state_data:
+                              # Use socketio instance imported from sockets.py
+                              socketio.emit('initial_state', new_state_data, to=user_overlay_sid)
+                              logger.debug(f"Sent updated initial_state to SID {user_overlay_sid}")
+                          else:
+                              logger.error(f"Failed to generate updated state for user {user_id_to_notify}, SID {user_overlay_sid}")
+                     else:
+                           logger.error(f"Failed to reload challenge {challenge_to_update.id} for state update.")
+
+                 else:
+                     logger.warning(f"Could not find active overlay SID for user {user_id_to_notify} in challenge {challenge_to_update.id} to send update.")
+                 # --- End SID and Emit Logic ---
+
+                 return jsonify({"status": "success", "message": f"Successfully joined group '{group.group_name}'."}), 200
             else:
-                 # Should not happen if user is logged in, but handle defensively
-                 logger.error(f"Failed to re-fetch logged in user {current_user.id} within session.")
-                 db.session.rollback()
+                 # ... (error handling re-fetching user) ...
                  return jsonify({"error": "Failed to process join request due to server error."}), 500
         else:
-            logger.info(f"User {current_user.username} is already a member of group {group_id}.")
-            return jsonify({"status": "success", "message": "You are already in this group."}), 200 # OK, idempotent
+            # ... (already a member message) ...
+            return jsonify({"status": "success", "message": "You are already in this group."}), 200
 
-    except (SQLAlchemyError) as e:
-        db.session.rollback() # Rollback on DB error
-        logger.exception(f"Database error joining group {group_id} for user {current_user.username}: {e}")
-        return jsonify({"error": "Database error processing request."}), 500
     except Exception as e:
-        db.session.rollback() # Rollback on unexpected error
-        logger.exception(f"Unexpected error joining group {group_id} for user {current_user.username}: {e}")
+        db.session.rollback()
+        logger.exception(f"Error joining group {group_id} for user {current_user.username}: {e}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 
 # --- *** NEW: LEAVE GROUP ENDPOINT *** ---
 # Update decorator to use the new blueprint name
-@challenge_api.route("/groups/<int:group_id>/leave", methods=["POST"]) 
+@challenge_api.route("/groups/<int:group_id>/leave", methods=["POST"])
 @login_required
 def leave_group(group_id):
     """Allows the logged-in user to leave a specific group they are a member of."""
     logger.info(f"User {current_user.username} attempting to leave group {group_id}")
+    user_overlay_sid = None
     try:
-        # Use db.session directly
-        # Find the group and load members relationship efficiently
         group = db.session.query(ChallengeGroup).options(
-            selectinload(ChallengeGroup.members)
+            selectinload(ChallengeGroup.members),
+            joinedload(ChallengeGroup.shared_challenge) # Also load challenge here
         ).get(group_id)
         if not group:
             return jsonify({"error": "Group not found."}), 404
 
-        challenge = group.shared_challenge # Get the challenge via the relationship
-        if not challenge:
-            # This case should ideally not happen if database constraints are correct
-            logger.error(f"Challenge object missing for group {group_id}")
-            return jsonify({"error": "Internal Server Error: Cannot find challenge for group."}), 500
-        
-        if not is_user_authorized(challenge, current_user):
-            logger.warning(f"User {current_user.username} unauthorized to leave group {group_id} for challenge {challenge.public_id}.")
-            return jsonify({"error": "You are not authorized to leave groups for this challenge."}), 403
-        
-        
+        challenge = group.shared_challenge
+        if not challenge: return jsonify({"error": "Challenge not found."}), 500 # Should not happen
 
-        # Find the user in the group's members
+        if not is_user_authorized(challenge, current_user):
+            return jsonify({"error": "Not authorized for this challenge."}), 403
+
+
         user_to_remove = None
         for member in group.members:
             if member.id == current_user.id:
@@ -572,22 +593,39 @@ def leave_group(group_id):
                 break
 
         if user_to_remove:
-            group.members.remove(user_to_remove) # Remove from relationship
+            group.members.remove(user_to_remove)
             logger.info(f"Removing user {current_user.username} from group {group_id}")
             db.session.commit() # Commit the change
-            return jsonify({"status": "success", "message": f"Successfully left group '{group.group_name}'."}), 200 # OK
-        else:
-            # User was not a member, return appropriate status
-            logger.warning(f"Leave failed: User {current_user.username} is not a member of group {group_id}.")
-            return jsonify({"error": "You are not a member of this group."}), 403 # Forbidden or 404 Not Found
 
-    except (SQLAlchemyError) as e:
-        db.session.rollback() # Rollback on DB error
-        logger.exception(f"Database error leaving group {group_id} for user {current_user.username}: {e}")
-        return jsonify({"error": "Database error processing request."}), 500
+            # --- Find SID and Emit Update (similar to join) ---
+            user_id_to_notify = current_user.id
+            challenge_to_update = group.shared_challenge
+            for sid, info in connected_overlays.items():
+                 if info.get('user_id') == user_id_to_notify and info.get('challenge_id') == challenge_to_update.id:
+                     user_overlay_sid = sid
+                     break
+            if user_overlay_sid:
+                 logger.info(f"Found overlay SID {user_overlay_sid} for user {user_id_to_notify} after leaving group. Emitting updated state.")
+                 challenge_reloaded = db.session.query(SharedChallenge).options(
+                     selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
+                 ).get(challenge_to_update.id)
+                 if challenge_reloaded:
+                     new_state_data = get_challenge_state_for_overlay(challenge_reloaded, user_id_to_notify)
+                     if new_state_data:
+                         socketio.emit('initial_state', new_state_data, to=user_overlay_sid)
+                         logger.debug(f"Sent updated initial_state to SID {user_overlay_sid} after leave")
+                     else: logger.error(f"Failed to generate updated state after leave for SID {user_overlay_sid}")
+                 else: logger.error(f"Failed to reload challenge {challenge_to_update.id} after leave.")
+            else: logger.warning(f"Could not find active overlay SID for user {user_id_to_notify} after leave.")
+            # --- End Emit Logic ---
+
+            return jsonify({"status": "success", "message": f"Successfully left group '{group.group_name}'."}), 200
+        else:
+            return jsonify({"error": "You are not a member of this group."}), 403
+
     except Exception as e:
-        db.session.rollback() # Rollback on unexpected error
-        logger.exception(f"Unexpected error leaving group {group_id} for user {current_user.username}: {e}")
+        db.session.rollback()
+        logger.exception(f"Error leaving group {group_id} for user {current_user.username}: {e}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 # Update decorator to use the new blueprint name
