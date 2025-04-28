@@ -218,3 +218,46 @@ body {
      vertical-align: middle;
 }
 
+.other-groups-progress .section-title {
+    /* Style the "Other Groups:" title if needed */
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary); /* Example color */
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .other-group-item .group-name {
+    color: #e0e0e0; /* Lighter text for name */
+    max-width: 70%; /* Prevent very long names taking all space */
+  }
+  
+  .other-group-item .percentage {
+    color: #ffffff; /* Bright white for percentage */
+    margin-left: 10px; /* Space between name and percentage */
+  }
+  
+  .other-group-item {
+    margin-bottom: 0.5rem;
+    margin-left: 10px; /* Space between items */
+    width: 100%; /* Ensure full width */
+    overflow: hidden; /* Prevent overflow */
+  }
+  
+  .other-group-item .progress {
+    margin-left: 10px;
+    width: 100%; /* Make progress container full width */
+    max-width: 100%; /* Ensure it doesn't overflow */
+    overflow: hidden; /* Hide overflow */
+  }
+  
+ 
+  #other-groups-list .other-group-item .progress {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 3px;
+    height: 10px !important;
+  }
+  
+  #other-groups-list .other-group-item .progress-bar {
+    background-color: #0dcaf0 !important;
+    transition: width 0.5s ease-in-out;
+  }

@@ -163,27 +163,63 @@ function renderOverlayProgressBar(barElement, labelElement, progressStats) {
 }
 
 function renderOtherGroups(container, otherGroupsData) {
-    if (!container) { console.error("Other groups container not found"); return; }
-    if (!otherGroupsData || otherGroupsData.length === 0) {
-        container.innerHTML = '<li class="loading-text small fst-italic text-white-50">No other groups active.</li>';
+    console.log("Container:", container);
+    console.log("Data:", otherGroupsData);
+
+    if (!container) {
+        console.error("Container is null or undefined");
         return;
     }
-    let listHtml = '';
+
+    const groups = Array.isArray(otherGroupsData) ? otherGroupsData : [];
+    console.log("Processed groups:", groups);
+
+    if (groups.length === 0) {
+        console.log("No groups to display");
+        container.innerHTML = '<p>No groups to display</p>';
+        return;
+    }
+
     // Sort by percentage descending, then name ascending
-    otherGroupsData.sort((a, b) => {
-        if (b.percentage !== a.percentage) {
-            return b.percentage - a.percentage;
+    groups.sort((a, b) => {
+        const percentA = a?.percentage ?? 0;
+        const percentB = b?.percentage ?? 0;
+        if (percentB !== percentA) {
+            return percentB - percentA;
         }
-        return (a.name || '').localeCompare(b.name || '');
+        return String(a?.name || '').localeCompare(String(b?.name || ''));
     });
 
-    otherGroupsData.forEach(group => {
-        listHtml += `<li class="small">
-             <span class="group-name">${escapeHtml(group.name)}:</span>
-             <span class="percentage">${group.percentage}%</span>
-           </li>`;
+    let listHtml = '';
+    groups.forEach(group => {
+        const groupId = group?.id;
+        const groupName = escapeHtml(group?.name || 'Unnamed Group');
+        let percentage = parseInt(group?.percentage, 10);
+        if (isNaN(percentage) || percentage < 0) percentage = 0;
+        else if (percentage > 100) percentage = 100;
+
+        // --- Generate NEW list item HTML - Matching "Your Progress" Structure ---
+        listHtml += `
+  <li class="other-group-item small mb-2" data-group-id="${groupId || ''}">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <span class="group-name text-truncate" title="${groupName}">${groupName}</span>
+      <span class="percentage fw-bold text-light">${percentage}%</span>
+    </div>
+    <div class="progress" style="height: 10px; width: 100%; max-width: 100%; overflow: hidden;">
+      <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" 
+           role="progressbar" 
+           style="width: ${percentage}%; overflow: hidden;" 
+           aria-valuenow="${percentage}" 
+           aria-valuemin="0" 
+           aria-valuemax="100">
+      </div>
+    </div>
+  </li>`;
     });
+
     container.innerHTML = listHtml;
+    console.log("Progress bars in DOM:", container.querySelectorAll('.progress-bar').length);
+    console.log("First progress bar:", container.querySelector('.progress-bar'));
 }
 
 function updateActivePenalty(container, textEl, penaltyText) {
