@@ -1,14 +1,14 @@
 # app/routes/main.py
 import logging
 import uuid
-from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app
+from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app, send_from_directory
 from flask_login import current_user
 # Import db instance from app
 from app import db 
 # Import necessary models
 from app.models import SharedChallenge, ChallengeGroup, User 
 # Removed: from app.database import SessionLocal # No longer needed
-
+import os
 # Import SQLAlchemy functions/helpers if needed (like desc, selectinload, etc.)
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import desc
@@ -23,6 +23,12 @@ def index():
     """Renders the main page (challenge generation form)."""
     # Pass any necessary context for the template
     return render_template("index.html", game_vars={}) # Assuming game_vars might be used
+
+@main.route('/sitemap.xml') 
+def sitemap():
+    # Construct the path to the static folder relative to the app instance
+    static_folder = current_app.static_folder
+    return send_from_directory(static_folder, 'sitemap.xml')
 
 @main.route("/games")
 def games_config():
