@@ -5,7 +5,8 @@ from flask import (Blueprint, render_template, request, redirect,
 from flask_login import (login_user, logout_user, login_required,
                          current_user, fresh_login_required) 
 from werkzeug.security import generate_password_hash # Keep generate_password_hash
-
+import random
+from sqlalchemy.exc import IntegrityError
 # Import db instance and models
 from app import db
 from app.models import User, SavedGameTab, SavedPenaltyTab 
@@ -23,67 +24,63 @@ auth = Blueprint('auth', __name__, template_folder='../templates/auth')
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
-    """Handles user login using Flask-WTF Form."""
+    """Handles user login using Flask-WTF Form, expecting Username#Tag."""
     form = LoginForm()
     recaptcha_enabled = current_app.config.get('RECAPTCHA_ENABLED', True)
     recaptcha_public_key = current_app.config.get('RECAPTCHA_PUBLIC_KEY')
 
-    # validate_on_submit() checks if it's POST and form is valid
-    if form.validate_on_submit(): 
-        username = form.username.data.strip()
-        password = form.password.data # No need to strip password
+    if form.validate_on_submit():
+        # Get the full username string, expecting "Username#XXXX" format
+        # Do NOT strip(), whitespace might be part of username before #
+        username_with_tag = form.username.data
+        password = form.password.data
 
-        # --- CAPTCHA Verification ---
-        captcha_response = request.form.get("g-recaptcha-response") # Still get directly
+        # --- CAPTCHA Verification (Unchanged) ---
+        captcha_response = request.form.get("g-recaptcha-response")
         recaptcha_private_key = current_app.config.get('RECAPTCHA_PRIVATE_KEY')
-        
-        captcha_ok = True # Assume OK if disabled
+        captcha_ok = True
         if recaptcha_enabled:
             if not recaptcha_private_key:
                 logger.error("RECAPTCHA_ENABLED is True but RECAPTCHA_PRIVATE_KEY is not configured.")
                 flash("Login system configuration error.", "danger")
                 captcha_ok = False
             elif not captcha_response or not verify_recaptcha(captcha_response):
-                logger.warning(f"Login attempt failed reCAPTCHA for user '{username}'.")
+                logger.warning(f"Login attempt failed reCAPTCHA for user '{username_with_tag}'.")
                 flash("Invalid captcha. Please try again.", "danger")
                 captcha_ok = False
-        
+
         if captcha_ok:
-            # --- Database User Lookup & Password Check ---
+            # --- Modified Database User Lookup ---
             user = None
             try:
-                logger.debug(f"Looking up user: {username}")
-                # Use ilike for case-insensitive username comparison
-                user = db.session.query(User).filter(User.username.ilike(username)).first()
+                logger.debug(f"Looking up user by exact username + tag: {username_with_tag}")
+                # Perform an exact, case-sensitive match on the full username
+                user = db.session.query(User).filter(User.username == username_with_tag).first()
                 logger.debug(f"User found: {user is not None}")
 
                 if user and user.check_password(password):
-                    login_user(user) # Add remember=form.remember_me.data if using remember_me
-                    logger.info(f"User '{username}' logged in successfully.")
+                    login_user(user)
+                    logger.info(f"User '{username_with_tag}' logged in successfully.")
                     flash('Logged in successfully!', 'success')
-                    # Redirect to intended page or index
                     next_page = request.args.get('next')
-                    return redirect(next_page or url_for('main.index')) 
+                    return redirect(next_page or url_for('main.index'))
                 else:
-                    logger.warning(f"Invalid login attempt for user '{username}'.")
-                    flash('Invalid username or password.', 'danger')
-                    # Let it fall through to render template below
+                    logger.warning(f"Invalid login attempt for user '{username_with_tag}'.")
+                    # Provide a more helpful message given the new format
+                    flash('Invalid Username#Tag or password.', 'danger')
+                    # Fall through
 
             except Exception as e:
-                db.session.rollback() 
+                db.session.rollback()
                 logger.exception("Error during login DB interaction")
                 flash("An error occurred during login. Please try again.", "danger")
-                # Let it fall through to render template below
-        
-        # If captcha failed or login failed or DB error occurred, re-render form
-        # Fall through from checks above
+                # Fall through
 
-    # --- Handle GET Request OR Failed POST Validation ---
-    # Pass form and recaptcha keys to template
-    return render_template('login.html', 
-                           form=form, 
-                           recaptcha_enabled=recaptcha_enabled, 
-                           recaptcha_public_key=recaptcha_public_key) 
+    # Handle GET or failed validation
+    return render_template('auth/login.html',
+                           form=form,
+                           recaptcha_enabled=recaptcha_enabled,
+                           recaptcha_public_key=recaptcha_public_key)
 
 
 @auth.route('/logout')
@@ -99,61 +96,84 @@ def logout():
 
 @auth.route('/register', methods=['GET', 'POST'])
 def register():
-    """Handles new user registration using Flask-WTF Form."""
+    """Handles new user registration using Flask-WTF Form and adds #XXXX tag."""
     form = RegistrationForm()
     recaptcha_enabled = current_app.config.get('RECAPTCHA_ENABLED', True)
     recaptcha_public_key = current_app.config.get('RECAPTCHA_PUBLIC_KEY')
 
     if form.validate_on_submit():
-        username = form.username.data.strip()
+        base_username = form.username.data.strip() # Get the requested base username
         password = form.password.data
 
-        # --- CAPTCHA Verification ---
+        # --- CAPTCHA Verification (Unchanged) ---
         captcha_response = request.form.get("g-recaptcha-response")
         recaptcha_private_key = current_app.config.get('RECAPTCHA_PRIVATE_KEY')
-        
-        captcha_ok = True # Assume OK if disabled
+        captcha_ok = True
         if recaptcha_enabled:
             if not recaptcha_private_key:
                 logger.error("RECAPTCHA_ENABLED is True but RECAPTCHA_PRIVATE_KEY is not configured.")
                 flash("Registration system configuration error.", "danger")
                 captcha_ok = False
             elif not captcha_response or not verify_recaptcha(captcha_response):
-                logger.warning(f"Registration attempt failed reCAPTCHA for user '{username}'.")
+                logger.warning(f"Registration attempt failed reCAPTCHA for base user '{base_username}'.")
                 flash("Invalid captcha. Please try again.", "danger")
                 captcha_ok = False
 
         if captcha_ok:
-            # --- Create User ---
-            # Username uniqueness check is now handled by form.validate_username
+            # --- Modified User Creation with #XXXX Tag ---
             try:
-                logger.debug(f"Creating new user: {username}")
-                new_user = User(username=username)
-                # Use helper method if available, otherwise hash directly
-                if hasattr(new_user, 'set_password'):
-                    new_user.set_password(password)
+                full_username = None
+                attempts = 0
+                max_attempts = 100 # Prevent potential infinite loops
+
+                while attempts < max_attempts:
+                    # Generate random 4-digit tag (0001-9999)
+                    tag = f"{random.randint(1, 9999):04d}"
+                    potential_username = f"{base_username}#{tag}"
+
+                    # Check if this full username already exists (case-sensitive check recommended)
+                    existing_user = db.session.query(User).filter(User.username == potential_username).first()
+                    if not existing_user:
+                        full_username = potential_username
+                        break # Found a unique tag
+                    attempts += 1
+
+                if full_username is None:
+                    # Extremely unlikely, but handle case where no unique tag was found
+                    logger.error(f"Could not find unique tag for base username '{base_username}' after {max_attempts} attempts.")
+                    flash("Could not generate a unique user tag. Please try a different username or contact support.", "danger")
+                    # Fall through to re-render form
+
                 else:
-                    new_user.password_hash = generate_password_hash(password)
+                    logger.debug(f"Assigning full username: {full_username}")
+                    new_user = User(username=full_username) # Use the full username with tag
+                    new_user.set_password(password) # Use the set_password helper
 
-                db.session.add(new_user)
-                db.session.commit() 
-                
-                logger.info(f"User '{username}' registered successfully.")
-                flash("Registration successful. Please log in.", "success")
-                return redirect(url_for('auth.login')) 
+                    db.session.add(new_user)
+                    db.session.commit()
 
+                    logger.info(f"User '{full_username}' registered successfully.")
+                    # Inform the user of their full tag!
+                    flash(f"Registration successful! Your username is {full_username}. Please log in.", "success")
+                    return redirect(url_for('auth.login'))
+
+            except IntegrityError: # Catch potential race conditions
+                 db.session.rollback()
+                 logger.exception(f"IntegrityError during user creation for base username {base_username}")
+                 flash("Username already exists or another database error occurred. Please try again.", "danger")
+                 # Fall through to re-render form
             except Exception as e:
-                db.session.rollback() 
-                logger.exception("Unexpected error during user creation")
+                db.session.rollback()
+                logger.exception(f"Unexpected error during user creation for base {base_username}")
                 flash("An error occurred during registration. Please try again.", "danger")
-                # Let it fall through to render template below
-    
-    # --- Handle GET Request OR Failed POST Validation (including captcha failure) ---
-    # WTForms validation errors are automatically available in form.errors
-    return render_template('register.html', 
-                           form=form, 
-                           recaptcha_enabled=recaptcha_enabled, 
+                # Fall through to re-render form
+
+    # Handle GET or failed validation
+    return render_template('auth/register.html',
+                           form=form,
+                           recaptcha_enabled=recaptcha_enabled,
                            recaptcha_public_key=recaptcha_public_key)
+
 
 
 @auth.route('/change_password', methods=['GET', 'POST'])

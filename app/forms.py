@@ -31,9 +31,11 @@ class RegistrationForm(FlaskForm):
 
 class LoginForm(FlaskForm):
     """Form for user login."""
-    username = StringField('Username', validators=[DataRequired(message="Username is required.")])
+    # Update label and placeholder
+    username = StringField('Username#Tag',
+                           validators=[DataRequired(message="Username with tag (e.g., User#1234) is required.")],
+                           render_kw={"placeholder": "Enter Your Username#Tag"})
     password = PasswordField('Password', validators=[DataRequired(message="Password is required.")])
-    # Optional: remember_me = BooleanField('Remember Me') 
     submit = SubmitField('Login')
 
 class ChangePasswordForm(FlaskForm):
