@@ -11,13 +11,41 @@ import {
 // Import showError directly, aliased if preferred
 import { escapeHtml, showError } from "../utils/helpers.js";
 
-// --- Alert Helper ---
-// Wrap showError so we always pass the actual element
-function showEditGameAlert(message) {
-    const alertEl = document.getElementById('editGameAlert');
-    showError(alertEl, message);
-}
 
+
+
+function showGameModalAlert(message, type = 'danger', containerId = 'newGameAlert') {
+    const alertContainer = document.getElementById(containerId);
+    if (!alertContainer) {
+        console.error(`Alert container '#${containerId}' not found.`);
+        // Fallback to standard alert if container missing
+        if(message) alert(`(${type.toUpperCase()}) ${message.replace(/<br>/g, '\n')}`);
+        return;
+    }
+
+    if (message) {
+        // Construct Bootstrap alert HTML
+        const alertTypeClass = `alert-${type}`; // e.g., alert-danger, alert-success
+        alertContainer.innerHTML = `
+            <div class="alert ${alertTypeClass} alert-dismissible fade show" role="alert" style="margin-bottom: 0;">
+                ${message} 
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>`;
+        alertContainer.style.display = 'block'; // Ensure container is visible
+    } else {
+        // Clear the container and hide it
+        alertContainer.innerHTML = '';
+        alertContainer.style.display = 'none';
+    }
+}
+function showNewGameAlert(message, type = 'danger') {
+    showGameModalAlert(message, type, 'newGameAlert');
+}
+function showEditGameAlert(message, type = 'danger') {
+    showGameModalAlert(message, type, 'editGameAlert');
+}
 // --- groupEntriesForDisplay function ---
 // Groups entries by game name and calculates display ranges/lists.
 function groupEntriesForDisplay(entries) {
@@ -100,7 +128,11 @@ export function renderGamesForTab(tabId) {
 // Handles saving a single new game entry.
 export function handleSaveNewGame() {
     const form = document.getElementById("newGameForm");
-    if (!form) { console.error("New game form not found"); return; }
+    if (!form) {
+        console.error("New game form (#newGameForm) not found");
+        // Maybe show a general page alert if possible?
+        return;
+    }
 
     const gameInput = form.elements.newGameName;
     const modeInput = form.elements.newGameMode;
@@ -109,67 +141,99 @@ export function handleSaveNewGame() {
 
     const game = gameInput?.value.trim();
     const gameMode = modeInput?.value.trim();
-    const difficulty = parseFloat(diffInput?.value);
+    const difficulty = parseFloat(diffInput?.value); // Parse as float
     const numberOfPlayers = parseInt(playersInput?.value);
 
+    showNewGameAlert(null); // Clear previous errors in the new game modal
 
     let errors = [];
     if (!game) errors.push("Game name is required.");
     if (!gameMode) errors.push("Game mode is required.");
-    if (isNaN(difficulty)) errors.push("Difficulty must be a number.");
-    if (isNaN(numberOfPlayers)) errors.push("Number of players must be an integer.");
-    if (!isNaN(difficulty) && (difficulty < 0 || difficulty > 10 || Math.round(difficulty * 10) / 10 !== difficulty)) { errors.push("Difficulty must be between 0.0 and 10.0 (e.g., 5.0, 7.5)."); }
-    if (!isNaN(numberOfPlayers) && (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers))) { errors.push("Number of players must be a whole number between 1 and 99."); }
 
-    if (errors.length > 0) { const alertEl = document.getElementById('newGameAlert');showError(alertEl, errors.join("<br>")); return; }
+    // Difficulty Validation (Must be > 0.1)
+    if (isNaN(difficulty)) {
+        errors.push("Difficulty must be a number.");
+    } else if (difficulty <= 0.1) { // Check if less than or equal to 0.1
+        errors.push("Difficulty must be greater than 0.1 (e.g., 0.2 or higher).");
+    } else if (difficulty > 10.0) { // Upper bound check
+        errors.push("Difficulty cannot exceed 10.0.");
+    }
+    // Optional: Check for too many decimal places
+    // else if (String(difficulty).includes('.') && String(difficulty).split('.')[1].length > 1) {
+    //     errors.push("Difficulty should have at most one decimal place (e.g., 5.0, 7.5).");
+    // }
 
+    // Player Validation
+    if (isNaN(numberOfPlayers)) {
+        errors.push("Number of players must be an integer.");
+    } else if (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers)) {
+        errors.push("Number of players must be a whole number between 1 and 99.");
+    }
+
+    // Show errors if any occurred
+    if (errors.length > 0) {
+        showNewGameAlert(errors.join("<br>"), 'danger'); // Show errors in a red box
+        return;
+    }
+
+    // Proceed if validation passed
     const currentTab = window.currentTargetTab || "default";
     let tabName = "Default";
-    try { tabName = getLocalTabs()[currentTab]?.name || tabName; } catch (e) { console.error("Error reading tabs for tabName:", e); }
+    try {
+        // Safely access tabs, default to "Default" if needed
+        const tabs = getLocalTabs();
+        tabName = tabs[currentTab]?.name || "Default";
+    } catch (e) { console.error("Error reading tabs for tabName:", e); }
 
     const newEntry = {
         id: "local-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
-        game, gameMode, difficulty: difficulty.toFixed(1), numberOfPlayers,
-        tabName, weight: 1.0
+        game,
+        gameMode,
+        difficulty: difficulty.toFixed(1), // Store consistently with one decimal place
+        numberOfPlayers,
+        tabName,
+        weight: 1.0 // Assuming a default weight
     };
 
     try {
-        addLocalGameEntry(currentTab, newEntry);
-        renderGamesForTab(currentTab);
-        $('#newGameModal').modal('hide');
-        form.reset();
-    } catch (error) { console.error("Error saving entry or rendering tab:", error); showGameFormAlert("Failed to save entry. Please try again.", 'danger', 'newGameAlert'); }
+        addLocalGameEntry(currentTab, newEntry); // Save to localStorage
+        renderGamesForTab(currentTab); // Refresh the table UI
+        $('#newGameModal').modal('hide'); // Close the modal using jQuery/Bootstrap
+        form.reset(); // Reset the form fields
+    } catch (error) {
+        console.error("Error saving entry or rendering tab:", error);
+        showNewGameAlert("Failed to save entry. Please try again.", 'danger'); // Show save error
+    }
 } // (End handleSaveNewGame)
 
-/**
- * Handles saving changes from the redesigned edit modal (multiple modes).
- */
+
+// --- Complete handleUpdateGame Function ---
 export function handleUpdateGame() {
     const form = document.getElementById("editGameForm");
-    const gameName = document.getElementById("editGameNameDisplay")?.textContent;
+    const gameNameDisplay = document.getElementById("editGameNameDisplay");
     const modesContainer = document.getElementById("editGameModesContainer");
     const currentTab = window.currentTargetTab || "default";
 
+    const gameName = gameNameDisplay?.textContent; // Get game name from display element
+
     if (!form || !modesContainer || !gameName || !currentTab) {
         console.error("Cannot update: Missing form elements, game name, or tab context.");
-        showEditGameAlert("An internal error occurred. Cannot save changes.");
+        showEditGameAlert("An internal error occurred. Cannot save changes."); // Use edit alert
         return;
     }
+
+    showEditGameAlert(null); // Clear previous errors in the edit modal
 
     const modeSections = modesContainer.querySelectorAll(".edit-mode-section");
     let allUpdates = [];
     let errors = [];
 
     if (modeSections.length === 0) {
-        showEditGameAlert("No modes remaining for this game.", "info");
-        setTimeout(() => {
-            $('#editGameModal').modal('hide');
-            renderGamesForTab(currentTab);
-        }, 1500);
+        // If all modes were deleted via the 'X' button, just close the modal and refresh
+        $('#editGameModal').modal('hide');
+        renderGamesForTab(currentTab);
         return;
     }
-
-    // console.log("--- Starting Update Validation ---"); // Optional debug log
 
     modeSections.forEach((section, index) => {
         const entryId = section.dataset.entryId;
@@ -177,61 +241,90 @@ export function handleUpdateGame() {
         const diffInput = section.querySelector(".edit-mode-difficulty");
         const playersInput = section.querySelector(".edit-mode-players");
 
-        // console.log(`Processing Section #${index + 1}, Entry ID: ${entryId}`); // Optional debug log
-        // console.log("Mode Input Element:", modeInput);
-        // console.log("Mode Input Value (raw):", modeInput?.value);
         const gameMode = modeInput?.value.trim();
-        // console.log("Mode Input Value (trimmed):", gameMode);
-
-        const difficulty = parseFloat(diffInput?.value);
+        const difficulty = parseFloat(diffInput?.value); // Parse as float
         const numberOfPlayers = parseInt(playersInput?.value);
 
         // --- Validation per mode ---
-        if (!entryId) errors.push(`Internal error: Missing ID for mode #${index + 1}.`);
-        if (!gameMode) { errors.push(`Mode name is required for entry #${index + 1}.`); console.error(`Validation failed for section ${index + 1}: gameMode is empty after trim.`); }
-        if (isNaN(difficulty)) errors.push(`Difficulty must be a number for mode "${gameMode || index + 1}".`);
-        if (isNaN(numberOfPlayers)) errors.push(`Number of players must be an integer for mode "${gameMode || index + 1}".`);
-        if (!isNaN(difficulty) && (difficulty < 0 || difficulty > 10 || Math.round(difficulty * 10) / 10 !== difficulty)) { errors.push(`Difficulty for "${gameMode || index + 1}" must be 0.0-10.0.`); }
-        if (!isNaN(numberOfPlayers) && (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers))) { errors.push(`Players for "${gameMode || index + 1}" must be 1-99.`); }
+        let modeErrors = [];
+        if (!entryId) modeErrors.push(`Internal error: Missing ID for mode #${index + 1}.`);
+        if (!gameMode) modeErrors.push(`Mode name is required for entry #${index + 1}.`);
+
+        // Difficulty Validation (Must be > 0.1)
+        if (isNaN(difficulty)) {
+            modeErrors.push(`Difficulty must be a number for mode "${gameMode || index + 1}".`);
+        } else if (difficulty <= 0.1) { // Check lower bound
+            modeErrors.push(`Difficulty for "${gameMode || index + 1}" must be > 0.1.`);
+        } else if (difficulty > 10.0) { // Check upper bound
+             modeErrors.push(`Difficulty for "${gameMode || index + 1}" cannot exceed 10.0.`);
+        }
+        // Optional: Check for too many decimal places
+        // else if (String(difficulty).includes('.') && String(difficulty).split('.')[1].length > 1) {
+        //     modeErrors.push(`Difficulty for "${gameMode || index + 1}" should have at most one decimal place.`);
+        // }
+
+        // Player Validation
+        if (isNaN(numberOfPlayers)) {
+            modeErrors.push(`Number of players must be an integer for mode "${gameMode || index + 1}".`);
+        } else if (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers)) {
+            modeErrors.push(`Players for "${gameMode || index + 1}" must be 1-99.`);
+        }
         // --- End Validation ---
 
-        if (errors.length === 0) {
+        if (modeErrors.length === 0) {
+            // Get original weight/tabName for context if needed
             const allEntries = getLocalEntries();
             const originalEntry = (allEntries[currentTab] || []).find(e => e.id === entryId);
+
             allUpdates.push({
-                id: entryId, game: gameName, gameMode,
-                difficulty: difficulty.toFixed(1), numberOfPlayers,
-                weight: originalEntry?.weight ?? 1.0, tabName: originalEntry?.tabName ?? "Default"
+                id: entryId,
+                game: gameName, // Use the game name from the modal title
+                gameMode,
+                difficulty: difficulty.toFixed(1), // Store consistently
+                numberOfPlayers,
+                // Preserve original weight/tabName if they exist
+                weight: originalEntry?.weight ?? 1.0,
+                tabName: originalEntry?.tabName ?? "Default"
             });
+        } else {
+            errors.push(...modeErrors); // Add specific mode errors to the overall list
         }
     }); // End forEach section
 
-    // console.log("--- Finished Update Validation ---");
-    // console.log("Validation Errors:", errors);
-    // console.log("Updates to Apply:", allUpdates);
-
+    // Show errors if any occurred during validation
     if (errors.length > 0) {
-        showEditGameAlert(errors.join("<br>"));
-        return; // Stop if any validation failed
+        showEditGameAlert(errors.join("<br>"), 'danger'); // Show errors in red box
+        return;
     }
 
-    // Proceed with updates
+    // Proceed with updates if validation passed for all modes
     try {
         let updateSuccess = true;
         allUpdates.forEach(updatedEntry => {
-            try { updateLocalGameEntry(currentTab, updatedEntry.id, updatedEntry); }
-            catch (updateError) { console.error(`Failed to update entry ID ${updatedEntry.id}:`, updateError); errors.push(`Failed to save changes for mode "${updatedEntry.gameMode}".`); updateSuccess = false; }
+            try {
+                updateLocalGameEntry(currentTab, updatedEntry.id, updatedEntry);
+            } catch (updateError) {
+                console.error(`Failed to update entry ID ${updatedEntry.id}:`, updateError);
+                // Collect errors for final message if needed
+                errors.push(`Failed to save changes for mode "${escapeHtml(updatedEntry.gameMode)}".`);
+                updateSuccess = false;
+            }
         });
 
-        if (!updateSuccess) { showEditGameAlert(errors.join("<br>")); return; }
+        // If any individual update failed, show errors
+        if (!updateSuccess) {
+            showEditGameAlert(errors.join("<br>"), 'danger');
+            return;
+        }
 
-        renderGamesForTab(currentTab);
-        $('#editGameModal').modal('hide');
+        // If all updates succeeded
+        renderGamesForTab(currentTab); // Refresh the table UI
+        $('#editGameModal').modal('hide'); // Close the modal
 
     } catch (error) {
+        // Catch general errors during the update process
         console.error("Error updating entries:", error);
-        showEditGameAlert("An unexpected error occurred while saving changes.");
+        showEditGameAlert("An unexpected error occurred while saving changes.", 'danger');
     }
-} // (End handleUpdateGame)
-
+}
 
