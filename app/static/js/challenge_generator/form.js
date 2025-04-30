@@ -744,14 +744,30 @@ function initializeChallengeForm() {
 
 // --- Wait for DOM Ready and Initialize ---
 // This ensures all HTML elements are loaded before the script tries to interact with them.
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => { // <-- Add async here
 
     if (!localStorage.getItem('defaults_loaded')) {
-        console.log("Loading default game entries from DB...");
-        loadDefaultEntriesFromDB().catch(console.error);
-        loadDefaultPenaltiesFromDB().catch(console.error);
-        localStorage.setItem('defaults_loaded', 'true');
-        window.location.reload();
+        console.log("Loading default game entries and penalties from DB...");
+        try {
+            // Wait for both loading functions to complete
+            await loadDefaultEntriesFromDB(); // <-- Add await
+            await loadDefaultPenaltiesFromDB(); // <-- Add await
+
+            // Only set the flag and reload if both succeed
+            localStorage.setItem('defaults_loaded', 'true');
+            console.log("Defaults loaded successfully. Reloading page.");
+            window.location.reload();
+
+        } catch (error) {
+            // Log the error if any of the loading functions fail
+            console.error("Failed to load defaults:", error);
+            // Decide if you still want to set the flag or reload on failure
+            // Maybe clear the flag if it partially succeeded?
+            // localStorage.removeItem('defaults_loaded');
+        }
+    } else {
+        console.log("Defaults already loaded.");
+        // Potentially render initial state from existing localStorage here if needed
     }
     // Pre-check: Ensure critical variables passed from Flask are defined
     if (typeof window.generateChallengeUrl === 'undefined') {
