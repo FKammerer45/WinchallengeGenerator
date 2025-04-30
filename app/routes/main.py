@@ -42,6 +42,30 @@ def penalties_config():
     # Pass any necessary context for the template
     return render_template("penalties.html")
 
+@main.route('/impressum')
+def impressum():
+    """Rendert die Impressumsseite."""
+    # Passe den Pfad an, falls du einen Unterordner (z.B. 'legal/') verwendet hast:
+    # return render_template('legal/impressum.html')
+    return render_template('legal/impressum.html')
+
+@main.route('/datenschutz')
+def datenschutz():
+    """Rendert die Datenschutzerklärungsseite."""
+    # Passe den Pfad an, falls du einen Unterordner (z.B. 'legal/') verwendet hast:
+    # return render_template('legal/datenschutz.html')
+    return render_template('legal/datenschutz.html')
+
+@main.route('/termsofservice')
+def termsofservice():
+    """Rendert die Terms of Service Seite."""
+    # Passe den Pfad an, falls du einen Unterordner (z.B. 'legal/') verwendet hast:
+    # return render_template('legal/datenschutz.html')
+    return render_template('legal/termsofservice.html')
+
+
+
+
 # --- My Challenges Page ---
 @main.route("/my_challenges")
 def my_challenges_view():

@@ -128,13 +128,20 @@
   </main>
 
   {# --- Footer --- #}
-  <footer class="footer mt-auto py-3 text-muted text-center small" style="background-color: rgba(3, 7, 18, 0.5);"> {#
-    Match dark base bg slightly transparent #}
+  <footer class="footer mt-auto py-3 text-muted text-center small" style="background-color: rgba(3, 7, 18, 0.5);">
     <div class="container">
       <span>Win Challenge Generator &copy; {{ now().year if now else '' }}</span>
+      {# Hinzugefügte Links #}
+      <span class="mx-2 d-none d-sm-inline">|</span> 
+      <a href="{{ url_for('main.impressum') }}" class="text-muted mx-1 mx-sm-0">Impressum</a>
+      <span class="mx-2 d-none d-sm-inline">|</span> 
+      <a href="{{ url_for('main.datenschutz') }}" class="text-muted mx-1 mx-sm-0">Datenschutz</a>
+      <span class="mx-2 d-none d-sm-inline">|</span> 
+      <a href="{{ url_for('main.termsofservice') }}" class="text-muted mx-1 mx-sm-0">Termsofservice</a>
+      {# Ende hinzugefügte Links #}
     </div>
   </footer>
-
+  
   <div class="modal fade" id="actionConfirmModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
       <div class="modal-content shadow">
