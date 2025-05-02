@@ -103,8 +103,8 @@ async function handleShowOverlayLink() {
 
     // Check prerequisites from config
     if (challengeConfig.isLocal || !challengeConfig.isLoggedIn || !challengeConfig.isAuthorized) {
-         showError(errorDiv, "Overlay links are only available for logged-in, authorized users on shared challenges.");
-         return;
+        showError(errorDiv, "Overlay links are only available for logged-in, authorized users on shared challenges.");
+        return;
     }
 
     // Clear previous errors/state and show loading on trigger button
@@ -162,7 +162,7 @@ async function handleShowOverlayLink() {
                 errorDiv.innerHTML = `Auto-copy failed. Link: <input type='text' value='${escapeHtml(overlayUrl)}' readonly size='40' class='form-control form-control-sm d-inline-block w-auto'>`;
                 errorDiv.style.display = 'block';
             } finally {
-                 setLoading(newCopyBtn, false, '<i class="bi bi-clipboard me-1"></i> Copy Overlay Link');
+                setLoading(newCopyBtn, false, '<i class="bi bi-clipboard me-1"></i> Copy Overlay Link');
             }
         });
 
@@ -179,7 +179,7 @@ async function handleShowOverlayLink() {
         // Hide both buttons on error
         showBtn.style.display = 'none';
         copyBtn.style.display = 'none';
-         setLoading(showBtn, false, 'Show/Copy Overlay Link'); // Reset show button
+        setLoading(showBtn, false, 'Show/Copy Overlay Link'); // Reset show button
 
     }
 }
@@ -361,22 +361,65 @@ async function handleCreateGroupSubmit(event) {
 
         if (data.status !== 'success' || !data.group) throw new Error(data.error || 'Unknown error.');
 
-        challengeConfig.initialGroups.push({
-            id: data.group.id, name: data.group.name, progress: {},
-            member_count: 0, player_names: [], active_penalty_text: ''
-        });
+        // --- Group Created Successfully ---
+        const newGroupData = { // Prepare data for local state and UI
+            id: data.group.id,
+            name: data.group.name,
+            progress: {},
+            member_count: data.creator_auto_joined ? 1 : 0, // Use backend flag
+            player_names: [],
+            active_penalty_text: ''
+        };
+
+        // Add to local state BEFORE adding to DOM
+        challengeConfig.initialGroups.push(newGroupData);
         challengeConfig.initialGroupCount++;
-        // Add to DOM, passing the necessary config
-        addGroupToDOM(data.group, challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
-        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); //
-        groupNameEl.value = '';
-        showFlash(`Group "${escapeHtml(data.group.name)}" created.`, 'success');
-    }
-    catch (err) {
+
+        // Add card to the DOM (will initially go to 'other' groups)
+        addGroupToDOM(newGroupData, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+        groupNameEl.value = ''; // Clear input
+        console.log("[Create Group] API Success. isMultigroup:", challengeConfig.isMultigroup, "creator_auto_joined:", data.creator_auto_joined);
+
+        // --- START: Handle Creator Auto-Join UI Update ---
+        // Check if it was single group AND the creator was auto-joined (flag from backend)
+        if (!challengeConfig.isMultigroup && data.creator_auto_joined) {
+            console.log(`[Create Group] Creator auto-joined single group ${newGroupData.id}. Updating state...`);
+
+            // 1. Update the frontend's state FIRST
+            updateUserJoinedGroupState(newGroupData.id);
+            console.log("[Create Group] State updated. challengeConfig.userJoinedGroupId is now:", challengeConfig.userJoinedGroupId);
+
+            // 2. Find the newly added card element in the DOM (Optional but good for sanity check)
+            const newCardElement = document.querySelector(`.group-card-wrapper[data-group-id="${newGroupData.id}"]`);
+            if (!newCardElement) {
+                console.error(`[Create Group] CRITICAL: Could not find newly added card element for ID ${newGroupData.id} in the DOM! UI might not update correctly.`);
+                // If this happens, addGroupToDOM might have failed, or the selector is wrong.
+            } else {
+                console.log(`[Create Group] Found new card element for ID ${newGroupData.id}. Ready for UI update.`);
+            }
+
+            // 3. Call updateUIAfterMembershipChange AGAIN to visually move the card and update buttons
+            console.log("[Create Group] Calling updateUIAfterMembershipChange to reflect auto-join...");
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+            console.log("[Create Group] UI update called after auto-join.");
+
+        } else {
+            // If not auto-joined, still run the update once to ensure general UI consistency
+            // (e.g., maybe max groups was reached, or it's multi-group mode)
+            console.log("[Create Group] Not an auto-join scenario. Calling updateUIAfterMembershipChange once.");
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+        }
+        // --- END: Handle Creator Auto-Join UI Update ---
+
+        showFlash(`Group "${escapeHtml(newGroupData.name)}" created.`, 'success');
+
+    } catch (err) {
         console.error('create-group failed', err);
         showError(errDiv, `Error: ${err.message}`);
+    } finally {
+        restoreButton(submitBtn);
     }
-    finally { restoreButton(submitBtn); }
 }
 
 async function handleJoinGroupClick(_, joinBtn) {
@@ -483,17 +526,18 @@ async function handleProgressChange(event) {
     if (!event.target.matches('.progress-checkbox')) return;
     const checkbox = event.target;
 
-    // Authorization check (should match UI enablement)
-    const groupId = parseInt(checkbox.dataset.groupId, 10); // This will be the local challenge ID for local challenges
+    // --- Authorization Check ---
+    const groupId = parseInt(checkbox.dataset.groupId, 10);
     const isJoinedGroup = (challengeConfig.userJoinedGroupId === groupId);
     const canInteract = challengeConfig.isLocal || (challengeConfig.isLoggedIn && challengeConfig.isAuthorized && isJoinedGroup);
 
     if (checkbox.disabled || !canInteract) {
         console.warn("Progress change blocked by disabled checkbox or insufficient authorization.");
-        checkbox.checked = !checkbox.checked; // Revert visual state if needed
+        checkbox.checked = !checkbox.checked;
         return;
     }
 
+    // --- Get Data from Checkbox ---
     const itemData = checkbox.dataset;
     const isComplete = checkbox.checked;
     const itemDiv = checkbox.closest('.progress-item');
@@ -501,107 +545,132 @@ async function handleProgressChange(event) {
     if (!itemData.itemType || !itemData.itemKey || typeof itemData.itemIndex === 'undefined') {
         console.error("Progress checkbox missing required data attributes:", itemData);
         showError(statusDiv || document.body, "Cannot save progress: Checkbox data missing.", 'warning');
-        checkbox.checked = !isComplete; return;
+        checkbox.checked = !isComplete;
+        return;
     }
 
-    let progressKey;
+    // --- Construct Progress Key and Payload ---
+    let progressKey; // For local state/lookup
+    let payload;     // For API call
     try {
-        const type = itemData.itemType; const key = itemData.itemKey;
-        const index = parseInt(itemData.itemIndex, 10);
-        const segmentIndex = itemData.segmentIndex ? parseInt(itemData.segmentIndex, 10) : null;
-        if (isNaN(index) || (segmentIndex !== null && isNaN(segmentIndex))) throw new Error("Invalid index.");
-        // Ensure segmentIndex is treated correctly (0-based in keys, 1-based in display)
-        if (type === 'b2b' && segmentIndex !== null) progressKey = `${type}_${segmentIndex}_${key}_${index}`;
-        else if (type === 'normal') progressKey = `${type}_${key}_${index}`;
-        else throw new Error("Unknown progress item type.");
+        const type = itemData.itemType;
+        const key = itemData.itemKey;
+        const index = parseInt(itemData.itemIndex, 10); // 0-based item index within its group
+
+        // Basic payload structure
+        payload = {
+            item_type: type,
+            item_key: key,
+            item_index: index,
+            is_complete: isComplete,
+        };
+
+        if (type === 'b2b') {
+            // --- FIX: Read the 1-based index from the data attribute ---
+            const segmentIndex_1based = parseInt(itemData.segmentIndex, 10); // Read the attribute value
+
+            // Validate the read value (should be >= 1 as set by ui.js)
+            if (isNaN(segmentIndex_1based) || segmentIndex_1based < 1) {
+                 throw new Error(`Invalid segment_index (${itemData.segmentIndex}) read from data attribute for b2b item.`);
+            }
+
+            // Use the 1-based index for the payload sent to the backend
+            payload.segment_index = segmentIndex_1based;
+
+            // --- Construct internal progressKey using 0-based index ---
+            // (Assuming progress is stored/referenced using 0-based segment index locally)
+            const segmentIndex_0based = segmentIndex_1based - 1;
+            progressKey = `${type}_${segmentIndex_0based}_${key}_${index}`;
+            // --- End Key Construction ---
+
+        } else if (type === 'normal') {
+            progressKey = `${type}_${key}_${index}`;
+            // No segment_index in payload for normal items
+        } else {
+            throw new Error("Unknown progress item type.");
+        }
+
+        // Validate item index
+        if (isNaN(index)) {
+            throw new Error("Invalid item_index.");
+        }
+
     } catch (e) {
-        console.error("Error constructing progress key:", e);
-        showError(statusDiv || document.body, "Cannot save progress: Invalid item data.", 'warning');
-        checkbox.checked = !isComplete; return;
+        console.error("Error constructing progress key or payload:", e);
+        showError(statusDiv || document.body, `Cannot save progress: ${e.message}`, 'warning');
+        checkbox.checked = !isComplete;
+        return;
     }
 
-    checkbox.disabled = true; // Disable during operation
+    // --- Disable UI during operation ---
+    checkbox.disabled = true;
     if (itemDiv) itemDiv.style.opacity = '0.6';
 
+    // --- Perform Update (Local or API) ---
     try {
-        let currentProgressData = {}; // To hold the relevant progress data for UI update
+        let currentProgressData = {};
+
         if (challengeConfig.isLocal) {
-            const newProgress = makeNewProgress(challengeConfig.progressData || {}, progressKey, isComplete);
-            // --- FIX: Don't freeze yet, allow potential revert on save failure ---
-            // challengeConfig.progressData = Object.freeze(newProgress);
-            const potentialNewProgressData = newProgress; // Hold temporarily
-
-            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete); //
-
-            if (!success) {
-                // --- FIX: If save fails, DON'T update the main config state ---
-                throw new Error("Failed to save progress locally.");
-            }
-            // --- FIX: If save succeeds, NOW update the main config state ---
+            // Local Storage Update (uses 0-based progressKey)
+            const potentialNewProgressData = makeNewProgress(challengeConfig.progressData || {}, progressKey, isComplete);
+            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete);
+            if (!success) throw new Error("Failed to save progress locally.");
             challengeConfig.progressData = Object.freeze(potentialNewProgressData);
-            currentProgressData = potentialNewProgressData; // Use the updated progress for UI
+            currentProgressData = potentialNewProgressData;
+            console.log(`Local progress updated for key: ${progressKey}`);
 
-        } else { // Database challenge
+        } else {
+            // API Update (sends payload with 1-based segment_index)
+            if (!challengeConfig.urls.updateProgressBase) {
+                 throw new Error("API URL for progress update is not configured.");
+            }
             const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
-            const payload = {
-                item_type: itemData.itemType, item_key: itemData.itemKey,
-                item_index: parseInt(itemData.itemIndex, 10), is_complete: isComplete,
-            };
-            if (itemData.segmentIndex) payload.segment_index = parseInt(itemData.segmentIndex, 10);
-
+            console.log("Sending API request to:", url, "with payload:", JSON.stringify(payload)); // Log payload
             await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
+            console.log(`API progress update successful for key: ${progressKey}`);
 
-            // Update local config state after successful API call
+            // Update local config state (using 0-based progressKey)
             const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
             if (groupIndex !== -1) {
                 challengeConfig.initialGroups[groupIndex].progress = challengeConfig.initialGroups[groupIndex].progress || {};
-                if (isComplete) challengeConfig.initialGroups[groupIndex].progress[progressKey] = true;
-                else delete challengeConfig.initialGroups[groupIndex].progress[progressKey];
-                currentProgressData = challengeConfig.initialGroups[groupIndex].progress; // Get updated state
+                if (isComplete) {
+                    challengeConfig.initialGroups[groupIndex].progress[progressKey] = true;
+                } else {
+                    delete challengeConfig.initialGroups[groupIndex].progress[progressKey];
+                }
+                currentProgressData = challengeConfig.initialGroups[groupIndex].progress;
             }
         }
 
-        // Update visual state AFTER successful save
+        // --- Update Visual State on Success ---
         if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
 
-        // --- FIX: Correctly select the progress bar container for LOCAL challenges ---
+        // Update Progress Bar
         let progressBarContainer = null;
         if (challengeConfig.isLocal) {
-            // Find the specific card for the local challenge, then find the container within it
             const localCard = document.getElementById('local-group-card');
-            if (localCard) {
-                progressBarContainer = localCard.querySelector('.progress-bar-container');
-            }
-            if (!progressBarContainer) {
-                console.error("Could not find '.progress-bar-container' within '#local-group-card'.");
-            }
+            progressBarContainer = localCard?.querySelector('.progress-bar-container');
         } else {
-            // Keep original logic for shared challenges
-            const progressBarContainerId = `progressBarContainer-${groupId}`;
-            progressBarContainer = document.getElementById(progressBarContainerId);
+            progressBarContainer = document.getElementById(`progressBarContainer-${groupId}`);
         }
-        // --- END FIX ---
-
-        // Now call the update function if the container was found
         if (progressBarContainer && challengeConfig.coreChallengeStructure) {
-            renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressData); //
+            renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressData);
         } else if (!progressBarContainer) {
             console.warn("Progress bar container could not be found for update.");
         }
 
-
     } catch (error) {
+        // --- Error Handling ---
         console.error("Failed to update progress:", error);
-        checkbox.checked = !isComplete; // Revert checkbox state on error
+        checkbox.checked = !isComplete;
         showError(statusDiv, `Error saving progress: ${error.message}`, 'danger');
-        if (itemDiv) { // Flash effect on error
+        if (itemDiv) {
             itemDiv.classList.add('error-flash');
             setTimeout(() => itemDiv.classList.remove('error-flash'), 1500);
         }
-        // No need to revert challengeConfig.progressData here, as it's only updated on SUCCESSFUL save now.
 
     } finally {
-        // Re-enable checkbox based on original interaction logic
+        // --- Re-enable UI ---
         checkbox.disabled = !canInteract;
         if (itemDiv) itemDiv.style.opacity = '1';
     }
@@ -868,7 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const penaltyBody = document.getElementById('local-penalty-body');
             const penaltyButton = penaltyBody?.querySelector('.lostGameBtn-local');
             const activePenaltyDisplay = document.getElementById('local-group-card')?.querySelector('.active-penalty-display');
-            
+
             // Populate Title
             if (titleEl) {
                 titleEl.textContent = localData.name || 'Local Challenge';
@@ -881,7 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rulesContainer.innerHTML = '<p class="text-muted small">Rules not available.</p>';
             }
 
-            
+
             // Populate Progress Bar
             if (progressBarContainer && challengeConfig.coreChallengeStructure) {
                 renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData); // [cite: 1]

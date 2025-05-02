@@ -278,15 +278,15 @@ def share_challenge():
 # --- /<public_id>/groups endpoint ---
 # Update decorator to use the new blueprint name
 @login_required
-@challenge_api.route("/<public_id>/groups", methods=["POST"]) 
+@challenge_api.route("/<public_id>/groups", methods=["POST"])
 def add_group_to_challenge(public_id):
     """
     API endpoint to add a new group to an existing SharedChallenge.
-    Checks limits and name uniqueness.
+    Checks limits and name uniqueness. Automatically adds creator if single-group.
     """
     logger.debug(f"Request to add group to challenge {public_id}")
     data = request.get_json()
-    
+
     if not data or 'group_name' not in data:
         logger.warning(f"Add group request for {public_id} missing JSON or 'group_name'.")
         return jsonify({"error": "Invalid request. JSON data with 'group_name' required."}), 400
@@ -298,30 +298,29 @@ def add_group_to_challenge(public_id):
 
     try:
         # Use db.session directly
-        # Find the parent challenge
-        challenge = db.session.query(SharedChallenge).filter_by(public_id=public_id).first()
+        # Find the parent challenge - Eager load groups and their members for checks
+        # Load authorized users as well if needed for other checks (not strictly needed here)
+        challenge = db.session.query(SharedChallenge).options(
+            selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
+        ).filter_by(public_id=public_id).first()
+
         if not challenge:
             logger.warning(f"Attempt to add group to non-existent challenge {public_id}")
             return jsonify({"error": "Challenge not found."}), 404
 
+        # --- Authorization Check (Creator Only) ---
         if challenge.creator_id != current_user.id:
             logger.warning(f"User {current_user.username} attempted to add group to challenge {public_id} but is not creator.")
             return jsonify({"error": "Only the challenge creator can add groups."}), 403
-        # Check group limit
-        current_group_count = db.session.query(func.count(ChallengeGroup.id))\
-            .filter(ChallengeGroup.shared_challenge_id == challenge.id)\
-            .scalar() 
 
+        # Check group limit (using eager-loaded groups)
+        current_group_count = len(challenge.groups) # Efficient check on loaded relationship
         if current_group_count >= challenge.max_groups:
             logger.warning(f"Max groups ({challenge.max_groups}) reached for challenge {public_id}. Cannot add '{group_name}'.")
             return jsonify({"error": f"Maximum number of groups ({challenge.max_groups}) already reached."}), 400
 
-        # Check for duplicate group name within this challenge
-        exists = db.session.query(ChallengeGroup.id)\
-            .filter(ChallengeGroup.shared_challenge_id == challenge.id, ChallengeGroup.group_name == group_name)\
-            .first() is not None
-
-        if exists:
+        # Check for duplicate group name (using eager-loaded groups)
+        if any(g.group_name == group_name for g in challenge.groups):
             logger.warning(f"Group name '{group_name}' already exists for challenge {public_id}.")
             return jsonify({"error": f"The group name '{group_name}' is already taken for this challenge."}), 409
 
@@ -331,18 +330,42 @@ def add_group_to_challenge(public_id):
             shared_challenge_id=challenge.id # Set foreign key
         )
         db.session.add(new_group)
-        db.session.commit() # Commit transaction
+        db.session.flush() # Flush to get the new_group.id before adding members
 
+        # --- Auto-add creator logic ---
+        user_added_to_group = False # Initialize flag
+        if challenge.max_groups == 1 and challenge.creator_id == current_user.id:
+            # Ensure user object is in session
+            user_to_add = db.session.get(User, current_user.id)
+            if user_to_add:
+                # Check if user is *not* already a member (shouldn't be, but safe check)
+                # Note: new_group.members will be empty here unless relationship was pre-populated
+                # It's safe to just append.
+                new_group.members.append(user_to_add)
+                user_added_to_group = True # Set flag
+                logger.info(f"Auto-adding creator {current_user.username} to single group {new_group.id} for challenge {public_id}")
+            else:
+                logger.error(f"Could not find user {current_user.id} to auto-add to single group.")
+                # Continue without auto-adding, but log the error.
+
+        # Commit transaction (group creation and potential membership)
+        db.session.commit()
         logger.info(f"Successfully added group '{group_name}' (ID: {new_group.id}) to challenge {public_id}")
-        # Return data including the generated ID and initial progress
+
+        # --- Return data including the generated ID and the auto-join flag ---
         return jsonify({
             "status": "success",
             "message": "Group created successfully.",
             "group": {
                 "id": new_group.id,
                 "name": new_group.group_name,
-                "progress": new_group.progress_data or {}
-            }
+                "progress": new_group.progress_data or {},
+                "member_count": 1 if user_added_to_group else 0, # Reflect immediate membership
+                # Add other fields if needed by addGroupToDOM JS function
+                "player_names": [current_user.username] if user_added_to_group else [],
+                "active_penalty_text": None
+            },
+            "creator_auto_joined": user_added_to_group # <<< THIS FLAG IS NOW INCLUDED
         }), 201
 
     except SQLAlchemyError as e:

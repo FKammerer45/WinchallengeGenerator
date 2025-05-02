@@ -1,7 +1,8 @@
 // static/js/challenge/ui.js
 // Handles DOM manipulation and rendering for the challenge view page.
 // Receives data from challenge_view.js and updates the UI accordingly.
-
+const JOINED_GROUP_COL_CLASSES = ['col-md-8', 'col-lg-6', 'mx-auto', 'mb-4'];
+const OTHER_GROUP_COL_CLASSES = ['col-lg-4', 'col-md-6', 'mb-4'];
 import { setLoading, escapeHtml, showError } from '../utils/helpers.js';
 
 /**
@@ -54,7 +55,7 @@ function calculateProgress(challengeData, progressData = {}) {
                 // Corrected: B2B segments are typically 1-indexed in keys, but array index is 0-based.
                 // The key construction uses the segment index directly (e.g., b2b_0_key_0) if following array index.
                 // If keys expect 1-based index, adjust here. Assuming key uses 0-based segIndex matching loop.
-                 const segmentIdx = segIndex; // Or segIndex + 1 if keys are 1-based
+                const segmentIdx = segIndex; // Or segIndex + 1 if keys are 1-based
                 Object.entries(seg.group).forEach(([key, count]) => {
                     total += count || 0;
                     for (let i = 0; i < (count || 0); i++) {
@@ -232,18 +233,23 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
     const isDisabled = !isInteractive;
     const safeProgressData = groupProgress || {};
 
-    // Helper to generate checkbox HTML using Bootstrap 4 .custom-control structure
-    const createCheckboxHtml = (itemType, itemKey, itemIndex, isChecked, isDisabledFlag, labelText, segmentIndex = null) => {
-        // Use 0-based segmentIndex consistent with loop for key generation
-        const progressKey = segmentIndex !== null
-            ? `${itemType}_${segmentIndex}_${itemKey}_${itemIndex}` : `${itemType}_${itemKey}_${itemIndex}`;
+    // Helper to generate checkbox HTML
+    const createCheckboxHtml = (itemType, itemKey, itemIndex, isChecked, isDisabledFlag, labelText, segmentIndex_0based = null) => {
+        // Use 0-based segment index for internal key construction (consistent with original logic)
+        const progressKey = segmentIndex_0based !== null
+            ? `${itemType}_${segmentIndex_0based}_${itemKey}_${itemIndex}`
+            : `${itemType}_${itemKey}_${itemIndex}`;
+
         const safeProgressKey = progressKey.replace(/[^a-zA-Z0-9-_]/g, '_');
         const uniqueId = `check_${groupId}_${safeProgressKey}`;
-        const segmentAttr = segmentIndex !== null ? `data-segment-index="${segmentIndex}"` : '';
+
+        // --- FIX: Store 1-based index in the data attribute ---
+        const segmentAttr = segmentIndex_0based !== null ? `data-segment-index="${segmentIndex_0based + 1}"` : ''; // Add 1 for 1-based index
+
         const escapedItemKey = escapeHtml(String(itemKey));
         const completedClass = isChecked ? 'completed' : '';
 
-        // --- MODIFIED HTML using .custom-control ---
+        // Ensure segmentAttr is included in the input tag
         return `
             <div class="custom-control custom-checkbox d-inline-block me-1 progress-item ${completedClass}"
                  data-progress-key="${progressKey}"
@@ -252,22 +258,23 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
                      class="custom-control-input progress-checkbox"
                      id="${uniqueId}"
                      aria-label="${escapeHtml(labelText)}"
-                     data-group-id="${groupId}" data-item-type="${itemType}"
-                     data-item-key="${escapedItemKey}" data-item-index="${itemIndex}"
-                     ${segmentAttr}
+                     data-group-id="${groupId}"
+                     data-item-type="${itemType}"
+                     data-item-key="${escapedItemKey}"
+                     data-item-index="${itemIndex}"
+                     ${segmentAttr}  /* Include the attribute here */
                      ${isChecked ? 'checked' : ''}
                      ${isDisabledFlag ? 'disabled' : ''}>
               <label class="custom-control-label" for="${uniqueId}">
                 <span class="sr-only">${escapeHtml(labelText)}</span>
               </label>
             </div>`;
-        // --- END MODIFICATION ---
     };
 
     // --- Render Normal Wins ---
     if (challengeStructure?.normal && Object.keys(challengeStructure.normal).length > 0) {
-        // Use structure similar to _challenge_group_progress.html
-        html += `
+        // ... (existing normal wins rendering logic - no segmentIndex needed) ...
+         html += `
             <div class="d-flex align-items-center mb-2 text-info">
                 <i class="bi bi-check-circle-fill me-2 fs-5"></i>
                 <h6 class="mb-0 fw-bold small text-uppercase">Normal Wins Progress</h6>
@@ -281,28 +288,29 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
                                 <strong class="small text-light me-2">${escapeHtml(key)}</strong>
                                 <span class="badge bg-secondary rounded-pill fw-normal">${count} needed</span>
                             </div>
-                            <div class="progress-markers ps-4">`; // Indent markers
+                            <div class="progress-markers ps-4">`;
                 for (let i = 0; i < count; i++) {
                     const progressKey = `normal_${key}_${i}`;
                     const isChecked = safeProgressData[progressKey] === true;
-                    html += createCheckboxHtml('normal', key, i, isChecked, isDisabled, `Win ${i + 1} for ${key}`);
+                    // Pass null for segmentIndex for normal items
+                    html += createCheckboxHtml('normal', key, i, isChecked, isDisabled, `Win ${i + 1} for ${key}`, null);
                 }
-                html += `</div></div>`; // Close progress-markers and progress-category
+                html += `</div></div>`;
             }
         });
     }
 
+
     // --- Render B2B Wins ---
     if (challengeStructure?.b2b?.length > 0) {
-        if (html) html += '<hr class="my-3 section-divider">'; // Separator
+        if (html) html += '<hr class="my-3 section-divider">';
         html += `
             <div class="d-flex align-items-center mb-2 text-secondary-accent">
                 <i class="bi bi-arrow-repeat me-2 fs-5"></i>
                 <h6 class="mb-0 fw-bold small text-uppercase">B2B Segment Progress</h6>
             </div>`;
-        challengeStructure.b2b.forEach((seg, segIndex) => {
-            const segmentIdx = segIndex; // 0-based for keys
-            const displaySegmentIdx = segIndex + 1; // 1-based for display
+        challengeStructure.b2b.forEach((seg, segIndex_0based) => { // Use 0-based index from loop
+            const displaySegmentIdx = segIndex_0based + 1; // 1-based for display text
             if (seg?.group && Object.keys(seg.group).length > 0) {
                 html += `<div class="progress-category mb-3 ms-2">
                             <strong class="small d-block text-light mb-1">Segment ${displaySegmentIdx} (${seg.length || 0} wins):</strong>`;
@@ -314,16 +322,17 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
                                         <span class="small text-light me-2">${escapeHtml(key)}</span>
                                         <span class="badge bg-secondary rounded-pill fw-normal">${count} needed</span>
                                     </div>
-                                    <div class="progress-markers ps-4">`; // Indent markers
+                                    <div class="progress-markers ps-4">`;
                         for (let i = 0; i < count; i++) {
-                            const progressKey = `b2b_${segmentIdx}_${key}_${i}`;
+                            const progressKey = `b2b_${segIndex_0based}_${key}_${i}`; // Key still uses 0-based
                             const isChecked = safeProgressData[progressKey] === true;
-                            html += createCheckboxHtml('b2b', key, i, isChecked, isDisabled, `Segment ${displaySegmentIdx} Win ${i + 1} for ${key}`, segmentIdx);
+                            // --- FIX: Pass the 0-based index to the helper ---
+                            html += createCheckboxHtml('b2b', key, i, isChecked, isDisabled, `Segment ${displaySegmentIdx} Win ${i + 1} for ${key}`, segIndex_0based);
                         }
-                        html += `</div></div>`; // Close progress-markers and mb-2 div
+                        html += `</div></div>`;
                     }
                 });
-                html += `</div>`; // Close segment div
+                html += `</div>`;
             }
         });
     }
@@ -381,14 +390,10 @@ export function addGroupToDOM(group, challengeConfig, myGroupContainerEl, otherG
     penaltyDisplayDiv.style.display = initialPenalty ? 'block' : 'none';
     penaltyDisplayDiv.dataset.groupId = group.id; // Ensure group ID is set
 
-    // Render initial progress items (always disabled when first added)
-    if (challengeConfig.coreChallengeStructure) {
-        renderProgressItems(progressContainer, challengeConfig.coreChallengeStructure, group.id, group.progress || {}, false);
-        renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, group.progress || {});
-    } else {
-        progressContainer.innerHTML = '<p class="text-muted small">Challenge structure unavailable.</p>';
-        progressBarContainer.innerHTML = ''; // Clear progress bar too
-    }
+    if (progressContainer) progressContainer.innerHTML = ''; // Ensure it's empty initially
+    if (progressBarContainer) progressBarContainer.innerHTML = ''; // Ensure it's empty initially
+
+
 
     // Clear template button and rely on updateUIAfterMembershipChange to add the correct one
     buttonContainer.innerHTML = '';
@@ -398,6 +403,8 @@ export function addGroupToDOM(group, challengeConfig, myGroupContainerEl, otherG
 
     // Update the overall UI state, which will set the correct button and states for the new card
     updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+
+
 }
 
 /**
@@ -409,132 +416,203 @@ export function addGroupToDOM(group, challengeConfig, myGroupContainerEl, otherG
  * @param {HTMLElement} otherGroupsContainerEl - Container for other available groups.
  */
 export function updateUIAfterMembershipChange(config, myGroupEl, otherGroupsEl) {
-    const yourGroupCards = myGroupEl ? Array.from(myGroupEl.querySelectorAll('.group-card-wrapper')) : [];
-    const otherGroupCards = otherGroupsEl ? Array.from(otherGroupsEl.querySelectorAll('.group-card-wrapper')) : [];
-    const allGroupCards = [...yourGroupCards, ...otherGroupCards];
+    console.log("[UI Update Overhaul] Running. userJoinedGroupId:", config.userJoinedGroupId);
 
-    const noGroupsMsg = document.getElementById('noGroupsMessageContainer');
-    if (noGroupsMsg) noGroupsMsg.classList.toggle('d-none', allGroupCards.length > 0);
+    // Ensure containers exist
+    if (!myGroupEl || !otherGroupsEl) {
+        console.error("[UI Update Overhaul] Critical error: Missing myGroupEl or otherGroupsEl. Cannot update UI.");
+        return; // Stop execution if essential containers are missing
+    }
 
-    if (allGroupCards.length === 0) return; // Exit if no cards to update
+    // Get all potential group IDs from the config
+    const allGroupIds = config.initialGroups?.map(g => g.id) || [];
+    const processedCardIds = new Set(); // Keep track of cards updated this run
 
-    allGroupCards.forEach(cardWrapper => {
-        const card = cardWrapper.querySelector('.card.group-card');
-        if (!card) return;
+    // --- Phase 1: Process and Place Cards Based on Config ---
+    allGroupIds.forEach(cardGroupId => {
+        processedCardIds.add(cardGroupId); // Mark this ID as processed
 
-        const cardGroupId = parseInt(cardWrapper.dataset.groupId, 10);
-        if (isNaN(cardGroupId)) return;
+        // Find the corresponding card wrapper element in the DOM
+        const cardWrapper = document.querySelector(`.group-card-wrapper[data-group-id="${cardGroupId}"]`);
+        const card = cardWrapper?.querySelector('.card.group-card');
 
-        const groupData = config.initialGroups?.find(g => g.id === cardGroupId);
-        const groupProgress = groupData?.progress || {};
-        const isUserMember = (config.userJoinedGroupId === cardGroupId); // Is the CURRENT user viewing this page a member?
-        const memberCount = groupData?.member_count ?? 0;
+        if (!cardWrapper || !card) {
+            console.warn(`[UI Update Overhaul] Card wrapper/card not found in DOM for group ID: ${cardGroupId}. Skipping placement/update.`);
+            return; // Skip if the card element doesn't exist
+        }
+
+        // Get group data and determine user membership for THIS card
+        const groupData = config.initialGroups.find(g => g.id === cardGroupId); // Should find since ID came from config
+        if (!groupData) {
+            console.warn(`[UI Update Overhaul] Config data missing for group ID: ${cardGroupId}. Skipping.`);
+            return;
+        }
+        const isUserMember = (config.userJoinedGroupId === cardGroupId);
+        const groupProgress = groupData.progress || {};
+        const memberCount = groupData.member_count ?? 0;
         const maxPlayers = config.numPlayersPerGroup || 1;
         const isFull = memberCount >= maxPlayers;
-
-        // Determine if the CURRENT viewing user can interact with THIS group's items
-        // User must be logged in, authorized for the challenge, AND a member of THIS specific group.
         const canInteractWithGroupItems = config.isLoggedIn && config.isAuthorized && isUserMember;
 
-        // --- 1. Visual State (Highlighting) ---
+        console.log(`[UI Update Overhaul] Processing Card ID: ${cardGroupId}. Is member? ${isUserMember}. Can interact? ${canInteractWithGroupItems}`);
+
+        // Update Highlighting (can happen regardless of placement)
         cardWrapper.classList.toggle('joined-group-active', isUserMember);
 
-        // --- 2. Penalty Display & Clear Button ---
+        // --- Handle Card Placement ---
+        const currentParent = cardWrapper.parentElement;
+        const targetParent = isUserMember ? myGroupEl : otherGroupsEl;
+        const needsMove = currentParent !== targetParent;
+
+        if (needsMove) {
+            console.log(`[UI Update Overhaul] Moving card ${cardGroupId} to ${isUserMember ? 'My Group' : 'Other Groups'} container.`);
+
+            // Apply correct column classes BEFORE moving
+            if (isUserMember) {
+                cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
+                cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
+            } else {
+                cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
+                cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
+            }
+
+            // Prepend "Your Group" title if moving TO myGroupEl and title doesn't exist
+            if (isUserMember && !myGroupEl.querySelector('h4.your-group-title')) {
+                 const h = Object.assign(document.createElement('h4'), {
+                     className: 'text-primary-accent mb-3 text-center your-group-title', // Added specific class
+                     textContent: 'Your Group'
+                 });
+                 myGroupEl.prepend(h); // Prepend title
+            }
+
+            // Move the element
+            targetParent.appendChild(cardWrapper);
+
+            // Remove "Your Group" title if moving FROM myGroupEl and it becomes empty
+             if (!isUserMember && currentParent === myGroupEl && !myGroupEl.querySelector('.group-card-wrapper')) {
+                  const titleH4 = myGroupEl.querySelector('h4.your-group-title');
+                  if (titleH4) titleH4.remove();
+             }
+        } else {
+            // Even if not moving, ensure correct classes are set (handles initial load case)
+             if (isUserMember) {
+                cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
+                cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
+            } else {
+                cardWrapper.classList.remove(...JOINED_GROUP_COL_CLASSES);
+                cardWrapper.classList.add(...OTHER_GROUP_COL_CLASSES);
+            }
+        }
+        // --- End Card Placement ---
+
+
+        // --- Update Inner Content (Penalty, Progress, Players, Footer) ---
+
+        // Penalty Display & Clear Button
         const penaltyDisplayDiv = cardWrapper.querySelector('.active-penalty-display');
         if (penaltyDisplayDiv) {
-             // Ensure group ID dataset attribute is present
-            penaltyDisplayDiv.dataset.groupId = cardGroupId;
-            updatePenaltyDisplay(cardGroupId, groupData?.active_penalty_text || '');
+            penaltyDisplayDiv.dataset.groupId = cardGroupId; // Ensure ID is set
+            updatePenaltyDisplay(cardGroupId, groupData.active_penalty_text || ''); // Call helper
             let clearButton = penaltyDisplayDiv.querySelector('.clear-penalty-btn');
-            // Show clear button ONLY if the current user can interact with this group
             if (canInteractWithGroupItems) {
-                if (!clearButton) {
+                if (!clearButton) { // Create if doesn't exist
                     clearButton = document.createElement('button');
-                    clearButton.className = 'btn btn-xs btn-outline-light clear-penalty-btn mt-1'; // Adjusted size
+                    clearButton.className = 'btn btn-xs btn-outline-light clear-penalty-btn mt-1';
                     clearButton.dataset.groupId = cardGroupId;
                     clearButton.innerHTML = `<span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Clear</span>`;
-                    const penaltyTextP = penaltyDisplayDiv.querySelector('.penalty-text-content');
-                    if (penaltyTextP) penaltyTextP.insertAdjacentElement('afterend', clearButton);
-                    else penaltyDisplayDiv.appendChild(clearButton); // Append if no text p found
+                    const btnContainer = penaltyDisplayDiv.querySelector('.penalty-clear-button-container'); // Target specific container
+                    if (btnContainer) btnContainer.appendChild(clearButton);
+                    else penaltyDisplayDiv.appendChild(clearButton); // Fallback append
                 }
-                // Show button only if there IS an active penalty text
-                 clearButton.style.display = (groupData?.active_penalty_text) ? 'inline-block' : 'none';
+                clearButton.style.display = (groupData.active_penalty_text) ? 'inline-block' : 'none';
             } else if (clearButton) {
-                clearButton.remove(); // Remove if not authorized/member
+                clearButton.remove();
             }
         }
 
+        // Progress Checkboxes
+        const progressContainer = cardWrapper.querySelector('.group-progress-container');
+        if (progressContainer && config.coreChallengeStructure) {
+            renderProgressItems(progressContainer, config.coreChallengeStructure, cardGroupId, groupProgress, canInteractWithGroupItems);
+        } else if (progressContainer) {
+            progressContainer.innerHTML = '<p class="text-muted small">Challenge structure unavailable.</p>';
+        }
 
-        // --- 3. Progress Checkbox Interactivity ---
-        const checkBoxes = cardWrapper.querySelectorAll('.progress-checkbox');
-        // Checkboxes enabled only if user can interact with this group's items
-        checkBoxes.forEach(cb => cb.disabled = !canInteractWithGroupItems);
-
-        // --- 4. Player Name Section ---
+        // Player Names Section
         const playerNamesSection = card.querySelector('.player-names-section');
-        if (playerNamesSection) {
-            // Show/render inputs ONLY if the current user can interact with this group
-            if (config.isMultigroup && canInteractWithGroupItems) {
-                 // Check if function exists before calling
+         if (playerNamesSection) {
+            // Show player names section if user is a member and authorized
+             if (canInteractWithGroupItems) {
                  if (typeof renderPlayerNameInputs === "function") {
-                    renderPlayerNameInputs(
-                        playerNamesSection, cardGroupId,
-                        groupData?.player_names || [], maxPlayers
-                    );
+                     renderPlayerNameInputs(playerNamesSection, cardGroupId, groupData.player_names || [], maxPlayers);
                  } else {
-                    console.error("renderPlayerNameInputs function is not defined or imported.");
-                    playerNamesSection.innerHTML = '<p class="text-danger small">UI Error: Cannot render player inputs.</p>';
-                    playerNamesSection.style.display = 'block'; // Show error
+                     console.error("renderPlayerNameInputs function is not defined or imported.");
+                     playerNamesSection.innerHTML = '<p class="text-danger small">UI Error: Cannot render player inputs.</p>';
+                     playerNamesSection.style.display = 'block';
                  }
-            } else { // Hide otherwise
-                playerNamesSection.style.display = 'none';
-                const inputsContainer = playerNamesSection.querySelector('.player-name-inputs');
-                if (inputsContainer) inputsContainer.innerHTML = ''; // Clear inputs if hidden
-            }
+             } else { // Hide otherwise
+                 playerNamesSection.style.display = 'none';
+                 const inputsContainer = playerNamesSection.querySelector('.player-name-inputs');
+                 if (inputsContainer) inputsContainer.innerHTML = '';
+             }
         }
 
-
-        // --- 5. Footer Button State (Join/Leave/Full/Login/Unauthorized) ---
+        // Footer Button State
         const footer = card.querySelector('.card-footer.join-leave-footer');
         if (footer) {
-            footer.innerHTML = ''; // Clear previous button
+            footer.innerHTML = ''; // Clear previous
             let buttonHtml = '';
-            const loginUrl = `/auth/login?next=${window.location.pathname}`; // Redirect back here
+            const loginUrl = `/auth/login?next=${encodeURIComponent(window.location.pathname)}`; // Ensure path is encoded
 
-            if (!config.isMultigroup) { /* No button needed for single group mode */ }
-            else if (isUserMember) { // User IS a member of THIS group
-                // Only show Leave if logged in and authorized (redundant check, but safe)
-                if (config.isLoggedIn && config.isAuthorized) {
-                    buttonHtml = `<button class="btn btn-sm btn-danger leave-group-btn" data-group-id="${cardGroupId}"><span class="spinner-border spinner-border-sm"></span><span>Leave Group</span></button>`;
-                } else {
-                    // Should ideally not happen if joined, but provide login link as fallback
-                     buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Leave</a>`;
-                }
-            } else { // User is NOT a member of THIS group
-                if (!config.isLoggedIn) { // Needs login first
-                    buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Join</a>`;
-                } else if (!config.isAuthorized) { // Logged in, but not authorized for *this challenge*
-                    buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled title="You are not authorized by the creator for this challenge."><span>Join (Unauthorized)</span></button>`;
-                } else if (config.userJoinedGroupId !== null) { // Logged in, authorized, but already in *another* group
-                    buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled title="You are already in another group for this challenge."><span>Joined Other</span></button>`;
-                } else if (isFull) { // Logged in, authorized, not in another group, but *this group* is full
-                    buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled><span>Full (${memberCount}/${maxPlayers})</span></button>`;
-                } else { // Logged in, authorized, not in another group, group not full -> CAN JOIN
-                    buttonHtml = `<button class="btn btn-sm btn-success join-group-btn" data-group-id="${cardGroupId}"><span class="spinner-border spinner-border-sm"></span><span>Join (${memberCount}/${maxPlayers})</span></button>`;
-                }
-            }
-            footer.innerHTML = buttonHtml; // Set the appropriate button/message
+            // Only show buttons for SHARED challenges
+            if (!config.isLocal) {
+                 if (isUserMember) { // User IS a member of THIS group
+                     if (config.isLoggedIn && config.isAuthorized) {
+                         buttonHtml = `<button class="btn btn-sm btn-danger leave-group-btn" data-group-id="${cardGroupId}"><span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Leave Group</span></button>`;
+                     } else { buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Leave</a>`; }
+                 } else { // User is NOT a member of THIS group
+                     if (!config.isLoggedIn) { buttonHtml = `<a href="${loginUrl}" class="btn btn-sm btn-outline-primary">Log in to Join</a>`; }
+                     else if (!config.isAuthorized) { buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled title="Not authorized for this challenge."><span>Join (Unauthorized)</span></button>`; }
+                     else if (config.userJoinedGroupId !== null) { buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled title="Already in another group."><span>Joined Other</span></button>`; }
+                     else if (isFull) { buttonHtml = `<button class="btn btn-sm btn-outline-secondary" disabled><span>Full (${memberCount}/${maxPlayers})</span></button>`; }
+                     else { buttonHtml = `<button class="btn btn-sm btn-success join-group-btn" data-group-id="${cardGroupId}"><span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Join (${memberCount}/${maxPlayers})</span></button>`; }
+                 }
+             }
+            footer.innerHTML = buttonHtml;
         }
 
-        // --- 6. Progress Bar Update ---
-         // Ensure progressBarContainer ID matches the one set in addGroupToDOM
+        // Progress Bar Update
         const progressBarContainer = cardWrapper.querySelector(`#progressBarContainer-${cardGroupId}`);
-        if (progressBarContainer && config.coreChallengeStructure) {
+         if (progressBarContainer && config.coreChallengeStructure) {
             renderOrUpdateProgressBar(progressBarContainer, config.coreChallengeStructure, groupProgress);
         } else if (progressBarContainer) {
             progressBarContainer.innerHTML = '<p class="text-muted small mb-0">Progress unavailable.</p>';
         }
-    }); // End forEach card
+
+    }); // End forEach group ID
+
+    // --- Phase 2: Cleanup - Remove any card elements in the DOM that are no longer in the config ---
+    const allCurrentCardElements = document.querySelectorAll('.group-card-wrapper');
+    allCurrentCardElements.forEach(cardEl => {
+        const cardId = parseInt(cardEl.dataset.groupId, 10);
+        if (!processedCardIds.has(cardId)) {
+            console.warn(`[UI Update Overhaul] Removing stale card element from DOM: ID ${cardId}`);
+            cardEl.remove();
+        }
+    });
+
+    // --- Phase 3: Final UI State Checks ---
+    // Ensure "Your Group" title is removed if myGroupEl is empty after all updates/cleanup
+    if (!myGroupEl.querySelector('.group-card-wrapper')) {
+        const titleH4 = myGroupEl.querySelector('h4.your-group-title');
+        if (titleH4) titleH4.remove();
+    }
+    // Update the "No Groups" message based on final visibility of cards
+    const anyVisibleCards = document.querySelector('.group-card-wrapper');
+    const noGroupsMsg = document.getElementById('noGroupsMessageContainer');
+    if (noGroupsMsg) noGroupsMsg.classList.toggle('d-none', !!anyVisibleCards);
+
+    console.log("[UI Update Overhaul] Finished.");
 }
 
 
@@ -563,7 +641,7 @@ export function renderPlayerNameInputs(container, groupId, currentNames = [], nu
         errorContainer.className = 'player-name-error text-danger small mt-1';
         container.appendChild(errorContainer); // Append error after inputs
     }
-     if (!saveBtnContainer) {
+    if (!saveBtnContainer) {
         saveBtnContainer = document.createElement('div');
         saveBtnContainer.className = 'player-name-save-btn-container mt-2'; // Add class for styling if needed
         container.appendChild(saveBtnContainer); // Append button container last
