@@ -4,54 +4,77 @@
 {% block title %}Register - Win Challenge Generator{% endblock %}
 
 {% block content %}
+{# Centering container #}
 <div class="d-flex justify-content-center align-items-center" style="min-height: 80vh;">
-  <div class="card shadow-sm" style="max-width: 400px; width: 100%;">
-    <div class="card-body p-4">
-      <h3 class="card-title text-center mb-4">Register</h3>
+  {# Card with consistent styling and glass effect #}
+  <div class="card shadow-sm glass-effect" style="max-width: 400px; width: 100%;">
+    <div class="card-body p-4 p-lg-5"> {# Added more padding on larger screens #}
+      <h3 class="card-title text-center fw-bold mb-4">Create Your Account</h3> {# Bolder title #}
 
       {# Flash messages #}
       {% include '_flash_messages.html' ignore missing %}
 
-      <form method="POST" action="{{ url_for('auth.register') }}">
+      <form method="POST" action="{{ url_for('auth.register') }}" novalidate> {# Added novalidate #}
         {{ form.hidden_tag() }}
 
         <div class="mb-3">
           {{ render_field(
               form.username,
               class="form-control form-control-sm",
-              placeholder="Username (min 6 chars)",
-              value=request.form.get('username', '')
-          ) }}
+              placeholder="Choose a Username (min 6 chars)",
+              value=request.form.get('username', ''),
+              autocomplete="username"
+          ) }} {# Comment moved outside #}
+          <small class="form-text text-secondary mt-1">
+              A unique #Tag (e.g., #1234) will be added automatically. You'll need the full Username#Tag to log in.
+          </small>
         </div>
+
+        {# --- New Email Field --- #}
+        <div class="mb-3">
+           {{ render_field(
+               form.email,
+               class="form-control form-control-sm",
+               placeholder="Your Email Address",
+               autocomplete="email"
+           ) }}
+        </div>
+        {# --- End Email Field --- #}
+
         <div class="mb-3">
           {{ render_field(
               form.password,
               class="form-control form-control-sm",
-              placeholder="Password (min 6 chars, 1 letter, 1 number)"
-          ) }}
+              placeholder="Password (min 6 chars, 1 letter, 1 number)",
+              autocomplete="new-password"
+          ) }} {# Comment moved outside #}
         </div>
-        <div class="mb-3">
+
+        <div class="mb-4"> {# Increased bottom margin #}
           {{ render_field(
               form.confirm_password,
               class="form-control form-control-sm",
-              placeholder="Confirm Password"
-          ) }}
+              placeholder="Confirm Password",
+              autocomplete="new-password"
+          ) }} {# Comment moved outside #}
         </div>
 
-        {# reCAPTCHA if enabled #}
+        {# reCAPTCHA - centered #}
         {% if recaptcha_enabled and recaptcha_public_key %}
-          <div class="mb-3 d-flex justify-content-center">
+          <div class="mb-4 d-flex justify-content-center"> {# Increased bottom margin #}
             <div class="g-recaptcha" data-sitekey="{{ recaptcha_public_key }}"></div>
           </div>
         {% endif %}
 
-        <div class="d-grid">
-          {{ form.submit(class="btn btn-primary btn-sm") }}
+        {# Full-width submit button #}
+        <div class="d-grid mb-3">
+          {{ form.submit(class="btn btn-primary") }} {# Removed btn-sm #}
         </div>
       </form>
 
-      <p class="mt-3 text-center mb-0">
-        Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a>.
+      {# Link to login page #}
+      <p class="mt-3 text-center small mb-0"> {# Use small text #}
+        Already have an account? <a href="{{ url_for('auth.login') }}" class="link-primary-accent">Login here</a>. {# Use accent color for link #}
       </p>
     </div>
   </div>

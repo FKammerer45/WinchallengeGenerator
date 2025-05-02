@@ -10,7 +10,7 @@ from sqlalchemy.orm import relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 # Removed: from .database import Base # No longer needed
 from app import db # Import the db instance from app/__init__.py
-
+from flask_login import UserMixin
 logger = logging.getLogger(__name__)
 
 # Association Table for User <-> ChallengeGroup Membership
@@ -111,13 +111,17 @@ class Penalty(db.Model):
 # Consider adding UserMixin for Flask-Login standard methods
 # from flask_login import UserMixin 
 # class User(db.Model, UserMixin): 
-class User(db.Model):
+class User(db.Model, UserMixin):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     twitch_id = Column(String(50), unique=True, nullable=True, index=True)
     password_hash = Column(String(255), nullable=False) # Consider increasing length for future hash algorithms
     overlay_api_key = Column(String(64), unique=True, nullable=True, index=True)
+    email = Column(String(120), unique=True, nullable=False, index=True)
+    confirmed = Column(Boolean, nullable=False, default=False)
+    confirmed_on = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships using db.relationship
     created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select")
     joined_groups = db.relationship(
