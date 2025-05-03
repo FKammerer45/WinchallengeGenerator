@@ -7,14 +7,34 @@
     <div class="card shadow-sm glass-effect mx-auto" style="max-width: 500px;">
         <div class="card-body p-5">
             <h1 class="h3 mb-3">Account Confirmation Required</h1>
+
+            {# --- Display Rate Limit Error if present --- #}
+            {% if rate_limit_error %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-clock-history me-1"></i>
+                Too many resend requests. Please wait 5 minutes before trying again.
+            </div>
+            {% endif %}
+            {# --- End Error Display --- #}
+
+            {# Display standard flash messages as well #}
+            {% include '_flash_messages.html' ignore missing %}
+
             <p class="text-secondary">
-                Before you can fully use your account, please check your email (<strong>{{ current_user.email }}</strong>)
+                Before you can fully use your account, please check your email
+                {# Check if current_user exists before accessing email #}
+                {% if current_user and current_user.is_authenticated %}
+                 (<strong>{{ current_user.email }}</strong>)
+                {% endif %}
                 for a confirmation link.
             </p>
             <p class="text-secondary mb-4">
                 If you haven't received the email after a few minutes (check your spam folder!), you can request another one.
             </p>
+
+            {# The resend button #}
             <a href="{{ url_for('auth.resend_confirmation') }}" class="btn btn-primary">Resend Confirmation Email</a>
+
             <hr class="my-4">
             <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-secondary">Logout</a>
         </div>

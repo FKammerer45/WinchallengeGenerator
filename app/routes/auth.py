@@ -9,8 +9,9 @@ from werkzeug.security import generate_password_hash # Keep generate_password_ha
 import random
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
+from werkzeug.exceptions import TooManyRequests
 # Import db instance and models
-from app import db
+from app import db, limiter
 from app.models import User, SavedGameTab, SavedPenaltyTab 
 
 # Import utilities
@@ -260,8 +261,9 @@ def unconfirmed():
 # --- New Route: Resend Confirmation Email ---
 @auth.route('/resend')
 @login_required
+@limiter.limit("1 per 5 minutes", key_func=lambda: current_user.get_id())
 def resend_confirmation():
-    """Resends the confirmation email to the logged-in user."""
+    """Resends the confirmation email to the logged-in user (Rate Limited)."""
     if current_user.confirmed:
         flash('Your account is already confirmed.', 'info')
         return redirect(url_for('main.index'))
@@ -270,7 +272,6 @@ def resend_confirmation():
         token = generate_confirmation_token(current_user.email)
         confirm_url = url_for('auth.confirm_email', token=token, _external=True)
         email_context = {'confirm_url': confirm_url, 'username': current_user.username}
-
         send_email(
             to=current_user.email,
             subject="Confirm Your Email Address (Resend)",
@@ -283,9 +284,24 @@ def resend_confirmation():
         logger.exception(f"Error resending confirmation email for user '{current_user.username}'")
         flash('An error occurred while resending the confirmation email. Please try again later.', 'danger')
 
-    # Redirect back to where they came from or a specific page
-    return redirect(url_for('auth.unconfirmed')) # Or main.index
+    return redirect(url_for('auth.unconfirmed'))
 
+@auth.app_errorhandler(TooManyRequests) # Use blueprint-specific handler
+def handle_rate_limit_exceeded(e):
+    """Handles the 429 error specifically for rate limits."""
+    # Check if the rate limit was triggered on the resend endpoint
+    if request.endpoint == 'auth.resend_confirmation':
+        # Flash a message (optional, as the template will show a persistent one)
+        # flash("Too many resend requests. Please wait 5 minutes.", "warning")
+        logger.warning(f"Rate limit exceeded for resend confirmation by user {current_user.get_id()}")
+        # Re-render the unconfirmed page with an error flag
+        return render_template('auth/unconfirmed.html', rate_limit_error=True), 429
+    else:
+        # For other rate-limited endpoints, you might want a generic response
+        # or let the default Flask-Limiter behavior handle it (which might be just the 429 response)
+        # Returning the error description is a simple default
+        return f"Rate limit exceeded: {e.description}", 429
+    
 @auth.route('/change_password', methods=['GET', 'POST'])
 @login_required 
 def change_password():

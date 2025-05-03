@@ -1,11 +1,14 @@
 # app/__init__.py
 import eventlet
 
+# --- Eventlet Patching (Keep at the very top) ---
 if not eventlet.patcher.is_monkey_patched('socket'):
     print("--- Patching standard libraries for eventlet ---")
     eventlet.monkey_patch()
 else:
     print("--- Standard libraries already patched for eventlet ---")
+# --- End Eventlet Patching ---
+
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -14,7 +17,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_socketio import SocketIO 
+from flask_socketio import SocketIO
 from flask_mail import Mail
 from config import config
 import logging
@@ -25,11 +28,16 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 migrate = Migrate()
-# Initialize SocketIO - async_mode='eventlet' is recommended for performance
-# Ensure CORS allows your frontend origin, or use "*" for development
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
-
 mail = Mail()
+# --- Initialize Limiter globally (simpler init) ---
+limiter = Limiter(
+    key_func=get_remote_address,
+    # Default limits and storage URI will be read from app config via init_app
+    # headers_enabled will also be read from config if set (defaults to False)
+)
+# --- End Limiter Init ---
+
 # Configure login manager
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
@@ -37,18 +45,14 @@ login_manager.login_message_category = 'info'
 # User loader callback
 @login_manager.user_loader
 def load_user(user_id):
-    """Loads user object from user ID stored in the session."""
-    from .models import User # Keep import local to function
+    from .models import User
     try:
-        # Use db.session.get for primary key lookup
         return db.session.get(User, int(user_id))
     except (TypeError, ValueError):
         return None
 
 # App Factory
 def create_app(config_name=None):
-    # Patch standard libraries for eventlet BEFORE creating app
-    # Check if already patched to avoid issues during reloads
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
         if config_name not in config:
@@ -56,13 +60,11 @@ def create_app(config_name=None):
             config_name = 'default'
 
     print(f"--- Loading configuration: '{config_name}' ---")
-
     app = Flask(__name__)
 
     try:
         app.config.from_object(config[config_name])
         print(f"--- Configuration loaded successfully for '{config_name}' ---")
-        # ... (logging setup if needed) ...
     except KeyError:
         print(f"Error: Configuration name '{config_name}' not found. Using 'default'.")
         config_name = 'default'
@@ -73,16 +75,12 @@ def create_app(config_name=None):
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
-    # Initialize Limiter here, passing the app instance
-    limiter = Limiter(
-        app=app, # Pass app here
-        key_func=get_remote_address,
-        storage_uri=app.config.get('RATELIMIT_STORAGE_URL', 'memory://'),
-        default_limits=["120 per minute"], # Example limit
-        headers_enabled=True,
-    )
-    socketio.init_app(app) 
+    socketio.init_app(app)
     mail.init_app(app)
+    # --- Configure the *global* limiter instance with the app ---
+    limiter.init_app(app)
+    # --- End Limiter Config ---
+
     # Import and register blueprints
     from .routes.main import main
     app.register_blueprint(main)
@@ -98,19 +96,18 @@ def create_app(config_name=None):
     app.register_blueprint(penalties_api, url_prefix='/api/penalties')
     from .routes.tabs_api import tabs_api
     app.register_blueprint(tabs_api, url_prefix='/api/tabs')
-
-    # --- FIX: Import payment_bp *before* registering ---
     from .routes.payment import payment_bp
-    app.register_blueprint(payment_bp, url_prefix='/payment') # Now register
-    # --- END FIX ---
-
+    app.register_blueprint(payment_bp, url_prefix='/payment')
     from .routes.profile import profile_bp
-    app.register_blueprint(profile_bp) # No prefix needed if defined in blueprint
+    app.register_blueprint(profile_bp)
 
-    # --- Import and register SocketIO event handlers ---
-    # This import triggers the execution of decorators in sockets.py
+    # Import and register SocketIO event handlers
     from . import sockets
     print("--- SocketIO event handlers registered (imported sockets.py) ---")
+
+    # Import and register CLI commands
+    from .commands import register_commands
+    register_commands(app)
 
     print("--- Application creation complete ---")
     return app
