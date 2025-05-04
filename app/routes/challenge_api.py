@@ -28,6 +28,27 @@ logger = logging.getLogger(__name__)
 # Define the blueprint - RENAME VARIABLE to challenge_api
 challenge_api = Blueprint('challenge_api', __name__, url_prefix='/api/challenge') 
 
+def _initialize_player_slots(group):
+    """Ensures player_names is a list of dicts matching num_players_per_group."""
+    if not group or not group.shared_challenge:
+        return [] # Cannot initialize without challenge context
+
+    num_slots = group.shared_challenge.num_players_per_group
+    current_slots = group.player_names
+
+    # Check if it's already in the new format (list of dicts)
+    if isinstance(current_slots, list) and all(isinstance(s, dict) for s in current_slots):
+        # Pad or truncate if needed
+        if len(current_slots) < num_slots:
+            current_slots.extend([{"display_name": "", "account_name": None} for _ in range(num_slots - len(current_slots))])
+        elif len(current_slots) > num_slots:
+            current_slots = current_slots[:num_slots]
+        return current_slots
+    else:
+        # If it's old format (list of strings) or None/invalid, create fresh list
+        logger.warning(f"Player names for group {group.id} not in expected format. Initializing fresh.")
+        return [{"display_name": "", "account_name": None} for _ in range(num_slots)]
+
 def is_user_authorized(challenge, user):
     """Checks if a user is the creator or in the authorized list."""
     if not user or not user.is_authenticated:
@@ -489,11 +510,10 @@ def update_group_progress(public_id, group_id):
 @challenge_api.route("/groups/<int:group_id>/join", methods=["POST"])
 @login_required
 def join_group(group_id):
-    """Allows the logged-in user to join a specific group for its challenge."""
+    """Allows the logged-in user to join a specific group and assigns them to a player slot."""
     logger.info(f"User {current_user.username} attempting to join group {group_id}")
-    user_overlay_sid = None # Variable to store the SID if found
+    user_overlay_sid = None
     try:
-        # Use db.session directly
         group = db.session.query(ChallengeGroup).options(
             selectinload(ChallengeGroup.members),
             joinedload(ChallengeGroup.shared_challenge)
@@ -501,84 +521,87 @@ def join_group(group_id):
                 .selectinload(ChallengeGroup.members)
         ).get(group_id)
 
-        if not group:
-            return jsonify({"error": "Group not found."}), 404
-
+        if not group: return jsonify({"error": "Group not found."}), 404
         challenge = group.shared_challenge
-        if not challenge:
-            return jsonify({"error": "Challenge associated with group not found."}), 500
+        if not challenge: return jsonify({"error": "Challenge associated with group not found."}), 500
 
         if not is_user_authorized(challenge, current_user):
-            # ... (authorization error handling) ...
             return jsonify({"error": "You are not authorized to join groups for this challenge."}), 403
 
-        # --- Business Logic Checks (same as before) ---
-        if len(group.members) >= challenge.num_players_per_group:
-             if not any(member.id == current_user.id for member in group.members):
-                # ... (group full error handling) ...
-                return jsonify({"error": "This group is already full."}), 409 # 409 Conflict
+        is_already_member_this_group = any(member.id == current_user.id for member in group.members)
 
-        user_already_in_group = False
-        current_challenge_group_id = None
+        if not is_already_member_this_group and len(group.members) >= challenge.num_players_per_group:
+             return jsonify({"error": "This group is already full."}), 409
+
+        user_already_in_another_group = False
         for sibling_group in challenge.groups:
-            if any(member.id == current_user.id for member in sibling_group.members):
-                user_already_in_group = True
-                current_challenge_group_id = sibling_group.id
+            if sibling_group.id != group_id and any(member.id == current_user.id for member in sibling_group.members):
+                user_already_in_another_group = True
                 break
+        if user_already_in_another_group:
+            return jsonify({"error": "You are already in another group for this challenge."}), 409
 
-        if user_already_in_group and current_challenge_group_id != group_id:
-            # ... (already in another group error handling) ...
-            return jsonify({"error": "You are already in another group for this challenge."}), 409 # 409 Conflict
-
-        # --- Add user to group if not already a member ---
-        user_needs_adding = not any(member.id == current_user.id for member in group.members)
-        if user_needs_adding:
+        user_needs_adding_to_members = not is_already_member_this_group
+        if user_needs_adding_to_members:
             user_to_add = db.session.get(User, current_user.id)
             if user_to_add:
                  group.members.append(user_to_add)
-                 logger.info(f"Adding user {current_user.username} to group {group_id}")
-                 db.session.commit() # Commit the membership change
-
-                 # --- Find User's Overlay SID and Emit Updated State ---
-                 user_id_to_notify = current_user.id
-                 challenge_to_update = group.shared_challenge # Get the challenge object
-
-                 # Find SID associated with this user ID
-                 for sid, info in connected_overlays.items():
-                     if info.get('user_id') == user_id_to_notify and info.get('challenge_id') == challenge_to_update.id:
-                         user_overlay_sid = sid
-                         break # Found the SID
-
-                 if user_overlay_sid:
-                     logger.info(f"Found overlay SID {user_overlay_sid} for user {user_id_to_notify}. Emitting updated state.")
-                     # Generate the fresh state data for this user
-                     # Need to reload challenge with necessary relationships for the helper function
-                     challenge_reloaded = db.session.query(SharedChallenge).options(
-                          selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
-                     ).get(challenge_to_update.id) # Reload within the current session
-
-                     if challenge_reloaded:
-                          new_state_data = get_challenge_state_for_overlay(challenge_reloaded, user_id_to_notify)
-                          if new_state_data:
-                              # Use socketio instance imported from sockets.py
-                              socketio.emit('initial_state', new_state_data, to=user_overlay_sid)
-                              logger.debug(f"Sent updated initial_state to SID {user_overlay_sid}")
-                          else:
-                              logger.error(f"Failed to generate updated state for user {user_id_to_notify}, SID {user_overlay_sid}")
-                     else:
-                           logger.error(f"Failed to reload challenge {challenge_to_update.id} for state update.")
-
-                 else:
-                     logger.warning(f"Could not find active overlay SID for user {user_id_to_notify} in challenge {challenge_to_update.id} to send update.")
-                 # --- End SID and Emit Logic ---
-
-                 return jsonify({"status": "success", "message": f"Successfully joined group '{group.group_name}'."}), 200
+                 logger.info(f"Adding user {current_user.username} to group {group_id} members list.")
             else:
-                 # ... (error handling re-fetching user) ...
+                 logger.error(f"Could not re-fetch user {current_user.id} to add to members.")
                  return jsonify({"error": "Failed to process join request due to server error."}), 500
-        else:
-            # ... (already a member message) ...
-            return jsonify({"status": "success", "message": "You are already in this group."}), 200
+
+        player_slots = _initialize_player_slots(group)
+        assigned_slot = False
+        is_already_in_slot = any(slot.get("account_name") == current_user.username for slot in player_slots)
+
+        if not is_already_in_slot:
+            for i, slot in enumerate(player_slots):
+                if not slot.get("account_name"):
+                    player_slots[i]["account_name"] = current_user.username
+                    player_slots[i]["display_name"] = current_user.username
+                    assigned_slot = True
+                    logger.info(f"Assigned user {current_user.username} to slot {i} in group {group_id}.")
+                    break
+            if not assigned_slot:
+                 logger.warning(f"Could not find an empty player slot for user {current_user.username} in group {group_id}, although group wasn't full.")
+
+        if user_needs_adding_to_members or assigned_slot:
+            group.player_names = player_slots
+            flag_modified(group, "player_names")
+            db.session.commit()
+            # --- Emit WebSocket Update (existing logic) ---
+            # ...
+            user_id_to_notify = current_user.id
+            challenge_to_update = group.shared_challenge
+            for sid, info in connected_overlays.items():
+                 if info.get('user_id') == user_id_to_notify and info.get('challenge_id') == challenge_to_update.id:
+                     user_overlay_sid = sid
+                     break
+            if user_overlay_sid:
+                 logger.info(f"Found overlay SID {user_overlay_sid} for user {user_id_to_notify}. Emitting updated state.")
+                 challenge_reloaded = db.session.query(SharedChallenge).options(selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)).get(challenge_to_update.id)
+                 if challenge_reloaded:
+                      new_state_data = get_challenge_state_for_overlay(challenge_reloaded, user_id_to_notify)
+                      if new_state_data: socketio.emit('initial_state', new_state_data, to=user_overlay_sid); logger.debug(f"Sent updated initial_state to SID {user_overlay_sid}")
+                      else: logger.error(f"Failed to generate updated state for user {user_id_to_notify}, SID {user_overlay_sid}")
+                 else: logger.error(f"Failed to reload challenge {challenge_to_update.id} for state update.")
+            else: logger.warning(f"Could not find active overlay SID for user {user_id_to_notify} in challenge {challenge_to_update.id} to send update.")
+
+
+        # --- UPDATED RESPONSE ---
+        # Return the updated player_names list along with success status
+        response_data = {
+            "status": "success",
+            "message": f"Successfully joined group '{group.group_name}'." if user_needs_adding_to_members else "You are already in this group.",
+            "group_data": { # Include updated group data
+                 "id": group.id,
+                 "player_names": player_slots, # Send the latest player slots
+                 "member_count": len(group.members) # Send the latest member count
+            }
+        }
+        return jsonify(response_data), 200
+        # --- END UPDATED RESPONSE ---
 
     except Exception as e:
         db.session.rollback()
@@ -586,29 +609,29 @@ def join_group(group_id):
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 
-# --- *** NEW: LEAVE GROUP ENDPOINT *** ---
-# Update decorator to use the new blueprint name
+
 @challenge_api.route("/groups/<int:group_id>/leave", methods=["POST"])
 @login_required
 def leave_group(group_id):
-    """Allows the logged-in user to leave a specific group they are a member of."""
+    """Allows the logged-in user to leave a specific group and clears their player slot."""
     logger.info(f"User {current_user.username} attempting to leave group {group_id}")
     user_overlay_sid = None
     try:
+        # Eager load relationships
         group = db.session.query(ChallengeGroup).options(
             selectinload(ChallengeGroup.members),
-            joinedload(ChallengeGroup.shared_challenge) # Also load challenge here
+            joinedload(ChallengeGroup.shared_challenge)
         ).get(group_id)
-        if not group:
-            return jsonify({"error": "Group not found."}), 404
 
+        if not group: return jsonify({"error": "Group not found."}), 404
         challenge = group.shared_challenge
-        if not challenge: return jsonify({"error": "Challenge not found."}), 500 # Should not happen
+        if not challenge: return jsonify({"error": "Challenge not found."}), 500
 
+        # Authorization Check
         if not is_user_authorized(challenge, current_user):
             return jsonify({"error": "Not authorized for this challenge."}), 403
 
-
+        # --- Remove User from Members List ---
         user_to_remove = None
         for member in group.members:
             if member.id == current_user.id:
@@ -617,10 +640,32 @@ def leave_group(group_id):
 
         if user_to_remove:
             group.members.remove(user_to_remove)
-            logger.info(f"Removing user {current_user.username} from group {group_id}")
-            db.session.commit() # Commit the change
+            logger.info(f"Removing user {current_user.username} from group {group_id} members list.")
+        else:
+            # User wasn't in members list, maybe just clearing slot? Allow proceeding.
+            logger.warning(f"User {current_user.username} tried to leave group {group_id} but was not in members list.")
+            # Return error if you want to prevent leaving if not a member:
+            # return jsonify({"error": "You are not a member of this group."}), 403
 
-            # --- Find SID and Emit Update (similar to join) ---
+        # --- Clear User from Player Slot ---
+        player_slots = _initialize_player_slots(group) # Get normalized list
+        slot_cleared = False
+        for i, slot in enumerate(player_slots):
+            if slot.get("account_name") == current_user.username:
+                player_slots[i]["account_name"] = None
+                player_slots[i]["display_name"] = "" # Clear display name too
+                slot_cleared = True
+                logger.info(f"Cleared user {current_user.username} from slot {i} in group {group_id}.")
+                break # Assuming user can only occupy one slot
+
+        # --- Update Database ---
+        if user_to_remove or slot_cleared: # Only commit if something changed
+            group.player_names = player_slots # Assign the potentially modified list
+            flag_modified(group, "player_names") # Mark JSON column as modified
+            db.session.commit() # Commit membership and slot changes
+
+            # --- Emit WebSocket Update ---
+            # ... (existing SID finding and emit logic) ...
             user_id_to_notify = current_user.id
             challenge_to_update = group.shared_challenge
             for sid, info in connected_overlays.items():
@@ -629,14 +674,10 @@ def leave_group(group_id):
                      break
             if user_overlay_sid:
                  logger.info(f"Found overlay SID {user_overlay_sid} for user {user_id_to_notify} after leaving group. Emitting updated state.")
-                 challenge_reloaded = db.session.query(SharedChallenge).options(
-                     selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
-                 ).get(challenge_to_update.id)
+                 challenge_reloaded = db.session.query(SharedChallenge).options(selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)).get(challenge_to_update.id)
                  if challenge_reloaded:
                      new_state_data = get_challenge_state_for_overlay(challenge_reloaded, user_id_to_notify)
-                     if new_state_data:
-                         socketio.emit('initial_state', new_state_data, to=user_overlay_sid)
-                         logger.debug(f"Sent updated initial_state to SID {user_overlay_sid} after leave")
+                     if new_state_data: socketio.emit('initial_state', new_state_data, to=user_overlay_sid); logger.debug(f"Sent updated initial_state to SID {user_overlay_sid} after leave")
                      else: logger.error(f"Failed to generate updated state after leave for SID {user_overlay_sid}")
                  else: logger.error(f"Failed to reload challenge {challenge_to_update.id} after leave.")
             else: logger.warning(f"Could not find active overlay SID for user {user_id_to_notify} after leave.")
@@ -644,65 +685,95 @@ def leave_group(group_id):
 
             return jsonify({"status": "success", "message": f"Successfully left group '{group.group_name}'."}), 200
         else:
-            return jsonify({"error": "You are not a member of this group."}), 403
+            # If user wasn't a member and wasn't in a slot, return appropriate message
+            return jsonify({"error": "You were not found in this group's member list or player slots."}), 403
+
 
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Error leaving group {group_id} for user {current_user.username}: {e}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
+
 # Update decorator to use the new blueprint name
-@challenge_api.route("/groups/<int:group_id>/players", methods=["POST"]) 
+@challenge_api.route("/groups/<int:group_id>/players", methods=["POST"])
 @login_required
 def update_group_players(group_id):
-    """Updates the list of player names for a specific group."""
-    logger.info(f"User {current_user.username} attempting to update players for group {group_id}")
+    """Updates ONLY the display names for player slots in a specific group."""
+    logger.info(f"User {current_user.username} attempting to update player display names for group {group_id}")
+
+    # --- Refined Validation ---
     data = request.get_json()
+    if data is None:
+        logger.warning(f"Update players request for group {group_id} did not contain valid JSON data or correct Content-Type header.")
+        # Return a more specific error message
+        return jsonify({"error": "Invalid request format. Expected JSON data with Content-Type: application/json."}), 400
 
-    if not data or not isinstance(data.get('player_names'), list):
-        return jsonify({"error": "Invalid request. JSON data with 'player_names' (list) required."}), 400
+    # Check specifically for the 'player_display_names' key and if it's a list
+    if not isinstance(data.get('player_display_names'), list):
+        logger.warning(f"Update players request for group {group_id} missing 'player_display_names' list in JSON payload. Received: {data}")
+        # Update the error message to reflect the expected key
+        return jsonify({"error": "Invalid request. JSON data must contain 'player_display_names' (as a list)."}), 400
+    # --- End Refined Validation ---
 
-    player_names = [str(name).strip() for name in data['player_names'] if isinstance(name, str) and str(name).strip()]
-    logger.debug(f"Received player names for group {group_id}: {player_names}")
+    new_display_names = data['player_display_names']
+    logger.debug(f"Received display names for group {group_id}: {new_display_names}")
 
     try:
-        # Use db.session directly
         # Find group and eagerly load parent challenge and current members
         group = db.session.query(ChallengeGroup).options(
             joinedload(ChallengeGroup.shared_challenge),
             selectinload(ChallengeGroup.members)
         ).get(group_id)
 
-        if not group:
-            return jsonify({"error": "Group not found."}), 404
-
+        if not group: return jsonify({"error": "Group not found."}), 404
         challenge = group.shared_challenge
-        if not challenge: # Should not happen
-            return jsonify({"error": "Challenge for group not found."}), 500
+        if not challenge: return jsonify({"error": "Challenge for group not found."}), 500
 
-
+        # Authorization Checks
         if not is_user_authorized(challenge, current_user):
-            logger.warning(f"User {current_user.username} unauthorized to update players for challenge {challenge.public_id}.")
             return jsonify({"error": "Not authorized for this challenge."}), 403
-        # Authorization: Check if current user is a member of the group
         is_member = any(member.id == current_user.id for member in group.members)
         if not is_member:
-            logger.warning(f"Forbidden: User {current_user.username} not member of group {group_id}, cannot update players.")
             return jsonify({"error": "Not authorized to update this group's players."}), 403
 
-        # Validation: Check against num_players_per_group stored on the challenge
+        # Get current slots, initialize if needed
+        player_slots = _initialize_player_slots(group)
         max_players = challenge.num_players_per_group
-        if len(player_names) > max_players:
-            logger.warning(f"Too many players ({len(player_names)}) submitted for group {group_id}. Max allowed: {max_players}")
-            return jsonify({"error": f"Too many player names submitted. Maximum allowed is {max_players}."}), 400
 
-        # Update the player_names JSON column
-        group.player_names = player_names
-        flag_modified(group, "player_names") # Mark as modified
-        db.session.commit() # Commit the change
+        # Validate input length against the actual number of slots
+        if len(new_display_names) != len(player_slots):
+            logger.warning(f"Mismatch in submitted player names ({len(new_display_names)}) and allowed slots ({len(player_slots)}) for group {group_id}.")
+            return jsonify({"error": f"Incorrect number of player names submitted. Expected {len(player_slots)}."}), 400
 
-        logger.info(f"User {current_user.username} updated player names for group {group_id}")
-        return jsonify({"status": "success", "message": "Player names updated."}), 200
+        # Update ONLY the display_name for each slot
+        changes_made = False
+        for i, slot in enumerate(player_slots):
+            # Ensure index exists in submitted data before accessing
+            if i < len(new_display_names):
+                new_name = str(new_display_names[i] or '').strip()[:50] # Sanitize
+                # Keep original account name if user tries to blank out their own display name
+                if slot.get("account_name") == current_user.username and not new_name:
+                    new_name = current_user.username
+                # Update if different
+                if slot.get("display_name") != new_name:
+                    slot["display_name"] = new_name
+                    changes_made = True
+            else:
+                # This case shouldn't happen due to the length check above, but log if it does
+                logger.error(f"Index {i} out of bounds for submitted display names in group {group_id}.")
+
+        # Save if changes were made
+        if changes_made:
+            group.player_names = player_slots
+            flag_modified(group, "player_names")
+            db.session.commit()
+            logger.info(f"User {current_user.username} updated player display names for group {group_id}")
+            # emit_player_names_update(challenge.public_id, group_id, player_slots) # Optional: Emit changes
+            return jsonify({"status": "success", "message": "Player names updated."}), 200
+        else:
+            logger.info(f"No changes detected in player display names for group {group_id}.")
+            return jsonify({"status": "ok", "message": "No changes detected."}), 200
 
     except (SQLAlchemyError) as e:
         db.session.rollback(); logger.exception("DB Error updating group players"); return jsonify({"error": "Database error."}), 500

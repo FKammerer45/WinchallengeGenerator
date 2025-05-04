@@ -197,27 +197,16 @@ class SharedChallenge(db.Model):
 
 # Inherit from db.Model instead of Base
 class ChallengeGroup(db.Model):
-    """Represents a group participating in a specific SharedChallenge."""
     __tablename__ = 'challenge_groups'
-
     id = Column(Integer, primary_key=True, index=True)
-    shared_challenge_id = Column(Integer, ForeignKey('shared_challenges.id'), nullable=False, index=True)
-    group_name = Column(String(80), nullable=False) # Name chosen by the group creator/first member
-    progress_data = Column(JSON, nullable=True, default=lambda: {}) # Stores group-specific progress
+    shared_challenge_id = Column(Integer, ForeignKey('shared_challenges.id'), nullable=False, index=True) # FK constraint handles deletion
+    group_name = Column(String(80), nullable=False)
+    progress_data = Column(JSON, nullable=True, default=lambda: {})
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
-    active_penalty_text = Column(String(255), nullable=True) # Currently active penalty text for the group
-    player_names = Column(JSON, nullable=True) # Stores list of player names for this group, e.g., ["Alice", "Bob"]
-
-    # Relationships using db.relationship
+    active_penalty_text = Column(String(255), nullable=True)
+    player_names = Column(JSON, nullable=True)
     shared_challenge = db.relationship("SharedChallenge", back_populates="groups", lazy="select")
+    # Association for members - cascade delete handled by User/Group deletion
     members = db.relationship( "User", secondary=user_challenge_group_membership, back_populates="joined_groups", lazy="select" )
-
-
-    # Constraints
-    __table_args__ = (
-        Index('uq_shared_challenge_group_name', 'shared_challenge_id', 'group_name', unique=True),
-    )
-
-    def __repr__(self): 
-        return f"<ChallengeGroup id={self.id} name='{self.group_name}' challenge_id={self.shared_challenge_id}>"
-
+    __table_args__ = ( Index('uq_shared_challenge_group_name', 'shared_challenge_id', 'group_name', unique=True), )
+    def __repr__(self): return f"<ChallengeGroup id={self.id} name='{self.group_name}' challenge_id={self.shared_challenge_id}>"

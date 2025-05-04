@@ -539,22 +539,25 @@ export function updateUIAfterMembershipChange(config, myGroupEl, otherGroupsEl) 
         }
 
         // Player Names Section
-        const playerNamesSection = card.querySelector('.player-names-section');
-         if (playerNamesSection) {
-            // Show player names section if user is a member and authorized
-             if (canInteractWithGroupItems) {
+        const playerNamesSectionWrapper = card.querySelector('.player-names-section-wrapper');
+        if (playerNamesSectionWrapper) {
+            // Show/hide the entire wrapper based on interaction capability
+            if (canInteractWithGroupItems) {
+                 playerNamesSectionWrapper.style.display = 'block'; // Show the wrapper
+                 // Render the inputs inside the wrapper
                  if (typeof renderPlayerNameInputs === "function") {
-                     renderPlayerNameInputs(playerNamesSection, cardGroupId, groupData.player_names || [], maxPlayers);
+                     renderPlayerNameInputs(playerNamesSectionWrapper, cardGroupId, groupData.player_names || [], maxPlayers);
                  } else {
                      console.error("renderPlayerNameInputs function is not defined or imported.");
-                     playerNamesSection.innerHTML = '<p class="text-danger small">UI Error: Cannot render player inputs.</p>';
-                     playerNamesSection.style.display = 'block';
+                     const innerContainer = playerNamesSectionWrapper.querySelector('.player-names-section');
+                     if(innerContainer) innerContainer.innerHTML = '<p class="text-danger small">UI Error: Cannot render player inputs.</p>';
                  }
-             } else { // Hide otherwise
-                 playerNamesSection.style.display = 'none';
-                 const inputsContainer = playerNamesSection.querySelector('.player-name-inputs');
-                 if (inputsContainer) inputsContainer.innerHTML = '';
-             }
+            } else {
+                 playerNamesSectionWrapper.style.display = 'none'; // Hide the entire wrapper
+                 // Optionally clear content if needed, though hiding is usually sufficient
+                 // const innerContainer = playerNamesSectionWrapper.querySelector('.player-names-section');
+                 // if(innerContainer) innerContainer.innerHTML = '';
+            }
         }
 
         // Footer Button State
@@ -623,63 +626,75 @@ export function updateUIAfterMembershipChange(config, myGroupEl, otherGroupsEl) 
  * @param {string[]} [currentNames=[]] - Array of current player names.
  * @param {number} [numPlayersAllowed=1] - Maximum number of players allowed.
  */
-export function renderPlayerNameInputs(container, groupId, currentNames = [], numPlayersAllowed = 1) {
-    if (!container) return;
+export function renderPlayerNameInputs(sectionWrapper, groupId, playerSlots = [], numPlayersAllowed = 1) {
+    // --- Target elements INSIDE the wrapper ---
+    const container = sectionWrapper?.querySelector('.player-names-section');
+    const collapseTarget = sectionWrapper?.querySelector('.collapse'); // The collapsible div
 
-    // Ensure sub-elements exist or create them if necessary (more robust)
+    if (!sectionWrapper || !container || !collapseTarget) {
+        console.error("renderPlayerNameInputs: Missing required wrapper, container, or collapse elements.");
+        return;
+    }
+
+    // Find sub-elements within the '.player-names-section' container
     let inputsContainer = container.querySelector('.player-name-inputs');
     let errorContainer = container.querySelector('.player-name-error');
-    let saveBtnContainer = container.querySelector('.player-name-save-btn-container'); // Container for button
+    let saveBtnContainer = container.querySelector('.player-name-save-btn-container');
 
-    if (!inputsContainer) {
-        inputsContainer = document.createElement('div');
-        inputsContainer.className = 'player-name-inputs mb-2'; // Added margin
-        container.appendChild(inputsContainer);
-    }
-    if (!errorContainer) {
-        errorContainer = document.createElement('div');
-        errorContainer.className = 'player-name-error text-danger small mt-1';
-        container.appendChild(errorContainer); // Append error after inputs
-    }
-    if (!saveBtnContainer) {
-        saveBtnContainer = document.createElement('div');
-        saveBtnContainer.className = 'player-name-save-btn-container mt-2'; // Add class for styling if needed
-        container.appendChild(saveBtnContainer); // Append button container last
-    }
+    // Create sub-elements if they don't exist (robustness)
+    if (!inputsContainer) { inputsContainer = document.createElement('div'); inputsContainer.className = 'player-name-inputs mb-2'; container.appendChild(inputsContainer); }
+    if (!errorContainer) { errorContainer = document.createElement('div'); errorContainer.className = 'player-name-error text-danger small mt-1'; container.appendChild(errorContainer); }
+    if (!saveBtnContainer) { saveBtnContainer = document.createElement('div'); saveBtnContainer.className = 'player-name-save-btn-container mt-2'; container.appendChild(saveBtnContainer); }
 
-    inputsContainer.innerHTML = ''; // Clear previous inputs
-    saveBtnContainer.innerHTML = ''; // Clear previous save button
-    showError(errorContainer, null); // Clear previous errors
+    // Clear previous content within these sub-elements
+    inputsContainer.innerHTML = '';
+    saveBtnContainer.innerHTML = '';
+    showError(errorContainer, null);
 
-    if (numPlayersAllowed <= 0) {
-        container.style.display = 'none'; // Hide if no players allowed
+    const numberOfSlots = playerSlots.length > 0 ? playerSlots.length : numPlayersAllowed;
+
+    if (numberOfSlots <= 0) {
+        // Hide the entire wrapper if no players allowed
+        sectionWrapper.style.display = 'none';
         return;
+    } else {
+        // Ensure the wrapper is visible if players ARE allowed
+        sectionWrapper.style.display = 'block';
     }
 
     // Generate input fields
     let inputsHtml = '';
-    for (let i = 0; i < numPlayersAllowed; i++) {
-        const currentName = currentNames?.[i] || '';
+    for (let i = 0; i < numberOfSlots; i++) {
+        const slotData = playerSlots[i] || { display_name: "", account_name: null };
+        const displayName = slotData.display_name || "";
+        const accountName = slotData.account_name || null;
+
         inputsHtml += `
-            <input type="text"
-                   class="form-control form-control-sm mb-1 player-name-input"
-                   value="${escapeHtml(currentName)}"
-                   placeholder="Player ${i + 1}"
-                   data-index="${i}"
-                   maxlength="50">`; // Added maxlength
+            <div class="player-slot mb-2">
+                <input type="text"
+                       class="form-control form-control-sm player-name-input"
+                       value="${escapeHtml(displayName)}"
+                       placeholder="Player ${i + 1}${accountName ? '' : ' (Empty)'}"
+                       data-slot-index="${i}"
+                       maxlength="50"
+                       aria-label="Player ${i + 1} display name">`;
+        if (accountName) {
+            inputsHtml += `
+                <small class="text-muted account-name-hint ms-1" title="Account Name">
+                    (<i class="bi bi-person-check-fill"></i> ${escapeHtml(accountName)})
+                </small>`;
+        }
+         inputsHtml += `</div>`;
     }
     inputsContainer.innerHTML = inputsHtml;
 
-    // Add Save Button into its container
+    // Add Save Button
     const saveButtonHtml = `
         <button class="btn btn-primary btn-sm save-player-names-btn" data-group-id="${groupId}">
-            <span class="spinner-border spinner-border-sm"></span>
-            <span>Save Names</span>
+            <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+            <span>Save Display Names</span>
         </button>`;
     saveBtnContainer.innerHTML = saveButtonHtml;
-
-
-    container.style.display = 'block'; // Ensure section is visible
 }
 
 /**

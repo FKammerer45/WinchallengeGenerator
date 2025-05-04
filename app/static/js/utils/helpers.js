@@ -109,3 +109,20 @@ export function showFlash(message, type = 'info', timeout = 4000) {
       $("#actionConfirmModal").on("hidden.bs.modal", () => resolve(false));
     });
   }
+
+  export function showSuccess(messageElement, message) {
+    if (!messageElement) {
+         if (message) console.log("Success element not found:", message); // Log if element missing
+        return;
+    }
+    if (message) {
+        messageElement.textContent = message;
+        // --- Apply success styling ---
+        messageElement.className = 'player-name-error text-success small mt-1'; // Use text-success
+        // --- End Apply success styling ---
+        messageElement.style.display = 'block';
+    } else {
+        messageElement.textContent = '';
+        messageElement.style.display = 'none';
+    }
+}

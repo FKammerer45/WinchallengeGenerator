@@ -4,7 +4,7 @@
 
 // Import necessary modules (assuming these exist and are correct)
 import { apiFetch } from '../utils/api.js';
-import { setLoading, showError, escapeHtml, showFlash } from '../utils/helpers.js';
+import { setLoading, showError,showSuccess, escapeHtml, showFlash } from '../utils/helpers.js';
 import {
     updateGroupCountDisplay, renderProgressItems, addGroupToDOM,
     updateUIAfterMembershipChange, // Use the imported version directly
@@ -425,7 +425,6 @@ async function handleCreateGroupSubmit(event) {
 async function handleJoinGroupClick(_, joinBtn) {
     if (!joinBtn?.classList.contains('join-group-btn') || joinBtn.disabled) return;
 
-    // Check authorization before proceeding
     if (!challengeConfig.isLoggedIn || !challengeConfig.isAuthorized) {
         showFlash("You must be logged in and authorized to join groups.", "warning");
         return;
@@ -439,34 +438,57 @@ async function handleJoinGroupClick(_, joinBtn) {
     lockButton(joinBtn, 'Joining…');
 
     try {
-        await apiFetch(
+        // Make the API call
+        const data = await apiFetch(
             `${challengeConfig.urls.joinLeaveBase}/${groupId}/join`,
             { method: 'POST', signal: nextSignal('join') },
             challengeConfig.csrfToken);
 
-        // --- UI Update on Success ---
-        if (cardWrapper && myGroupContainerEl && otherGroupsContainerEl) {
-            cardWrapper.classList.remove(...OTHER_GROUP_COL_CLASSES);
-            cardWrapper.classList.add(...JOINED_GROUP_COL_CLASSES);
-            myGroupContainerEl.innerHTML = ''; // Clear previous content if any
-            const h = Object.assign(document.createElement('h4'), { className: 'text-primary-accent mb-3 text-center', textContent: 'Your Group' });
-            myGroupContainerEl.append(h, cardWrapper);
+        // --- START: Update Frontend State from API Response ---
+        if (data && data.status === 'success' && data.group_data) {
+            const updatedGroupData = data.group_data;
+
+            // Find the index of the group in our local config array
+            const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === groupId);
+
+            if (groupIndex !== -1) {
+                // Update the player_names and member_count for this group in the local state
+                challengeConfig.initialGroups[groupIndex].player_names = updatedGroupData.player_names || [];
+                challengeConfig.initialGroups[groupIndex].member_count = updatedGroupData.member_count ?? (challengeConfig.initialGroups[groupIndex].member_count || 0); // Use count from response
+                console.log(`[Join Success] Updated local state for group ${groupId}:`, challengeConfig.initialGroups[groupIndex]);
+            } else {
+                console.warn(`[Join Success] Could not find group ${groupId} in local state to update player names.`);
+                // Potentially add the group if it was missing? Less likely scenario.
+            }
+
+            // Update the central state variable for the joined group ID
+            updateUserJoinedGroupState(groupId);
+
+        } else if (data && data.status === 'success' && data.message.includes("already in this group")) {
+             // If user was already in the group, still update the joined state just in case
+             updateUserJoinedGroupState(groupId);
+             console.log("[Join] User already in group, ensuring state is correct.");
         } else {
-            console.error("DOM structure error during join UI update.");
+            // Handle cases where API call succeeded but didn't return expected data
+            throw new Error(data?.message || data?.error || 'Join request completed but response was unclear.');
         }
+        // --- END: Update Frontend State ---
 
-        updateUserJoinedGroupState(groupId);
-        const g = challengeConfig.initialGroups.find(x => x.id === groupId);
-        if (g) g.member_count = Math.min((g.member_count || 0) + 1, challengeConfig.numPlayersPerGroup);
 
-        // Refresh UI for all cards (enables checkboxes, updates buttons)
-        // Use the imported function
-        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl); //
+        // --- UI Update (Moving card is handled by updateUIAfterMembershipChange now) ---
+        // The updateUIAfterMembershipChange function will now read the updated
+        // challengeConfig (with the correct userJoinedGroupId and player_names)
+        // and render everything correctly, including moving the card and showing the names.
+        console.log("[Join Success] Calling updateUIAfterMembershipChange to refresh UI...");
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+        showFlash(data.message || "Joined group!", 'success'); // Show success flash
 
 
     } catch (err) {
         console.error('join failed', err);
         showError(footer || statusDiv, `Error joining: ${err.message}`, 'danger');
+        // Optional: If join failed, maybe refresh UI to revert any optimistic changes?
+        // updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
     } finally {
         restoreButton(joinBtn); // Ensure button state is restored
     }
@@ -679,8 +701,8 @@ async function handleProgressChange(event) {
 async function handleSavePlayersClick(_, saveBtn) {
     if (!saveBtn?.classList.contains('save-player-names-btn') || saveBtn.disabled) return;
 
-    // Authorization Check
     const groupId = Number(saveBtn.dataset.groupId);
+    // ... (Authorization checks remain the same) ...
     const isJoinedGroup = (challengeConfig.userJoinedGroupId === groupId);
     if (!challengeConfig.isLoggedIn || !challengeConfig.isAuthorized || !isJoinedGroup) {
         showFlash("You must be logged in, authorized, and in this group to save player names.", "warning");
@@ -688,40 +710,72 @@ async function handleSavePlayersClick(_, saveBtn) {
     }
     if (Number.isNaN(groupId)) return;
 
+
     const section = saveBtn.closest('.player-names-section');
-    if (!section) return; // Ensure section exists
+    if (!section) return;
 
     const inputs = section.querySelectorAll('.player-name-input');
     const errBox = section.querySelector('.player-name-error');
-    const names = Array.from(inputs).map(i => i.value.trim()).filter(n => n && n.length <= 50);
 
-    const max = challengeConfig.numPlayersPerGroup || 1;
+    // --- FIX: Read display names from inputs ---
+    // Create an array matching the number of slots expected
+    const displayNames = Array.from({ length: challengeConfig.numPlayersPerGroup || 1 }, (_, i) => {
+        const input = section.querySelector(`.player-name-input[data-slot-index="${i}"]`);
+        // Return trimmed value or empty string if input not found for a slot
+        return input ? input.value.trim() : "";
+    });
+    // --- END FIX ---
+
     showError(errBox, null); // Clear previous errors
-    if (names.length > max) { showError(errBox, `Max ${max} names allowed.`); return; }
+
+    // Optional: Add validation for name length if desired
+    if (displayNames.some(name => name.length > 50)) {
+         showError(errBox, `Display names cannot exceed 50 characters.`);
+         return;
+    }
 
     lockButton(saveBtn, 'Saving…');
 
     try {
-        const url = `${challengeConfig.urls.savePlayersBase}/${groupId}/players`; // Use correct base URL
-        const data = await apiFetch(
-            url,
-            { method: 'POST', body: { player_names: names }, signal: nextSignal('savePlayers') },
-            challengeConfig.csrfToken
-        );
+        const url = `${challengeConfig.urls.savePlayersBase}/${groupId}/players`;
+        // --- FIX: Send only display names ---
+        const payload = { player_display_names: displayNames };
+        // --- END FIX ---
+        console.log("Saving player display names:", payload); // Debug log
+        const data = await apiFetch(url, { method: 'POST', body: payload, signal: nextSignal('savePlayers') }, challengeConfig.csrfToken);
 
-        if (data.status !== 'success') throw new Error(data.error || 'Unknown error');
+        if (data.status !== 'success' && data.status !== 'ok') { // Check for 'ok' too if no changes
+             throw new Error(data.error || 'Unknown error saving names');
+        }
 
-        showError(errBox, 'Names saved!', 'success'); // Use the error box for success message
-        setTimeout(() => showError(errBox, null), 2500); // Clear after delay
+        showSuccess(errBox, data.message || 'Names saved!');
+        setTimeout(() => showSuccess(errBox, null), 2500);
 
-        // Update local state
-        const g = challengeConfig.initialGroups.find(x => x.id === groupId);
-        if (g) g.player_names = names;
-        updatePenaltyConfig(challengeConfig); // Notify penalty module if needed //
+        // --- Update local state ---
+        const groupIndex = challengeConfig.initialGroups.findIndex(x => x.id === groupId);
+        if (groupIndex !== -1) {
+            // Ensure the player_names array exists and has the right structure
+            let slots = challengeConfig.initialGroups[groupIndex].player_names;
+            if (!Array.isArray(slots) || slots.length !== displayNames.length || !slots.every(s => typeof s === 'object')) {
+                // If format is wrong, re-initialize based on current members (less ideal but fallback)
+                 console.warn("Re-initializing player_names structure in local state during save.");
+                 slots = Array.from({ length: displayNames.length }, () => ({ display_name: "", account_name: null }));
+                 // Ideally, fetch fresh group data here instead of guessing
+            }
+            // Update display names in the local state
+            for (let i = 0; i < displayNames.length; i++) {
+                 if (slots[i]) { // Check if slot object exists
+                    slots[i].display_name = displayNames[i];
+                 }
+            }
+            challengeConfig.initialGroups[groupIndex].player_names = slots; // Assign back
+            updatePenaltyConfig(challengeConfig); // Notify penalty module if needed
+        }
+        // --- End Update local state ---
 
     } catch (err) {
         console.error('save players failed', err);
-        showError(errBox, `Error: ${err.message}`); // Show error in designated box
+        showError(errBox, `Error: ${err.message}`);
     } finally {
         restoreButton(saveBtn);
     }

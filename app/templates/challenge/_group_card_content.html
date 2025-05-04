@@ -2,14 +2,13 @@
 {# Renders the content for a single group card #}
 {# Expects context variables: group, challenge, is_member, is_multigroup, num_players_per_group #}
 
-{# Determine wrapper classes based on whether this is the joined group #}
 {% set wrapper_classes = 'col-lg-4 col-md-6 mb-4 group-card-wrapper' %}
 {% if is_member %}
 {% set wrapper_classes = 'col-md-8 col-lg-6 mx-auto mb-4 group-card-wrapper joined-group-layout' %}
 {% endif %}
 
 <div class="{{ wrapper_classes }}" data-group-id="{{ group.id }}">
-  {# *** ADDED glass-effect class *** #}
+  {# Add glass-effect class #}
   <div class="card group-card h-100 shadow-sm glass-effect">
     <div class="card-body">
       <h5 class="card-title">{{ group.name | escape }}</h5>
@@ -19,46 +18,58 @@
         {# JS will render the progress bar here via updateUIAfterMembershipChange #}
       </div>
 
-      {# Include progress checkboxes - passes the group dict and challenge object #}
+      {# Include progress checkboxes #}
       {% include 'challenge/_challenge_group_progress.html' ignore missing %}
 
-      {# Placeholder for Player Name inputs (JS will render/show if needed) #}
-      <div class="player-names-section mt-3 border-top pt-3" style="display: none;">
-        <h6 class="small mb-2">Group Players (Max {{ num_players_per_group }}):</h6>
-        <div class="player-name-inputs"></div> {# JS fills this #}
-        <div class="player-name-error text-danger small mt-1"></div> {# JS shows errors here #}
-        {# JS adds save button here #}
+      {# Collapsible Player Names Section #}
+      <div class="player-names-section-wrapper mt-3 border-top pt-3" style="display: none;"> {# Hidden by default, shown by JS #}
+        {# Header with Title and Collapse Button #}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="small mb-0 text-muted">
+             <i class="bi bi-people-fill me-1"></i> Group Players (Max {{ num_players_per_group }})
+          </h6>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-toggle="collapse"
+                  data-target="#playerNamesCollapse-{{ group.id }}" aria-expanded="false" {# Start collapsed #}
+                  aria-controls="playerNamesCollapse-{{ group.id }}" title="Toggle Player Names">
+            <i class="bi bi-chevron-expand"></i>
+          </button>
+        </div>
+        {# Collapsible Content Area #}
+        <div class="collapse" id="playerNamesCollapse-{{ group.id }}">
+            <div class="player-names-section">
+                <div class="player-name-inputs mb-2"></div> {# JS fills this #}
+                <div class="player-name-error text-danger small mt-1"></div> {# JS shows errors here #}
+                <div class="player-name-save-btn-container mt-2"></div> {# JS adds save button here #}
+            </div>
+        </div>
       </div>
+      {# --- END: Collapsible Player Names Section --- #}
 
     </div> {# End card-body #}
 
-    {# Active Penalty Display (JS updates content and visibility) #}
-    <div class="active-penalty-display mt-3 mx-2 mb-2" {# Adjusted margins slightly #} data-group-id="{{ group.id }}"
-      style="{{ 'display: none;' if not group.active_penalty_text else '' }}">
+    {# --- START: Re-Styled Active Penalty Display --- #}
+    {# Outer div controls visibility, added padding and subtle background #}
+    <div class="active-penalty-display p-2 mx-2 mb-2 rounded" {# Added padding, margin, rounded corners #}
+         data-group-id="{{ group.id }}"
+         style="{{ 'display: none;' if not group.active_penalty_text else 'display: block; background-color: rgba(255, 193, 7, 0.1);' }}"> {# Subtle warning background #}
 
-      {# Use alert component for better visibility #}
-      <div class="alert alert-warning p-2 d-flex align-items-center justify-content-between glass-effect shadow-sm mb-0"
-        role="alert">
-        {# Left side: Icon and Text #}
-        <div class="d-flex align-items-center">
-          <i class="bi bi-exclamation-octagon-fill fs-5 me-2"></i> {# Warning Icon #}
-          <div class="penalty-text-content small">
-            {# Combine label and text #}
-            <strong class="me-1">Active Penalty:</strong>
-            <span>{{ group.active_penalty_text | escape if group.active_penalty_text else 'None' }}</span>
-          </div>
+        {# Inner flex container for icon, text, and button #}
+        <div class="d-flex align-items-center text-warning small"> {# Removed border-top, kept text-warning #}
+            <i class="bi bi-exclamation-octagon-fill flex-shrink-0 me-2 fs-5"></i> {# Icon #}
+            {# Span to hold the text content #}
+            <span class="penalty-text-content fw-semibold me-2"> {# Added margin-end #}
+                {{ group.active_penalty_text | escape if group.active_penalty_text else '' }}
+            </span>
+            {# Container for the clear button #}
+            <div class="penalty-clear-button-container ms-auto"> {# ms-auto pushes button right #}
+                {# JS adds clear button here if needed #}
+            </div>
         </div>
-        {# Right side: Placeholder for the Clear button added by JS #}
-        {# The clear button will be appended here by updateUIAfterMembershipChange JS function #}
-        {# Add a specific target class if needed for JS to append the button reliably #}
-        <div class="penalty-clear-button-container ms-2">
-          {# JS adds button here #}
-        </div>
-      </div>
     </div>
+    {# --- END: Re-Styled Active Penalty Display --- #}
 
-    {# Footer for Join/Leave buttons (JS manages the button content/state) #}
- 
+
+    {# Footer for Join/Leave buttons (remains the same) #}
     <div class="card-footer text-center join-leave-footer">
       {# Button content/state set dynamically by challenge_ui.js #}
     </div>
