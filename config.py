@@ -14,6 +14,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-default-hard-to-guess-string'
     SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT') or 'a-default-hard-to-guess-salt'
     SECURITY_PASSWORD_RESET_SALT = os.environ.get('SECURITY_PASSWORD_RESET_SALT') or 'another-hard-to-guess-salt-pwreset'
+    SECURITY_EMAIL_CHANGE_SALT = os.environ.get('SECURITY_EMAIL_CHANGE_SALT') or 'another-hard-to-guess-salt-emailchange'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, 'app.db')
@@ -43,8 +44,9 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or '"WinChallenge" <mailgun@yourverifieddomain.com>'
     EMAIL_CONFIRMATION_EXPIRATION = 3600
     PASSWORD_RESET_EXPIRATION = 1800
+    EMAIL_CHANGE_EXPIRATION = 1800
     MAX_CHALLENGES_PER_USER = 15
-
+    
 
 class DevelopmentConfig(Config):
     """Development configuration."""
@@ -65,6 +67,7 @@ class TestingConfig(Config):
     MAIL_SUPPRESS_SEND = True
     SECURITY_PASSWORD_SALT = 'testing-salt'
     SECURITY_PASSWORD_RESET_SALT = 'testing-pw-reset-salt'
+    SECURITY_EMAIL_CHANGE_SALT = 'testing-email-change-salt'
     # Disable rate limiting during tests unless specifically testing it
     RATELIMIT_ENABLED = False
 
@@ -74,6 +77,7 @@ class ProductionConfig(Config):
     SECRET_KEY = os.environ.get('SECRET_KEY')
     SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT')
     SECURITY_PASSWORD_RESET_SALT = os.environ.get('SECURITY_PASSWORD_RESET_SALT')
+    SECURITY_EMAIL_CHANGE_SALT = os.environ.get('SECURITY_EMAIL_CHANGE_SALT')
     if not SECRET_KEY or not SECURITY_PASSWORD_SALT or not SECURITY_PASSWORD_RESET_SALT:
         raise ValueError("SECRET_KEY, SECURITY_PASSWORD_SALT, and SECURITY_PASSWORD_RESET_SALT must be set for production")
 

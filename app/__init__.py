@@ -21,7 +21,7 @@ from flask_socketio import SocketIO
 from flask_mail import Mail
 from config import config
 import logging
-
+import re
 
 # Initialize extensions globally
 db = SQLAlchemy()
@@ -42,6 +42,23 @@ limiter = Limiter(
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 
+
+def redact_email_filter(email):
+    """Redacts an email address for display (e.g., us***@example.com)."""
+    if not email or '@' not in email:
+        return email # Return original if invalid format
+    try:
+        local_part, domain = email.split('@')
+        if len(local_part) <= 3:
+            # If local part is short, show first char + ***
+            redacted_local = local_part[0] + '***'
+        else:
+            # Show first 2 chars, ***, last char
+            redacted_local = local_part[:2] + '***' + local_part[-1]
+        return f"{redacted_local}@{domain}"
+    except Exception:
+        return "Invalid Email Format" # Fallback for unexpected errors
+    
 # User loader callback
 @login_manager.user_loader
 def load_user(user_id):
@@ -80,7 +97,7 @@ def create_app(config_name=None):
     # --- Configure the *global* limiter instance with the app ---
     limiter.init_app(app)
     # --- End Limiter Config ---
-
+    app.jinja_env.filters['redact_email'] = redact_email_filter
     # Import and register blueprints
     from .routes.main import main
     app.register_blueprint(main)

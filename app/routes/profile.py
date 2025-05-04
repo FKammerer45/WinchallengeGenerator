@@ -7,18 +7,57 @@ from flask_login import login_required, current_user
 # Import db instance and User model
 from app import db, csrf
 from app.models import User
+from app.forms import ChangeEmailForm
+from app.utils.email import send_email, generate_email_change_token
 
 logger = logging.getLogger(__name__)
 
 profile_bp = Blueprint('profile', __name__)
 
-@profile_bp.route("/profile")
+@profile_bp.route("/profile", methods=['GET', 'POST']) # Allow POST for the form
 @login_required
 def profile_view():
-    """Renders the user profile page."""
-    logger.debug(f"User {current_user.id} accessing profile page.")
-    # The template can access current_user directly
-    return render_template("profile/profile.html") # Path to new template
+    """Renders the user profile page and handles email change form."""
+    change_email_form = ChangeEmailForm() # Instantiate the form
+
+    if change_email_form.validate_on_submit():
+        # This block handles the POST request from the email change form
+        new_email = change_email_form.new_email.data.lower().strip()
+        password = change_email_form.password.data
+
+        # Verify current password
+        if not current_user.check_password(password):
+            flash("Incorrect password. Email change request failed.", "danger")
+            # Re-render the profile page with the form and error
+            return render_template("profile/profile.html", change_email_form=change_email_form)
+
+        # Password is correct, proceed to send confirmation email to NEW address
+        try:
+            token = generate_email_change_token(current_user.id, new_email)
+            confirm_url = url_for('auth.confirm_email_change', token=token, _external=True) # Point to new auth route
+            email_context = {'confirm_url': confirm_url, 'username': current_user.username, 'new_email': new_email}
+
+            send_email(
+                to=new_email, # Send to the NEW email address
+                subject="Confirm Your New Email Address",
+                template_context=email_context,
+                template_prefix="auth/email/change_email_confirm" # Path to new email templates
+            )
+            logger.info(f"Email change confirmation sent to {new_email} for user '{current_user.username}'.")
+            flash(f"A confirmation link has been sent to {new_email}. Please click the link to finalize the change.", 'info')
+            # Redirect back to profile page after initiating the request
+            return redirect(url_for('profile.profile_view'))
+
+        except Exception as e:
+            logger.exception(f"Error sending email change confirmation for user '{current_user.username}'")
+            flash('An error occurred while requesting the email change. Please try again later.', 'danger')
+            # Re-render profile page with form
+            return render_template("profile/profile.html", change_email_form=change_email_form)
+
+    # Handle GET request (or failed POST validation)
+    # Pass the form instance to the template for rendering
+    return render_template("profile/profile.html", change_email_form=change_email_form)
+
 
 @profile_bp.route("/profile/regenerate_key", methods=["POST"])
 @login_required

@@ -1,34 +1,44 @@
 {# app/templates/auth/confirm_delete.html #}
 {% extends "base.html" %}
-{% from "_form_helpers.html" import render_field %}  {# ← ADD THIS #}
+{% from "_form_helpers.html" import render_field %}
 
 {% block title %}Confirm Account Deletion{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-center align-items-center" style="min-height:80vh;">
-  <div class="card shadow-sm" style="max-width:400px; width:100%;">
+  <div class="card shadow-sm glass-effect" style="max-width:450px; width:100%;"> {# Slightly wider card #}
     <div class="card-body p-4">
-      <h3 class="card-title text-center mb-4">Confirm Account Deletion</h3>
+      <h3 class="card-title text-center mb-4 text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Account Deletion</h3>
 
       {% include '_flash_messages.html' ignore missing %}
 
       <div class="alert alert-danger">
-        <strong>Warning!</strong> Deleting your account is permanent – all data will be lost.
+        <strong>Warning!</strong> Deleting your account is permanent. All your saved tabs, created challenges, and profile information will be lost forever. This action cannot be undone.
       </div>
 
       <form method="POST" action="{{ url_for('auth.delete_account') }}">
         {{ form.hidden_tag() }}
 
-        <div class="mb-3">
-          <p>Please enter your current password to confirm:</p>
-          {{ render_field(form.password,
-              class="form-control form-control-sm",
-              placeholder="Current Password") }}
-        </div>
+        {# --- Conditionally show password field --- #}
+        {% if requires_password %}
+          <div class="mb-3">
+            <p>Please enter your current password to confirm:</p>
+            {{ render_field(form.password,
+                class="form-control form-control-sm",
+                placeholder="Current Password") }}
+          </div>
+        {% else %}
+          <p class="text-center text-muted small mb-3">(Password confirmation not required for Twitch login)</p>
+        {% endif %}
+        {# --- End Conditional --- #}
+
+        {# Add extra confirmation text #}
+        <p class="text-center fw-bold mb-4">Are you absolutely sure you want to delete your account?</p>
 
         <div class="d-flex justify-content-between">
-          {{ form.submit(class="btn btn-danger btn-sm") }}
-          <a href="{{ url_for('main.index') }}" class="btn btn-secondary btn-sm">Cancel</a>
+          {# Make delete button more prominent #}
+          {{ form.submit(class="btn btn-danger") }} {# Removed btn-sm #}
+          <a href="{{ url_for('profile.profile_view') }}" class="btn btn-secondary">Cancel</a> {# Go back to profile #}
         </div>
       </form>
     </div>

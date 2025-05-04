@@ -21,7 +21,9 @@ from app.forms import (LoginForm, RegistrationForm, ChangePasswordForm, DeleteAc
                        ForgotPasswordForm, ResetPasswordForm)
 # --- Import Email Utilities ---
 from app.utils.email import (send_email, generate_confirmation_token, confirm_token,
-                             generate_password_reset_token, confirm_password_reset_token) 
+                             generate_password_reset_token, confirm_password_reset_token,
+                             generate_email_change_token, confirm_email_change_token) 
+
 
 
 logger = logging.getLogger(__name__)
@@ -305,6 +307,9 @@ def handle_rate_limit_exceeded(e):
 @auth.route('/change_password', methods=['GET', 'POST'])
 @login_required 
 def change_password():
+    if current_user.is_twitch_user:
+        flash("Password cannot be changed for accounts logged in via Twitch.", "warning")
+        return redirect(url_for('profile.profile_view'))
     """Handles password change using Flask-WTF Form."""
     form = ChangePasswordForm()
     if form.validate_on_submit():
@@ -342,20 +347,27 @@ def change_password():
 @auth.route('/delete_account', methods=['POST'])
 @login_required
 def delete_account():
-    """Handles the actual account deletion after confirmation, using Flask-WTF Form."""
-    # This route only handles POST from the confirm_delete page's form
-    form = DeleteAccountForm() 
+    """Handles the actual account deletion after confirmation."""
+    form = DeleteAccountForm()
 
-    # Use validate_on_submit() for POST validation and CSRF check
-    if form.validate_on_submit(): 
+    if form.validate_on_submit():
         password = form.password.data
 
-        # --- Re-authenticate ---
-        if not current_user.check_password(password):
-            logger.warning(f"User {current_user.username}: Delete account attempt failed - incorrect password.")
+        # --- MODIFIED: Check password only if NOT a Twitch user ---
+        password_ok = False
+        if current_user.is_twitch_user:
+            # For Twitch users, we bypass the password check after they click confirm.
+            # Alternatively, you could add a different confirmation step here.
+            password_ok = True
+            logger.info(f"Bypassing password check for Twitch user '{current_user.username}' during account deletion.")
+        elif current_user.check_password(password):
+            password_ok = True
+        # --- END MODIFICATION ---
+
+        if not password_ok:
+            logger.warning(f"User {current_user.username}: Delete account attempt failed - incorrect password provided.")
             flash("Incorrect password provided. Account not deleted.", "danger")
-            # Redirect back to confirmation page, passing the form might show errors if added
-            return redirect(url_for('auth.confirm_delete_account')) 
+            return redirect(url_for('auth.confirm_delete_account'))
 
         # --- Perform Deletion ---
         user_id_to_delete = current_user.id
@@ -363,39 +375,58 @@ def delete_account():
         logger.warning(f"Initiating account deletion for user '{username_to_delete}' (ID: {user_id_to_delete}).")
 
         try:
-            user = db.session.get(User, user_id_to_delete) 
-            if not user:
-                logger.error(f"Cannot delete: User ID {user_id_to_delete} not found in DB.")
-                flash("User not found. Cannot delete account.", "error")
-                logout_user() 
-                return redirect(url_for('main.index'))
+            # --- Explicitly delete related data BEFORE deleting the user ---
+            # Although cascades might be set up, being explicit can be safer
+            # and ensures data is removed even if cascade settings change.
 
             logger.info(f"Deleting related data for user {user_id_to_delete}...")
-            db.session.query(SavedGameTab).filter_by(user_id=user_id_to_delete).delete()
-            db.session.query(SavedPenaltyTab).filter_by(user_id=user_id_to_delete).delete()
-            # Add deletion for SharedChallenge creator/memberships if needed
 
-            logger.info(f"Deleting user record for {username_to_delete}...")
-            db.session.delete(user)
-            db.session.commit() 
+            # Delete saved tabs (cascade should handle this via backref, but explicit is okay)
+            # SavedGameTab.query.filter_by(user_id=user_id_to_delete).delete()
+            # SavedPenaltyTab.query.filter_by(user_id=user_id_to_delete).delete()
 
-            logout_user()
-            logger.info(f"User '{username_to_delete}' (ID: {user_id_to_delete}) successfully deleted and logged out.")
+            # Delete challenge authorizations where this user is authorized (not creator)
+            # This requires accessing the association table or the backref
+            user_to_delete_obj = db.session.get(User, user_id_to_delete)
+            if user_to_delete_obj:
+                 # Clear the relationship from the user side before deleting the user
+                 # This might be handled by cascade on the other side too
+                 user_to_delete_obj.authorized_challenges = []
+                 user_to_delete_obj.joined_groups = [] # Clear group memberships
 
-            flash("Your account has been permanently deleted.", "success")
-            return redirect(url_for('main.index')) 
+                 # Challenges created by the user *should* be deleted by the cascade
+                 # on the User.created_challenges relationship if set correctly.
+
+                 # Commit changes to relationships before deleting user
+                 db.session.commit()
+
+                 logger.info(f"Deleting user record for {username_to_delete}...")
+                 db.session.delete(user_to_delete_obj)
+                 db.session.commit()
+
+                 logout_user() # Log the user out AFTER successful deletion
+                 logger.info(f"User '{username_to_delete}' (ID: {user_id_to_delete}) successfully deleted and logged out.")
+                 flash("Your account has been permanently deleted.", "success")
+                 return redirect(url_for('main.index'))
+            else:
+                 # Should not happen if user is logged in
+                 logger.error(f"Cannot delete: User ID {user_id_to_delete} not found in DB for final deletion step.")
+                 flash("User not found during deletion process.", "error")
+                 logout_user() # Log out anyway
+                 return redirect(url_for('main.index'))
+
 
         except Exception as e:
-            db.session.rollback() 
-            logger.exception(f"Error deleting account for user '{username_to_delete}'")
+            db.session.rollback()
+            logger.exception(f"Error deleting account or related data for user '{username_to_delete}'")
             flash("An error occurred while deleting the account. Please try again later.", "danger")
-            # Redirect back to confirmation page on error
-            return redirect(url_for('auth.confirm_delete_account')) 
+            return redirect(url_for('auth.confirm_delete_account'))
     else:
-        # If form validation fails (e.g., password missing, CSRF invalid)
-        logger.warning(f"User {current_user.username}: Delete account POST failed validation.")
-        # Flash messages are usually handled by WTForms rendering, but add a general one if needed
-        flash("Invalid submission. Please try confirming again.", "warning")
+        # Handle form validation failure (e.g., CSRF missing, password field empty)
+        logger.warning(f"User {current_user.username}: Delete account POST failed WTForms validation.")
+        # Errors should be flashed by WTForms automatically if using render_field
+        # Add a generic flash if needed
+        # flash("Invalid submission. Please check the form.", "warning")
         return redirect(url_for('auth.confirm_delete_account'))
 
 
@@ -403,9 +434,10 @@ def delete_account():
 @login_required
 def confirm_delete_account():
     """Displays the confirmation page before account deletion."""
-    # Create the form instance to pass to the template for rendering
-    form = DeleteAccountForm() 
-    return render_template('confirm_delete.html', form=form)
+    form = DeleteAccountForm()
+    requires_password = not current_user.is_twitch_user
+    return render_template('auth/confirm_delete.html', form=form, requires_password=requires_password)
+
 
 @auth.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -446,7 +478,58 @@ def forgot_password():
     return render_template('auth/forgot_password.html', form=form)
 
 
-# --- New: Reset Password Route ---
+@auth.route('/confirm-email-change/<token>')
+@login_required # User should be logged in to confirm an email change initiated by them
+def confirm_email_change(token):
+    """Handles the confirmation link for an email address change."""
+    try:
+        expiration = current_app.config.get('EMAIL_CHANGE_EXPIRATION', 1800)
+        # Confirm the token using the specific email change function
+        token_data = confirm_email_change_token(token, expiration=expiration)
+
+        if token_data is False:
+            flash('The email change link is invalid or has expired.', 'danger')
+            return redirect(url_for('profile.profile_view')) # Redirect back to profile
+
+        user_id = token_data.get('user_id')
+        new_email = token_data.get('new_email')
+
+        # Security check: Ensure the user ID in the token matches the logged-in user
+        if not user_id or user_id != current_user.id:
+            logger.warning(f"Email change token user ID mismatch. Token ID: {user_id}, Current User ID: {current_user.id}")
+            flash('Invalid email change request.', 'danger')
+            return redirect(url_for('profile.profile_view'))
+
+        # Check if the new email is already taken by someone else (in case it happened after request)
+        existing_user = db.session.query(User).filter(User.email.ilike(new_email)).first()
+        if existing_user and existing_user.id != current_user.id:
+            flash(f'The email address {new_email} has already been registered by another user.', 'danger')
+            return redirect(url_for('profile.profile_view'))
+
+        # All checks passed, update the user's email
+        user_to_update = db.session.get(User, current_user.id) # Get user object again
+        if user_to_update:
+            old_email = user_to_update.email
+            user_to_update.email = new_email
+            # Also mark the new email as confirmed immediately
+            user_to_update.confirmed = True
+            user_to_update.confirmed_on = datetime.datetime.now(datetime.timezone.utc)
+            db.session.commit()
+            logger.info(f"User '{user_to_update.username}' successfully changed email from '{old_email}' to '{new_email}'.")
+            flash('Your email address has been successfully updated!', 'success')
+        else:
+            # Should not happen if user is logged in
+            logger.error(f"Could not find user {current_user.id} during email change confirmation.")
+            flash('An error occurred updating your email.', 'danger')
+
+        return redirect(url_for('profile.profile_view'))
+
+    except Exception as e:
+        logger.exception(f"Error during email change confirmation for token {token[:10]}...")
+        flash('An error occurred during email confirmation.', 'danger')
+        return redirect(url_for('profile.profile_view'))
+    
+
 @auth.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     """Handles the actual password reset using the token."""

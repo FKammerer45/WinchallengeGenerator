@@ -2,7 +2,7 @@
 import logging
 from flask import current_app, url_for, render_template
 from flask_mail import Message
-from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
 from app import db
 from threading import Thread
 
@@ -87,4 +87,35 @@ def confirm_password_reset_token(token, expiration=None):
     except Exception as e:
         logger.warning(f"Password reset token error: {e} (Token: {token[:10]}...)")
         return False
-# --- End New Functions ---
+
+def generate_email_change_token(user_id, new_email):
+    """Generates a token containing user ID and the new email address."""
+    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    # Dump a dictionary or tuple containing both pieces of info
+    return serializer.dumps({'user_id': user_id, 'new_email': new_email.lower()},
+                            salt=current_app.config['SECURITY_EMAIL_CHANGE_SALT'])
+
+def confirm_email_change_token(token, expiration=None):
+    """
+    Confirms an email change token.
+
+    Returns:
+        dict or False: A dictionary {'user_id': ..., 'new_email': ...} if valid, otherwise False.
+    """
+    if expiration is None: expiration = current_app.config.get('EMAIL_CHANGE_EXPIRATION', 1800)
+    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    try:
+        data = serializer.loads(
+            token,
+            salt=current_app.config['SECURITY_EMAIL_CHANGE_SALT'], # Use email change salt
+            max_age=expiration
+        )
+        # Basic validation of the loaded data structure
+        if isinstance(data, dict) and 'user_id' in data and 'new_email' in data:
+            return data
+        else:
+            logger.warning(f"Email change token payload invalid structure: {data}")
+            return False
+    except (SignatureExpired, BadTimeSignature, Exception) as e:
+        logger.warning(f"Email change token error: {e} (Token: {token[:10]}...)")
+        return False

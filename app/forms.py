@@ -5,6 +5,7 @@ from wtforms import StringField, PasswordField, SubmitField,  EmailField
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError, Regexp, Email
 from app.models import User # Import User model for validation checks
 from app import db # Import db for session access in validators
+from flask_login import current_user
 
 class RegistrationForm(FlaskForm):
     """Form for user registration."""
@@ -99,6 +100,26 @@ class ChangePasswordForm(FlaskForm):
     def validate_new_password(self, new_password):
          # This check also needs current_user, better done in the route
          pass
+
+class ChangeEmailForm(FlaskForm):
+    """Form for requesting an email address change."""
+    new_email = EmailField('New Email Address',
+                           validators=[DataRequired(message="New email address is required."),
+                                       Email(message="Invalid email address."),
+                                       Length(max=120)])
+    password = PasswordField('Current Password',
+                             validators=[DataRequired(message="Please enter your current password to confirm.")])
+    submit = SubmitField('Request Email Change')
+
+    # Custom validation to ensure the new email isn't already in use by another user
+    def validate_new_email(self, new_email):
+        # Check if the new email is different from the current user's email
+        if current_user.is_authenticated and new_email.data.lower() == current_user.email.lower():
+            raise ValidationError('New email address must be different from your current one.')
+        # Check if the new email is already registered by someone else
+        user = db.session.query(User).filter(User.email.ilike(new_email.data)).first()
+        if user:
+            raise ValidationError('That email address is already registered to another account.')
 
 class DeleteAccountForm(FlaskForm):
     """Form for confirming account deletion."""

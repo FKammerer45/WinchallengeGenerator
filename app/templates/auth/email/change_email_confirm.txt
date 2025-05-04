@@ -1,0 +1,13 @@
+Hi {{ username }},
+
+You requested to change your Win Challenge Generator account's email address to {{ new_email }}.
+
+Please confirm this change by clicking the link below or pasting it into your browser:
+{{ confirm_url }}
+
+This link will expire in 30 minutes. {# Update if expiration changes #}
+
+If you did not request this change, please ignore this email and contact support immediately if you have concerns about your account security.
+
+Thanks,
+The Win Challenge Generator Team

@@ -1,5 +1,7 @@
 {# app/templates/profile/profile.html #}
 {% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %} {# Import macro #}
+
 {% block title %}My Profile{% endblock %}
 
 {% block head %}
@@ -9,14 +11,31 @@
     /* Optional: Style for the read-only input */
     #overlayApiKey {
         background-color: var(--surface-secondary);
-        /* Match theme */
         cursor: text;
-        /* Indicate it's selectable */
     }
 
     .input-group-append .btn {
         border-top-left-radius: 0;
         border-bottom-left-radius: 0;
+    }
+
+    .email-status {
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+
+    .email-status-verified {
+        color: var(--success);
+    }
+
+    .email-status-unverified {
+        color: var(--warning);
+    }
+
+    /* Ensure modal form groups have spacing */
+    #changeEmailModal .modal-body .form-group {
+        margin-bottom: 1rem;
+        /* Add bottom margin to form groups in modal */
     }
 </style>
 {% endblock %}
@@ -28,148 +47,176 @@
     {# Flash messages area #}
     {% include '_flash_messages.html' ignore missing %}
 
-    {# API Key Management Card #}
+    {# --- Email Management Card --- #}
+    <div class="card shadow-sm glass-effect mb-4">
+        <div class="card-header h5 d-flex align-items-center">
+            <i class="bi bi-envelope-fill me-2"></i> Email Address
+        </div>
+        <div class="card-body">
+            <p class="mb-2">
+                Current Email: <strong>{{ current_user.email | redact_email }}</strong>
+                {# Display Verification Status #}
+                {% if current_user.confirmed %}
+                <span class="badge bg-success-subtle text-success-emphasis ms-2 email-status">
+                    <i class="bi bi-check-circle-fill me-1"></i>Verified
+                </span>
+                {% else %}
+                <span class="badge bg-warning-subtle text-warning-emphasis ms-2 email-status">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Not Verified
+                </span>
+                <a href="{{ url_for('auth.resend_confirmation') }}" class="btn btn-sm btn-outline-warning ms-2">Resend
+                    Confirmation</a>
+                {% endif %}
+            </p>
+            <hr>
+            {# Button to trigger modal #}
+            <button type="button" class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#changeEmailModal">
+                Change Email Address
+            </button>
+        </div>
+    </div>
+    {# --- End Email Management Card --- #}
+
+
+    {# API Key Management Card (remains the same) #}
     <div class="card shadow-sm glass-effect mb-4">
         <div class="card-header h5 d-flex align-items-center">
             <i class="bi bi-key-fill me-2"></i> OBS Overlay API Key
         </div>
         <div class="card-body">
+            {# ... existing API key display/generation logic ... #}
             <p class="text-secondary small mb-3">
                 Used for the OBS overlay feature. This key allows you to connect your current challenge to OBS Studio.
                 <br>
                 <strong class="text-warning">Keep this key private!</strong> Treat it like a password. If you suspect
                 it's compromised, regenerate it immediately.
             </p>
-
             {% if current_user.overlay_api_key %}
-            {# Display Existing Key #}
             <label for="overlayApiKey" class="form-label small text-muted">Your Current Key:</label>
             <div class="input-group mb-3">
                 <input type="password" class="form-control form-control-sm" id="overlayApiKey"
                     value="{{ current_user.overlay_api_key }}" readonly
                     title="Your overlay API key (click Show/Hide or Copy)">
                 <div class="input-group-append">
-                    {# --- ADDED Show/Hide Button --- #}
                     <button class="btn btn-outline-secondary btn-sm" type="button" id="toggleApiKeyBtn"
-                        title="Show/Hide Key">
-                        {# Start with the "Show" icon (eye) #}
-                        <i class="bi bi-eye-fill"></i>
-                    </button>
-                    {# --- END ADDED Button --- #}
-
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="copyApiKeyBtn" title="Copy Key">
-                        <i class="bi bi-clipboard me-1"></i> Copy
-                    </button>
+                        title="Show/Hide Key"><i class="bi bi-eye-fill"></i></button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="copyApiKeyBtn"
+                        title="Copy Key"><i class="bi bi-clipboard me-1"></i> Copy</button>
                 </div>
             </div>
-            {# Regenerate Button (inside a form for POST) #}
-            {# --- FIX url_for --- #}
             <form action="{{ url_for('profile.regenerate_overlay_key') }}" method="POST"
                 onsubmit="return confirm('Are you sure you want to regenerate your key? Your existing overlay URL will stop working.');"
                 class="d-inline-block">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Add CSRF token #}
-                <button type="submit" class="btn btn-warning btn-sm">
-                    <i class="bi bi-arrow-repeat"></i> Regenerate Key
-                </button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-warning btn-sm"><i class="bi bi-arrow-repeat"></i> Regenerate
+                    Key</button>
             </form>
             {% else %}
-            {# Generate Button (if no key exists) #}
             <p>You haven't generated an overlay key yet.</p>
-            {# Use a form for the POST request #}
-            {# --- FIX url_for --- #}
             <form action="{{ url_for('profile.regenerate_overlay_key') }}" method="POST" class="d-inline-block">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> {# Add CSRF token #}
-                <button type="submit" class="btn btn-success btn-sm">
-                    <i class="bi bi-plus-circle"></i> Generate Key
-                </button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-plus-circle"></i> Generate
+                    Key</button>
             </form>
             {% endif %}
         </div>
     </div>
 
-    {# Account Security Card (Example) #}
+    {# Account Security Card #}
     <div class="card shadow-sm glass-effect mb-4">
         <div class="card-header h5 d-flex align-items-center">
             <i class="bi bi-shield-lock-fill me-1"></i> Account Security
         </div>
         <div class="card-body">
+            {# --- Conditionally show Change Password button --- #}
+            {% if not current_user.is_twitch_user %}
             <a href="{{ url_for('auth.change_password') }}" class="btn btn-secondary btn-sm me-2 mb-2">Change
                 Password</a>
+            {% else %}
+            {# Optionally show a disabled button or message for Twitch users #}
+            <button class="btn btn-secondary btn-sm me-2 mb-2 disabled" title="Password managed via Twitch"
+                aria-disabled="true">Change Password</button>
+            {% endif %}
+            {# --- End Conditional --- #}
+
+            {# Delete button is always available #}
             <a href="{{ url_for('auth.confirm_delete_account') }}" class="btn btn-danger btn-sm mb-2">Delete Account</a>
         </div>
     </div>
 
+</div> {# End container #}
+
+{# --- Change Email Modal (remains the same) --- #}
+<div class="modal fade" id="changeEmailModal" tabindex="-1" role="dialog" aria-labelledby="changeEmailModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content"> {# Style handled by style.css #}
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeEmailModalLabel">Change Email Address</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="POST" action="{{ url_for('profile.profile_view') }}" novalidate>
+                {{ change_email_form.hidden_tag() }} {# Important for CSRF #}
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">
+                        Enter your new email address and your current password. A confirmation link will be sent to the
+                        new address.
+                    </p>
+                    {{ render_field(change_email_form.new_email, placeholder="New Email Address", autocomplete="email")
+                    }}
+                    {{ render_field(change_email_form.password, placeholder="Current Password",
+                    autocomplete="current-password") }}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    {{ change_email_form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
+{# --- End Change Email Modal --- #}
+
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
+{# Script for API Key copy/toggle (remains the same) #}
 <script>
-    // Simple copy-to-clipboard functionality
     const copyBtn = document.getElementById('copyApiKeyBtn');
     const keyInput = document.getElementById('overlayApiKey');
-    // Assuming showFlash is globally available or imported via a base script
-    const showFlash = window.showFlash || function (msg, type) { console.log(`${type}: ${msg}`);  };
-
-    if (copyBtn && keyInput) {
+    const showFlash = window.showFlash || function (msg, type) { console.log(`${type}: ${msg}`); };
+    if (copyBtn && keyInput) { /* ... copy logic ... */
         copyBtn.addEventListener('click', () => {
-            keyInput.select();
-            keyInput.setSelectionRange(0, 99999); // For mobile devices
-            let successful = false;
+            keyInput.select(); keyInput.setSelectionRange(0, 99999);
             try {
-                // Use Clipboard API if available (more modern and secure)
                 if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(keyInput.value)
-                        .then(() => {
-                            console.log('API Key copied to clipboard via Clipboard API');
-                            showFlash('API Key copied!', 'success'); // Use flash message
-                        })
-                        .catch(err => {
-                            console.error('Async: Could not copy text: ', err);
-                            showFlash('Failed to copy key (Clipboard API).', 'danger');
-                        });
-                } else {
-                    // Fallback to execCommand for older browsers/non-secure contexts
-                    successful = document.execCommand('copy');
-                    const msgLog = successful ? 'successful' : 'unsuccessful';
-                    console.log('Fallback: Copying text command was ' + msgLog);
-                    if (successful) {
-                        showFlash('API Key copied! (fallback)', 'success');
-                    } else {
-                        throw new Error('document.execCommand failed');
-                    }
-                }
-            } catch (err) {
-                console.error('Copy error:', err);
-                showFlash('Failed to copy key.', 'danger');
-            }
-            // Deselect text after attempt
-            if (window.getSelection) { // Modern browsers
-                window.getSelection().removeAllRanges();
-            } else if (document.selection) { // IE <= 8
-                document.selection.empty();
-            }
+                    navigator.clipboard.writeText(keyInput.value).then(() => { showFlash('API Key copied!', 'success'); }).catch(err => { console.error('Async: Could not copy text: ', err); showFlash('Failed to copy key (Clipboard API).', 'danger'); });
+                } else { let successful = document.execCommand('copy'); if (successful) { showFlash('API Key copied! (fallback)', 'success'); } else { throw new Error('document.execCommand failed'); } }
+            } catch (err) { console.error('Copy error:', err); showFlash('Failed to copy key.', 'danger'); }
+            if (window.getSelection) { window.getSelection().removeAllRanges(); } else if (document.selection) { document.selection.empty(); }
         });
     }
     const toggleBtn = document.getElementById('toggleApiKeyBtn');
-    // const keyInput = document.getElementById('overlayApiKey'); // Already defined above
-
-    if (toggleBtn && keyInput) {
+    if (toggleBtn && keyInput) { /* ... toggle logic ... */
         toggleBtn.addEventListener('click', () => {
             const currentType = keyInput.type;
-            if (currentType === 'password') {
-                // Switch to text (Show)
-                keyInput.type = 'text';
-                toggleBtn.innerHTML = '<i class="bi bi-eye-slash-fill"></i>'; // Change icon to "Hide" (eye-slash)
-                toggleBtn.title = 'Hide Key';
-            } else {
-                // Switch to password (Hide)
-                keyInput.type = 'password';
-                toggleBtn.innerHTML = '<i class="bi bi-eye-fill"></i>'; // Change icon back to "Show" (eye)
-                toggleBtn.title = 'Show Key';
-            }
+            if (currentType === 'password') { keyInput.type = 'text'; toggleBtn.innerHTML = '<i class="bi bi-eye-slash-fill"></i>'; toggleBtn.title = 'Hide Key'; }
+            else { keyInput.type = 'password'; toggleBtn.innerHTML = '<i class="bi bi-eye-fill"></i>'; toggleBtn.title = 'Show Key'; }
         });
     }
-</script>
 
+
+</script>
+{# Optional: If validation fails on email change POST, re-open the modal #}
+{% if change_email_form.errors %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof $ !== 'undefined' && $.fn.modal) { $('#changeEmailModal').modal('show'); }
+        else { /* Fallback for vanilla JS */ }
+    });
+</script>
+{% endif %}
 {% endblock %}

@@ -141,6 +141,10 @@ class User(db.Model, UserMixin):
     def is_anonymous(self) -> bool: return False
     def get_id(self) -> str: return str(self.id) # Required by Flask-Login
 
+    @property
+    def is_twitch_user(self) -> bool:
+        """Check if the user authenticated via Twitch (has twitch_id)."""
+        return self.twitch_id is not None
     # Password methods
     def set_password(self, password: str): 
         self.password_hash = generate_password_hash(password)
@@ -206,12 +210,8 @@ class ChallengeGroup(db.Model):
 
     # Relationships using db.relationship
     shared_challenge = db.relationship("SharedChallenge", back_populates="groups", lazy="select")
-    members = db.relationship(
-        "User",
-        secondary=user_challenge_group_membership,
-        back_populates="joined_groups",
-        lazy="select" # Use 'select' or 'joined' depending on query needs
-    )
+    members = db.relationship( "User", secondary=user_challenge_group_membership, back_populates="joined_groups", lazy="select" )
+
 
     # Constraints
     __table_args__ = (
