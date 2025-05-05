@@ -1,63 +1,79 @@
 # run.py
+import eventlet
+
+# --- Perform Eventlet monkey patching FIRST ---
+# Check if already patched to avoid issues during reloads
+if not eventlet.patcher.is_monkey_patched('socket'):
+    print("--- [run.py] Patching standard libraries for eventlet ---")
+    eventlet.monkey_patch()
+else:
+    print("--- [run.py] Standard libraries already patched ---")
+# --- End Patching ---
+
+# Now import app factory and other necessary modules
 import os
-from app import create_app, db, socketio
-from app.commands import register_commands 
+from app import create_app, db, socketio # Import db and socketio instance as well
+from app.commands import register_commands
 # Import models needed for shell context or potential startup tasks
-# Corrected imports based on app/models.py
 from app.models import (
-    User, 
+    User,
     SavedPenaltyTab,
     SavedGameTab,
     GameEntry,
     Penalty,
-    SharedChallenge, 
+    SharedChallenge,
     ChallengeGroup,
-    # Removed non-existent models like ChallengeGame, ChallengePenalty, Tab, GroupMembership
-    # Note: user_challenge_group_membership is a Table object, not typically imported here
-) 
+)
 
 # Create the Flask app instance using the factory function
-# It will automatically detect FLASK_ENV or default to 'development'
-app = create_app(os.getenv('FLASK_ENV')) 
-register_commands(app)
-
+# Determine config name (e.g., from FLASK_ENV or default to 'production' for run.py)
+# Using 'development' as default here assuming run.py is mostly for local dev
+config_name = os.getenv('FLASK_ENV') or 'development'
+app = create_app(config_name)
+register_commands(app) # Register CLI commands
 
 
 # Define context for the Flask shell (`flask shell`)
-# Makes it easier to work with the database and models interactively
 @app.shell_context_processor
 def make_shell_context():
     """Provides database instance and models to the Flask shell context."""
-    # Use the correct model names imported above
     return {
         'db': db,
-        'socketio': socketio, 
-        'User': User, 
+        'socketio': socketio,
+        'User': User,
         'SavedPenaltyTab': SavedPenaltyTab,
         'SavedGameTab': SavedGameTab,
         'GameEntry': GameEntry,
         'Penalty': Penalty,
-        'SharedChallenge': SharedChallenge, 
+        'SharedChallenge': SharedChallenge,
         'ChallengeGroup': ChallengeGroup,
-        # If you want the association table accessible:
-        # 'user_challenge_group_membership_table': user_challenge_group_membership 
     }
 
 
-
-# Main execution block when script is run directly
+# Main execution block when script is run directly (for local development)
 if __name__ == '__main__':
     # Get debug mode from the application configuration
+    # This ensures the reloader works correctly based on FLASK_ENV
     debug_mode = app.config.get('DEBUG', False)
-    
+
     # Get host and port from environment variables or use defaults
     host = os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
-    port = int(os.environ.get('FLASK_RUN_PORT', 5000))
+    try:
+        port = int(os.environ.get('FLASK_RUN_PORT', '5000'))
+    except ValueError:
+        port = 5000
 
-    print(f"--- Starting Flask-SocketIO server with eventlet ---")
-    print(f"--- Environment: {os.environ.get('FLASK_ENV', 'N/A')} ---")
+    print(f"--- Starting Flask-SocketIO development server (via run.py) ---")
+    print(f"--- Environment: {config_name} ---")
     print(f"--- Debug Mode: {debug_mode} ---")
     print(f"--- Running on http://{host}:{port} ---")
+
+    # Use Flask-SocketIO's run method which integrates with eventlet
+    # use_reloader=debug_mode ensures the reloader only runs in debug mode
+    # debug=debug_mode passes the debug flag to Flask internally
     socketio.run(app, host=host, port=port, debug=debug_mode, use_reloader=debug_mode)
-    # Run the Flask development server
-    app.run(host=host, port=port, debug=debug_mode)
+    # Do not call app.run() here, socketio.run() handles it.
+
+# Note: When running with Gunicorn, Gunicorn imports 'app' from this file.
+# The patching at the top ensures eventlet is set up before Gunicorn loads the app.
+# The `if __name__ == '__main__':` block is ignored by Gunicorn.

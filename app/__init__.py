@@ -1,14 +1,4 @@
 # app/__init__.py
-import eventlet
-
-# --- Eventlet Patching ---
-if not eventlet.patcher.is_monkey_patched('socket'):
-    print("--- Patching standard libraries for eventlet ---")
-    eventlet.monkey_patch()
-else:
-    print("--- Standard libraries already patched for eventlet ---")
-# --- End Eventlet Patching ---
-
 import os
 import re
 from flask import Flask
