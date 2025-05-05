@@ -1,7 +1,7 @@
 # app/__init__.py
 import eventlet
 
-# --- Eventlet Patching (Keep at the very top) ---
+# --- Eventlet Patching ---
 if not eventlet.patcher.is_monkey_patched('socket'):
     print("--- Patching standard libraries for eventlet ---")
     eventlet.monkey_patch()
@@ -10,6 +10,7 @@ else:
 # --- End Eventlet Patching ---
 
 import os
+import re
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -19,9 +20,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO
 from flask_mail import Mail
-from config import config
+from config import config # Keep importing config for other settings
 import logging
-import re
 
 # Initialize extensions globally
 db = SQLAlchemy()
@@ -30,11 +30,15 @@ csrf = CSRFProtect()
 migrate = Migrate()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 mail = Mail()
-# --- Initialize Limiter globally (simpler init) ---
+
+# --- Initialize Limiter globally - Reading storage URI directly ---
+# Read directly from environment variable here, providing a default
+limiter_storage_uri = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")
+print(f"--- [INIT DEBUG] Initializing Limiter with storage_uri: {limiter_storage_uri} ---") # Debug print
 limiter = Limiter(
     key_func=get_remote_address,
-    # Default limits and storage URI will be read from app config via init_app
-    # headers_enabled will also be read from config if set (defaults to False)
+    storage_uri=limiter_storage_uri, # Set storage directly
+    # Default limits and headers will still be read from app config via init_app
 )
 # --- End Limiter Init ---
 
@@ -43,30 +47,24 @@ login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 
 
+# Custom Jinja Filter
 def redact_email_filter(email):
-    """Redacts an email address for display (e.g., us***@example.com)."""
-    if not email or '@' not in email:
-        return email # Return original if invalid format
+    # ... (filter code remains the same) ...
+    if not email or '@' not in email: return email
     try:
         local_part, domain = email.split('@')
-        if len(local_part) <= 3:
-            # If local part is short, show first char + ***
-            redacted_local = local_part[0] + '***'
-        else:
-            # Show first 2 chars, ***, last char
-            redacted_local = local_part[:2] + '***' + local_part[-1]
+        if len(local_part) <= 3: redacted_local = local_part[0] + '***'
+        else: redacted_local = local_part[:2] + '***' + local_part[-1]
         return f"{redacted_local}@{domain}"
-    except Exception:
-        return "Invalid Email Format" # Fallback for unexpected errors
-    
+    except Exception: return "Invalid Email Format"
+
 # User loader callback
 @login_manager.user_loader
 def load_user(user_id):
+    # ... (user loader remains the same) ...
     from .models import User
-    try:
-        return db.session.get(User, int(user_id))
-    except (TypeError, ValueError):
-        return None
+    try: return db.session.get(User, int(user_id))
+    except (TypeError, ValueError): return None
 
 # App Factory
 def create_app(config_name=None):
@@ -95,10 +93,15 @@ def create_app(config_name=None):
     socketio.init_app(app)
     mail.init_app(app)
     # --- Configure the *global* limiter instance with the app ---
+    # It will read other settings like default limits from app.config now
     limiter.init_app(app)
     # --- End Limiter Config ---
+
+    # Register the custom filter
     app.jinja_env.filters['redact_email'] = redact_email_filter
+
     # Import and register blueprints
+    # ... (blueprint registrations remain the same) ...
     from .routes.main import main
     app.register_blueprint(main)
     from .routes.auth import auth as auth_blueprint
@@ -117,6 +120,7 @@ def create_app(config_name=None):
     app.register_blueprint(payment_bp, url_prefix='/payment')
     from .routes.profile import profile_bp
     app.register_blueprint(profile_bp)
+
 
     # Import and register SocketIO event handlers
     from . import sockets
