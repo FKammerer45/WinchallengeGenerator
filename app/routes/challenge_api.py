@@ -13,7 +13,7 @@ from app import csrf
 from app import db 
 # Import necessary models
 from app.models import SharedChallenge, ChallengeGroup, User
-
+from app.utils.auth_helpers import is_user_authorized
 # Import SQLAlchemy components
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import func
@@ -49,15 +49,6 @@ def _initialize_player_slots(group):
         logger.warning(f"Player names for group {group.id} not in expected format. Initializing fresh.")
         return [{"display_name": "", "account_name": None} for _ in range(num_slots)]
 
-def is_user_authorized(challenge, user):
-    """Checks if a user is the creator or in the authorized list."""
-    if not user or not user.is_authenticated:
-        return False
-    if challenge.creator_id == user.id:
-        return True
-    # Check if user is in the collection. This requires the relationship to be loaded.
-    # Ensure 'authorized_users' is loaded efficiently if needed frequently (e.g., using joinedload or selectinload options in the query)
-    return user in challenge.authorized_users
 
 # --- /generate endpoint ---
 # Update decorator to use the new blueprint name

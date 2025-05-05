@@ -7,22 +7,10 @@ from sqlalchemy.orm import joinedload, selectinload
 # Import necessary components from your app
 from app import socketio, db
 from app.models import User, SharedChallenge, ChallengeGroup
-# Import helper if it exists, otherwise define here or import from challenge_api
+from app.utils.auth_helpers import is_user_authorized
+
 logger = logging.getLogger(__name__)
-try:
-    # Assuming is_user_authorized is defined in challenge_api.py
-    from .routes.challenge_api import is_user_authorized
-except ImportError:
-    logger.error("Could not import is_user_authorized from challenge_api. Re-defining locally.")
-    # Fallback definition if needed (make sure it matches the one in challenge_api.py)
-    def is_user_authorized(challenge, user):
-        if not user: return False # Check if user object exists first
-        # Cannot check is_authenticated here as it's not a request context
-        if challenge.creator_id == user.id: return True
-        # Check relationship - requires challenge.authorized_users to be loaded
-        # Ensure challenge.authorized_users is actually loaded before checking
-        if not hasattr(challenge, 'authorized_users'): return False # Safety check
-        return user in challenge.authorized_users
+
 
 
 
