@@ -1,0 +1,40 @@
+# robots.txt for Win Challenge Generator
+
+User-agent: *
+# Disallow access to authentication-related paths
+Disallow: /auth/
+Disallow: /profile
+Disallow: /my_challenges
+Disallow: /unconfirmed
+Disallow: /resend
+Disallow: /forgot-password
+Disallow: /reset-password/
+Disallow: /impressum
+Disallow: /datenschutz
+Disallow: /termsofservice
+
+# Disallow configuration pages
+Disallow: /games
+Disallow: /penalties
+
+# Disallow API endpoints
+Disallow: /api/
+
+# Disallow payment process
+Disallow: /payment/
+
+# Disallow specific challenge view pages and the overlay
+Disallow: /challenge/
+Disallow: /overlay/
+
+# Allow legal pages (if they are not under a disallowed path)
+
+
+Allow: /sitemap.xml
+
+# Allow the homepage
+Allow: /$
+
+# Sitemap location (update if your sitemap has a different name/location)
+Sitemap: https://www.winchallenge.me/sitemap.xml
+

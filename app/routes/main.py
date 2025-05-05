@@ -30,6 +30,18 @@ def sitemap():
     static_folder = current_app.static_folder
     return send_from_directory(static_folder, 'sitemap.xml')
 
+@main.route('/robots.txt')
+def robots_txt():
+    """Serves the robots.txt file from the static directory."""
+    # Construct the path to the static folder relative to the app instance
+    static_folder = current_app.static_folder
+    if static_folder is None:
+         # Handle case where static folder isn't configured (shouldn't happen in standard Flask)
+         logger.error("Static folder not found in current_app configuration.")
+         abort(404)
+    # Use send_from_directory - it handles security checks
+    return send_from_directory(static_folder, 'robots.txt')
+
 @main.route("/games")
 def games_config():
     """Renders the games configuration page."""
