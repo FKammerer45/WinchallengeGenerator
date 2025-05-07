@@ -340,3 +340,49 @@ hr.feature-divider {
     opacity: 1;
     visibility: visible;
   }
+
+
+  /* --- Maxwell Explosion Easter Egg --- */
+.exploding-cat {
+    position: fixed; /* Use fixed to position relative to viewport */
+    /* MODIFIED: Increased size */
+    width: 85px;
+    height: auto;
+    z-index: 1090;
+    pointer-events: none;
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+    will-change: top, left, transform, opacity; /* Added opacity */
+    /* Start centered and small, slightly transparent */
+    opacity: 0;
+    transform: scale(0.1);
+    /* Remove individual transition properties if using animation for movement */
+}
+
+/* Keyframes for the dancing/swinging animation */
+@keyframes catDance {
+  0% {
+    transform: translateX(-15px) rotateZ(-8deg) translateY(0px);
+  }
+  50% {
+    transform: translateX(15px) rotateZ(8deg) translateY(-8px); /* Add bounce */
+  }
+  100% {
+    transform: translateX(-15px) rotateZ(-8deg) translateY(0px);
+  }
+}
+
+/* Class to add when animation starts */
+.exploding-cat.fly {
+    opacity: 0.95; /* Become mostly visible */
+    transform: scale(1); /* Scale to new size */
+    /* MODIFIED: Apply the keyframe animation */
+    animation: catDance 1.2s ease-in-out infinite alternate; /* Adjust duration/timing */
+    /* Remove individual transition properties for position/rotation */
+    transition: opacity 0.5s ease-in; /* Keep opacity transition */
+}
+
+/* Class for fading out before removal (can remain the same) */
+.exploding-cat.fade-out {
+    opacity: 0;
+    transform: scale(0.1);
+}

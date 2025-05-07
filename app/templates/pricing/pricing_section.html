@@ -154,51 +154,144 @@
 
 {% block scripts %}
 {{ super() }}
-{# --- ADD THIS SCRIPT BLOCK --- #}
-<script>
+<script type="module" src="{{ url_for('static', filename='js/utils/soundManager.js') }}"></script>
+
+{# --- MODIFIED SCRIPT BLOCK --- #}
+<script type="module">
     document.addEventListener('DOMContentLoaded', function () {
-        const upgradeButton = document.getElementById('upgrade-login-prompt');
-        const messageDiv = document.getElementById('login-prompt-message');
-
-        if (upgradeButton && messageDiv) {
-            upgradeButton.addEventListener('click', function (event) {
-                // Prevent any default button action (though type="button" should suffice)
-                event.preventDefault();
-
-                // Show the login/register message
-                messageDiv.style.display = 'block';
-
-                // Optional: Hide the message after a few seconds
-                // setTimeout(() => {
-                //     messageDiv.style.display = 'none';
-                // }, 5000); // Hide after 5 seconds
-            });
-        }
-    });
-</script>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const catImage = document.getElementById('running-cat-local-gif');
+        const originalCatImg = document.getElementById('running-cat-local-gif');
+        const originalCatContainer = document.getElementById('running-cat-local-container');
         const speechBubble = document.getElementById('cat-speech-bubble');
-        let bubbleTimeout; // To store the timeout ID
+        const pageContainer = document.querySelector('.subscribe-page') || document.body;
+        const meowSoundUrl = "{{ url_for('static', filename='sounds/meow_1.mp3') }}";
+        const crabRaveSoundUrl = "{{ url_for('static', filename='sounds/crabrave.mp3') }}"; // <-- CHANGE FILENAME IF NEEDED
 
-        if (catImage && speechBubble) {
-            catImage.addEventListener('click', function () {
-                // Clear any existing timeout to prevent immediate hiding
+        let clickCount = 0;
+        const clickThreshold = 20;
+        let isExploding = false;
+        let bubbleTimeout;
+        let crabRaveAudio = null; // Variable to hold the looping audio object
+
+        if (originalCatImg && window.soundManager) {
+            originalCatImg.addEventListener('click', function () {
+                if (isExploding) return;
+
+                
+                window.soundManager.playSound(meowSoundUrl);
+
+                clickCount++;
+                console.log(`Maxwell Click Count: ${clickCount}`);
+
+                if (clickCount >= clickThreshold) {
+                    console.log("Triggering Maxwell CRAB RAVE!");
+                    triggerCatExplosion(); // Renamed for clarity maybe? No, keep name.
+                    clickCount = 0;
+                }
+
+                // Speech Bubble Logic
                 clearTimeout(bubbleTimeout);
-
-                // Show the bubble
-                speechBubble.classList.add('show');
-
-                // Set a timeout to hide the bubble after 3 seconds (3000ms)
-                bubbleTimeout = setTimeout(() => {
-                    speechBubble.classList.remove('show');
-                }, 3000);
+                if (speechBubble) {
+                    speechBubble.classList.add('show');
+                    bubbleTimeout = setTimeout(() => {
+                        speechBubble.classList.remove('show');
+                    }, 3000);
+                }
             });
+        } else {
+            if (!originalCatImg) console.warn("Maxwell cat image not found.");
+            if (!window.soundManager) console.warn("Sound manager not loaded.");
         }
+
+        function triggerCatExplosion() {
+            if (isExploding) return;
+            isExploding = true;
+            clickCount = 0;
+
+            // 1. Hide Original Cat & Bubble
+            if (originalCatContainer) {
+                 originalCatContainer.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+                 originalCatContainer.style.opacity = '0';
+                 originalCatContainer.style.transform = 'scale(0)'; // Shrink away instead of pop
+            }
+             if (speechBubble) speechBubble.classList.remove('show');
+
+            // *** Play Crab Rave (Looping) ***
+            if (crabRaveSoundUrl && window.soundManager) {
+                // Stop previous instance if it exists (important for rapid re-triggering)
+                if(crabRaveAudio && !crabRaveAudio.paused) {
+                    crabRaveAudio.pause();
+                    crabRaveAudio.currentTime = 0;
+                }
+                crabRaveAudio = window.soundManager.playSound(crabRaveSoundUrl, true); // Play looped, store instance
+            }
+
+            // 2. Create Clones
+            const numClones = 20;
+            const clones = [];
+            const originalRect = originalCatImg.getBoundingClientRect();
+            // Use viewport dimensions for initial random placement
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+
+            for (let i = 0; i < numClones; i++) {
+                const clone = document.createElement('img');
+                clone.src = originalCatImg.src;
+                clone.classList.add('exploding-cat'); // Base style
+
+                // *** Start clones at random positions across the screen ***
+                const initialX = Math.random() * (viewportWidth - 90) + 45; // Random X (padding)
+                const initialY = Math.random() * (viewportHeight - 90) + 45; // Random Y (padding)
+                clone.style.left = `${initialX}px`;
+                clone.style.top = `${initialY}px`;
+                // Apply random animation delay so they don't all dance in sync
+                clone.style.animationDelay = `${Math.random() * 0.5}s`;
+
+                pageContainer.appendChild(clone);
+                clones.push(clone);
+
+                // Add the 'fly' class slightly after appending to trigger fade-in/scale-up
+                // and start the CSS keyframe animation
+                requestAnimationFrame(() => {
+                     setTimeout(() => { // Timeout ensures style is applied before class change
+                         clone.classList.add('fly');
+                     }, 10);
+                });
+            }
+
+            // 3. Cleanup after 10 seconds (Increased duration)
+            setTimeout(() => {
+                // Stop Crab Rave
+                if(crabRaveAudio && !crabRaveAudio.paused) {
+                    crabRaveAudio.pause();
+                    crabRaveAudio.currentTime = 0; // Reset for next time
+                    crabRaveAudio = null; // Clear reference
+                }
+
+                // Fade out and remove clones
+                clones.forEach(clone => {
+                    clone.style.animationPlayState = 'paused'; // Stop animation
+                    clone.classList.remove('fly'); // Remove fly class if needed
+                    clone.classList.add('fade-out');
+                    clone.addEventListener('transitionend', () => clone.remove(), { once: true });
+                });
+
+                // Bring back original cat
+                setTimeout(() => {
+                    if (originalCatContainer) {
+                        originalCatContainer.style.opacity = '1';
+                        originalCatContainer.style.transform = 'scale(1)';
+                    }
+                     isExploding = false;
+                     console.log("Maxwell rave finished.");
+                }, 600); // Wait for fade-out
+
+            }, 10000); // *** Increased duration to 10 seconds ***
+        }
+
+   
+
     });
 </script>
-
 {# --- END OF SCRIPT BLOCK --- #}
 {% endblock %}

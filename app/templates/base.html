@@ -4,7 +4,7 @@
 <html lang="en">
 </head>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3236245477658963"
-     crossorigin="anonymous"></script>
+  crossorigin="anonymous"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Win Challenge Generator{% endblock %}</title>
@@ -96,6 +96,26 @@
         </ul>
         {# --- Auth Links (Right) --- #}
         <ul class="navbar-nav">
+          {# --- Sound Controls --- #}
+          {# This outer li is now the hover target #}
+          <li class="nav-item navbar-sound-controls d-flex align-items-center me-3">
+              {# Mute Button (remains the same) #}
+              <button type="button" id="globalMuteBtn" class="btn btn-sm btn-outline-secondary" title="Mute/Unmute Sounds">
+                  <i id="globalMuteIcon" class="bi bi-volume-up-fill"></i>
+              </button>
+
+              {# ADDED: Wrapper div for the slider part, initially hidden #}
+              <div id="volumeControlsWrapper" class="volume-controls-wrapper">
+                  {# Original container for slider + icons (kept for alignment) #}
+                  <div class="volume-slider-container d-flex align-items-center">
+                       <i class="bi bi-volume-down-fill text-secondary small"></i>
+                       <input type="range" id="globalVolumeSlider" class="custom-range form-control-sm mx-1" min="0" max="100" step="1" style="width: 80px;" title="Adjust Volume"> {# Removed inline cursor style #}
+                       <i class="bi bi-volume-up-fill text-secondary small"></i>
+                  </div>
+              </div>
+              
+          </li>
+          {# --- END: Sound Controls --- #}
           {% if current_user.is_authenticated %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-toggle="dropdown"
@@ -130,16 +150,16 @@
     <div class="container">
       <span>Win Challenge Generator &copy; {{ now().year if now else '' }}</span>
       {# Hinzugefügte Links #}
-      <span class="mx-2 d-none d-sm-inline">|</span> 
+      <span class="mx-2 d-none d-sm-inline">|</span>
       <a href="{{ url_for('main.impressum') }}" class="text-muted mx-1 mx-sm-0">Impressum</a>
-      <span class="mx-2 d-none d-sm-inline">|</span> 
+      <span class="mx-2 d-none d-sm-inline">|</span>
       <a href="{{ url_for('main.datenschutz') }}" class="text-muted mx-1 mx-sm-0">Datenschutz</a>
-      <span class="mx-2 d-none d-sm-inline">|</span> 
+      <span class="mx-2 d-none d-sm-inline">|</span>
       <a href="{{ url_for('main.termsofservice') }}" class="text-muted mx-1 mx-sm-0">Termsofservice</a>
       {# Ende hinzugefügte Links #}
     </div>
   </footer>
-  
+
   <div class="modal fade" id="actionConfirmModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
       <div class="modal-content shadow">
@@ -179,7 +199,67 @@
       }
     });
   </script>
+  <script type="module" src="{{ url_for('static', filename='js/utils/soundManager.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/utils/soundManager.js') }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const muteBtn = document.getElementById('globalMuteBtn');
+        const muteIcon = document.getElementById('globalMuteIcon');
+        const volumeSlider = document.getElementById('globalVolumeSlider');
 
+        if (!muteBtn || !muteIcon || !volumeSlider || typeof window.soundManager === 'undefined') {
+            console.warn("Sound UI controls or soundManager not found. Sound UI disabled.");
+            document.querySelector('.navbar-sound-controls')?.style.setProperty('display', 'none', 'important');
+            return;
+        }
+
+        const soundManager = window.soundManager;
+
+        function updateSoundUI() {
+            const muted = soundManager.isMuted();
+            const volume = soundManager.getVolume();
+
+            muteIcon.className = muted ? 'bi bi-volume-mute-fill' : 'bi bi-volume-up-fill';
+            muteBtn.title = muted ? 'Unmute Sounds' : 'Mute Sounds';
+
+            // Update slider value. If muted (likely because volume is 0), show 0.
+            volumeSlider.value = Math.round(volume * 100);
+
+            // --- REMOVED: Temporarily remove disabling the slider visually ---
+            // volumeSlider.disabled = muted;
+            // --- Let's see if this helps user perception ---
+        }
+
+        // Mute Button Click
+        muteBtn.addEventListener('click', () => {
+            soundManager.toggleMute(); // Toggle mute state in manager
+        });
+
+        // --- SIMPLIFIED Volume Slider Input Listener ---
+        volumeSlider.addEventListener('input', () => {
+            const sliderValue = parseInt(volumeSlider.value, 10);
+            const volumeLevel = sliderValue / 100;
+
+            // JUST set the volume. The soundManager.setVolume function
+            // internally handles the logic: isMuted = currentVolume <= 0.01;
+            soundManager.setVolume(volumeLevel);
+
+            // The soundSettingsChanged event dispatched by setVolume
+            // will trigger the UI update via the listener below.
+        });
+        // --- END SIMPLIFIED Listener ---
+
+        // Listen for changes triggered by the soundManager
+        document.addEventListener('soundSettingsChanged', (event) => {
+             console.log("UI received soundSettingsChanged event:", event.detail);
+             updateSoundUI(); // Update UI whenever state changes internally
+        });
+
+        // --- Initial State ---
+        updateSoundUI();
+
+    });
+</script>
   {# --- Block for page-specific scripts --- #}
   {% block scripts %}{% endblock %}
 </body>

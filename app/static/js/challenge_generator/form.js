@@ -23,7 +23,32 @@ function restoreChecked(checkedSet) {
         cb.dispatchEvent(new Event('change'));  // keep weight inputs in sync
     });
 }
+function updateB2BDisplay(value) {
+    const b2bOutput = document.getElementById('b2bValueDisplay');
+    if (!b2bOutput) return; // Exit if output element not found
 
+    const numericValue = parseInt(value, 10);
+    let levelText = 'Medium'; // Default
+    let levelClass = 'level-medium'; // Default
+
+    if (numericValue === 0) {
+        levelText = 'None';
+        levelClass = 'level-none';
+    } else if (numericValue >= 1 && numericValue <= 3) {
+        levelText = 'Low';
+        levelClass = 'level-low';
+    } else if (numericValue >= 4 && numericValue <= 7) {
+        levelText = 'Medium';
+        levelClass = 'level-medium';
+    } else if (numericValue >= 8) { // 8, 9, 10
+        levelText = 'High';
+        levelClass = 'level-high';
+    }
+
+    b2bOutput.textContent = levelText;
+    // Reset classes first, then add the specific level class
+    b2bOutput.className = 'range-value-display ' + levelClass;
+}
 /**
  * Updates UI elements on the index form based on selections 
  * (group mode, penalties enabled). Handles anonymous user restrictions.
@@ -241,6 +266,7 @@ function updateGameSelectionCard() {
     Object.keys(grouped).forEach(key => grouped[key].availableModes = Array.from(grouped[key].availableModes).sort());
 
     let tableHtml = "";
+    let allModalsHtml = "";
     const gameNames = Object.keys(grouped).sort();
     gamesShown = Math.max(PAGE_SIZE, Math.min(gamesShown, gameNames.length));
     const visibleNames = gameNames.slice(0, gamesShown);
@@ -252,31 +278,14 @@ function updateGameSelectionCard() {
             const safeGameNameId = gameName.replace(/[^a-zA-Z0-9_-]/g, '-');
             const gameCheckboxId = `game-${safeGameNameId}-${index}`;
             const modalId = `modesModal-${safeGameNameId}-${index}`;
+            const modalLabelId = `modesModalLabel-${safeGameNameId}-${index}`; // Unique Label ID
             const escapedGameName = escapeHtml(gameName);
 
-            let modalBodyHtml = "";
-            if (group.availableModes.length > 0) {
-                group.availableModes.forEach((mode, i) => {
-                    const modeCheckboxId = `mode-${safeGameNameId}-${index}-${i}`;
-                    const escapedModeValue = mode.replace(/"/g, '&quot;');
-                    const escapedModeLabel = escapeHtml(mode);
-                    // Use Bootstrap 4 Checkbox structure
-                    modalBodyHtml += `
-                        <div class="custom-control custom-checkbox mb-2">
-                            <input class="custom-control-input allowed-mode-checkbox" type="checkbox"
-                                   name="allowed_modes_${escapedGameName}[]" value="${escapedModeValue}" id="${modeCheckboxId}" checked>
-                            <label class="custom-control-label" for="${modeCheckboxId}">${escapedModeLabel}</label>
-                        </div>`;
-                });
-            } else {
-                modalBodyHtml = "<p class='text-muted'>No specific modes found for this game.</p>";
-            }
-
-            // Build table row using Bootstrap 4 modal attributes - REMOVED COMMENTS
+            // Generate table row HTML (button only, no modal div here)
             tableHtml += `
                 <tr data-game="${escapedGameName}">
                     <td class="align-middle">
-                        <div class="custom-control custom-checkbox"> 
+                        <div class="custom-control custom-checkbox">
                             <input class="custom-control-input game-select-checkbox" type="checkbox" name="selected_games" value="${escapedGameName}" id="${gameCheckboxId}" checked>
                             <label class="custom-control-label font-weight-bold" for="${gameCheckboxId}">${escapedGameName}</label>
                         </div>
@@ -286,36 +295,65 @@ function updateGameSelectionCard() {
                     </td>
                     <td class="align-middle text-center">
                         ${group.availableModes.length > 0 ? `
-                            <button type="button" class="btn btn-sm btn-outline-secondary modes-btn" data-toggle="modal" data-target="#${modalId}" title="Select Modes">
-                                Modes (${group.availableModes.length})
+                            <button type="button" class="btn btn-sm btn-outline-secondary modes-btn"
+                                    data-toggle="modal"
+                                    data-target="#${modalId}"
+                                    title="Select Allowed Modes">
+                                Modes (${group.availableModes.length}) <i class="bi bi-pencil-square ms-1"></i>
                             </button>
-                            <div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" aria-labelledby="${modalId}Label" aria-hidden="true">
-                              <div class="modal-dialog modal-dialog-centered" role="document">
-                                <div class="modal-content">
-                                  <div class="modal-header">
-                                    <h5 class="modal-title" id="${modalId}Label">${escapedGameName} - Allowed Modes</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                  </div>
-                                  <div class="modal-body text-left">
-                                    ${modalBodyHtml}
-                                  </div>
-                                  <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Done</button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
                         ` : '<span class="text-muted small">N/A</span>'}
                     </td>
                 </tr>`;
+
+            // --- MODIFICATION START: Generate Modal HTML separately ---
+            if (group.availableModes.length > 0) {
+                let modalBodyHtml = "";
+                group.availableModes.forEach((mode, i) => {
+                    const modeCheckboxId = `mode-${safeGameNameId}-${index}-${i}`;
+                    const escapedModeValue = mode.replace(/"/g, '&quot;');
+                    const escapedModeLabel = escapeHtml(mode);
+                    modalBodyHtml += `
+                        <div class="custom-control custom-checkbox mb-2">
+                            <input class="custom-control-input allowed-mode-checkbox" type="checkbox"
+                                   name="allowed_modes_${escapedGameName}[]" value="${escapedModeValue}" id="${modeCheckboxId}" checked>
+                            <label class="custom-control-label" for="${modeCheckboxId}">${escapedModeLabel}</label>
+                        </div>`;
+                });
+
+                // Append this modal's full HTML to the allModalsHtml string
+                allModalsHtml += `
+                    <div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" aria-labelledby="${modalLabelId}" aria-hidden="true">
+                      <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content">
+                          <div class="modal-header">
+                            <h5 class="modal-title" id="${modalLabelId}">${escapedGameName} - Allowed Modes</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                          </div>
+                          <div class="modal-body text-left">
+                            ${modalBodyHtml}
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Done</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>`;
+            }
+            
         });
     } else {
         tableHtml = `<tr><td colspan="3" class="text-center text-muted py-4">No valid game entries found to display.</td></tr>`;
     }
 
     tbody.innerHTML = tableHtml;
+    const modalsContainer = document.getElementById('gameModeModalsContainer');
+    if (modalsContainer) {
+        modalsContainer.innerHTML = allModalsHtml; 
+    } else {
+        console.error("Modal container '#gameModeModalsContainer' not found in index.html!");
+    }
     tbody.querySelectorAll('.game-select-checkbox').forEach(cb => {
         cb.checked = selectedGames.has(cb.value); // Use the persistent Set
     });
@@ -338,36 +376,36 @@ function updateGameSelectionCard() {
  * @returns {object} An object where keys are lowercase game names and values are arrays of selected modes.
  */
 function gatherSelectedModes() {
-    // ... (function content remains the same) ...
     const selectedModes = {};
+    // Selects ALL rows, regardless of whether the game checkbox is checked
     document.querySelectorAll("#gamesSelectionTbody tr[data-game]").forEach(row => {
         const gameSelectCheckbox = row.querySelector('.game-select-checkbox');
-        if (gameSelectCheckbox?.checked) {
-            const gameName = row.dataset.game;
+        // --- POTENTIAL ISSUE: This check might be missing or incorrect ---
+        // It should only gather modes for games where gameSelectCheckbox is checked
+        // Let's assume for now it *is* correctly checking gameSelectCheckbox.checked
+        if (gameSelectCheckbox?.checked) { // <<< ENSURE THIS CHECK IS PRESENT AND CORRECT
+            const gameName = row.dataset.game; // Original case game name
             if (gameName) {
-                // Find modal based on button's data-bs-target (Bootstrap 5)
-                const modalButton = row.querySelector('button[data-bs-target]');
-                const modalIdSelector = modalButton?.dataset.bsTarget;
+                const modalButton = row.querySelector('button[data-target]'); // Use data-target for BS4
+                const modalIdSelector = modalButton?.dataset.target;
                 if (modalIdSelector) {
-                    // Ensure selector is valid (e.g., starts with #)
-                    const modalElement = document.querySelector(modalIdSelector.startsWith('#') ? modalIdSelector : `#${modalIdSelector}`);
+                    const modalElement = document.querySelector(modalIdSelector); // Directly use selector
                     if (modalElement) {
-                        // Find checked mode checkboxes within this specific modal
                         const modeCheckboxes = modalElement.querySelectorAll(`input.allowed-mode-checkbox:checked`);
                         if (modeCheckboxes.length > 0) {
-                            // Store modes under lowercase game name key
-                            selectedModes[gameName.toLowerCase()] = Array.from(modeCheckboxes).map(cb => cb.value);
+                             // --- KEY POINT: Uses original case gameName ---
+                            selectedModes[gameName] = Array.from(modeCheckboxes).map(cb => cb.value);
                         }
-                    } else {
-                        console.warn(`Modal element not found for selector: ${modalIdSelector}`);
+                        // If no modes are checked for a selected game, the key might not be added.
+                        // This is likely OK, as the backend intersection would result in empty allowed modes anyway.
                     }
                 }
             }
         }
     });
+    // Log added in previous step: console.log("[Submit] Modes gathered from UI:", JSON.stringify(selectedModes));
     return selectedModes;
 }
-
 
 /**
  * Handles the submission of the main challenge generation form.
@@ -585,6 +623,19 @@ function initializeChallengeForm() {
     const moreBtn = document.getElementById("showMoreGamesBtn");
     const lessBtn = document.getElementById("showLessGamesBtn");
 
+    // --- : B2B Slider Initialization ---
+    const b2bSlider = document.getElementById('spinB2B');
+    if (b2bSlider) {
+        // Update display when slider value changes
+        b2bSlider.addEventListener('input', (event) => {
+            updateB2BDisplay(event.target.value);
+        });
+        // Set initial display state (will be called again below if DOMContentLoaded hasn't fired)
+        updateB2BDisplay(b2bSlider.value);
+    } else {
+        console.warn("B2B slider element (#spinB2B) not found during init.");
+    }
+
     // Populate dropdowns + initial card
     if (gameSourceSelect) {
         populateGameSourceDropdown(); // Populates the dropdown options
@@ -731,12 +782,13 @@ function initializeChallengeForm() {
 
             // Update related inputs/buttons in the same row
             if (weightInp) weightInp.disabled = !isChecked;
-            if (modesBtn) modesBtn.disabled = !isChecked;
+           
         });
     }
 
     // Final UI fix
     updateIndexFormUI();
+    if (b2bSlider) updateB2BDisplay(b2bSlider.value);
     console.log("Challenge form initialization complete.");
 }
 

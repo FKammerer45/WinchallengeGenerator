@@ -2034,3 +2034,113 @@ button.close {
 #sticky-progress-container .progress {
     height: 1rem; /* Example height */
 }
+
+#b2bValueDisplay {
+  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out; /* Smooth transition */
+  font-weight: 600; /* Make the text slightly bolder */
+  padding: 0.25rem 0.8rem; /* Adjust padding */
+}
+
+#b2bValueDisplay.level-none {
+  color: var(--text-secondary, #9ca3af);
+  background-color: rgba(108, 117, 125, 0.15); /* Greyish background */
+  border-color: rgba(108, 117, 125, 0.4);
+}
+#b2bValueDisplay.level-low {
+  color: var(--success-color, #34d399);
+  background-color: rgba(52, 211, 153, 0.1); /* Greenish background */
+  border-color: rgba(52, 211, 153, 0.4);
+}
+#b2bValueDisplay.level-medium {
+  color: var(--warning-color, #f59e0b);
+  background-color: rgba(245, 158, 11, 0.1); /* Orangish background */
+  border-color: rgba(245, 158, 11, 0.4);
+}
+#b2bValueDisplay.level-high {
+  color: var(--danger-color, #ef4444);
+  background-color: rgba(239, 68, 68, 0.1); /* Reddish background */
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* --- Navbar Sound Controls Enhancement --- */
+
+/* Container for BOTH mute button and slider wrapper */
+.navbar-sound-controls {
+  position: relative; /* Optional: if needed for more complex positioning */
+}
+
+/* Wrapper specifically for the volume slider + icons */
+.volume-controls-wrapper {
+  display: flex; /* Use flex for internal alignment */
+  align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  max-width: 0; /* Start collapsed horizontally */
+  overflow: hidden;
+  transition: opacity 0.3s ease, max-width 0.4s ease-in-out, visibility 0s linear 0.3s, margin-left 0.4s ease-in-out; /* Smooth transitions */
+  margin-left: 0; /* Start with no margin */
+  vertical-align: middle; /* Align wrapper vertically */
+  /* Optional subtle background/border when shown */
+  /* background-color: rgba(var(--bs-secondary-rgb), 0.1); */
+  /* padding: 0 0.5rem; */
+  /* border-radius: var(--border-radius-sm); */
+}
+
+/* Show the wrapper when hovering the PARENT li */
+.navbar-sound-controls:hover .volume-controls-wrapper {
+  opacity: 1;
+  visibility: visible;
+  max-width: 150px; /* Expand to desired width */
+  margin-left: 0.75rem; /* Add space from mute button when shown */
+  transition: opacity 0.3s ease, max-width 0.4s ease-in-out, visibility 0s linear 0s, margin-left 0.4s ease-in-out; /* Adjust transition */
+}
+
+/* Ensure slider inside is visible and styled when wrapper is shown */
+.volume-controls-wrapper .custom-range {
+  cursor: pointer;
+  opacity: 1; /* Make sure it's visible */
+  transition: opacity 0.2s ease 0.1s; /* Optional slight delay */
+}
+
+/* Hide slider when wrapper is hidden */
+.volume-controls-wrapper:not(:hover) .custom-range {
+ /* Opacity transition handles this now */
+}
+
+/* Icons next to slider */
+.volume-slider-container i.small {
+  font-size: 0.9em;
+  opacity: 0.7;
+  margin: 0 3px; /* Spacing around slider */
+}
+
+/* Existing mute button style */
+#globalMuteBtn {
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+#globalMuteBtn i {
+  vertical-align: middle;
+  font-size: 1.1rem;
+}
+
+/* Existing slider thumb styles (can be kept) */
+.volume-slider-container .custom-range::-webkit-slider-thumb {
+   background: var(--text-secondary);
+   width: 12px;
+   height: 12px;
+   margin-top: -4px;
+}
+.volume-slider-container .custom-range::-moz-range-thumb {
+   background: var(--text-secondary);
+   width: 12px;
+   height: 12px;
+   border-radius: 50%;
+   border: none;
+}
+.volume-slider-container .custom-range:hover::-webkit-slider-thumb {
+   background: var(--text-primary);
+}
+.volume-slider-container .custom-range:hover::-moz-range-thumb {
+   background: var(--text-primary);
+}

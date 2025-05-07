@@ -85,6 +85,14 @@ def generate_challenge():
                                         if from_form else get("entries", []))
         gd['selected_modes']       = (json.loads(get("selected_modes")) 
                                         if from_form else get("selected_modes", {}))
+      
+        if isinstance(gd['selected_modes'], dict):
+            gd['selected_modes'] = {k.lower(): v for k, v in gd['selected_modes'].items()}
+            logger.debug(f"--- [API /generate] Converted selected_modes (lowercase keys): {gd['selected_modes']}")
+        else:
+            logger.warning(f"--- [API /generate] Received selected_modes is not a dict: {type(gd['selected_modes'])}. Resetting to empty dict.")
+            gd['selected_modes'] = {} # Ensure it's a dict if parsing failed somehow
+            
         gd['use_penalties']        = (get('use_penalties') == 'on') if from_form else bool(get('use_penalties', False))
         gd['penalty_tab_id']       = get('penalty_tab_id', 'default')
         gd['challenge_name']       = get('challenge_name', None)

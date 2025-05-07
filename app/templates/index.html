@@ -4,261 +4,439 @@
 {% block head %}
 {{ super() }}
 {# Base style.css is linked in base.html #}
+<style>
+    /* Styles from previous versions (keep relevant ones) */
+    .custom-range::-webkit-slider-thumb {
+        background: var(--accent-primary);
+    }
+
+    .custom-range::-moz-range-thumb {
+        background: var(--accent-primary);
+    }
+
+    .card-header.h5 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        position: relative;
+        z-index: 2;
+    }
+
+    .game-selection-table thead {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .game-selection-table thead th {
+        border-bottom-width: 1px !important;
+        border-color: var(--surface-border) !important;
+        color: var(--text-secondary);
+        padding: 0.75rem 1rem;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.75px;
+    }
+
+    .game-selection-table tbody tr:hover {
+        background-color: var(--surface-highlight);
+    }
+
+    .game-selection-table td {
+        border-color: var(--surface-border) !important;
+        vertical-align: middle;
+        padding: 0.6rem 1rem;
+    }
+
+    .generate-btn {
+        font-size: 1.1rem;
+        padding: 0.8rem 1.5rem;
+    }
+
+    .range-value-display {
+        display: inline-block;
+        min-width: 3em;
+        padding: 0.25rem 0.6rem;
+        background-color: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: var(--border-radius-sm);
+        color: var(--text-primary);
+        font-weight: 500;
+        font-size: 0.9em;
+        text-align: center;
+        margin-left: 0.5rem;
+        vertical-align: middle;
+    }
+
+    .custom-control {
+        padding-left: 1.75rem;
+    }
+
+    .custom-control-label {
+        vertical-align: middle;
+    }
+
+    .custom-control-label::before,
+    .custom-control-label::after {
+        top: 0.15rem;
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+
+    .custom-radio .custom-control-label::before {
+        border-radius: 50%;
+    }
+
+    .card>.collapse.show {
+        padding: 1.5rem;
+    }
+
+    .card>.collapsing {
+        padding: 1.5rem;
+    }
+
+    #challengeResultWrapper {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+    }
+
+    #challengeResultWrapper.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    /* Firefox */
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    /* Ensure cards in the same row try to maintain height */
+    .row.match-height>[class*='col-'] {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1.5rem;
+        /* Consistent spacing between rows/stacked cols */
+    }
+
+    .row.match-height>[class*='col-']>.card {
+        flex-grow: 1;
+    }
+
+    /* Style for the result column content */
+    .result-column-content {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        /* Make it fill the column height */
+    }
+
+    .result-column-content .generate-button-container {
+        /* Position button at the top of this column */
+        margin-bottom: 1.5rem;
+        /* Space between button and results */
+    }
+
+    .result-column-content #challengeResultWrapper {
+        /* Result wrapper will be below button */
+        flex-grow: 1;
+        /* Allow result wrapper to take remaining space */
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-{# Added page-specific class for CSS targeting #}
 <div class="container mt-4 index-page-container">
-    {# --- Page Header --- #}
+    {# --- Enhanced Page Header --- #}
     <div class="text-center mb-5 pt-4">
-        <h1 class="display-4 page-title mb-3">Win Challenge Generator</h1>
-        <p class="lead text-secondary col-lg-8 mx-auto">Configure parameters and generate your next gaming challenge!
+        <h1 class="display-4 page-title mb-3 fw-light">
+            <i class="bi bi-trophy-fill me-2 text-primary-accent"></i>
+            Win Challenge Generator
+        </h1>
+        <p class="lead text-secondary col-lg-9 mx-auto">
+            Configure your preferences, select games, and generate unique gaming challenges!
         </p>
     </div>
 
+    {# Form wraps ALL input sections AND the generate button #}
     <form id="challengeForm" method="post" action="{{ url_for('challenge_api.generate_challenge') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        {# --- Section 1: Source & Options --- #}
-        {# Use standard card, styled by style.css #}
-        <div class="card shadow-md mb-5">
-            <div class="card-header h5 d-flex justify-content-between align-items-center">
-                <span>1. Options</span>
-                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                    data-target="#optionsBody" aria-expanded="true" aria-controls="optionsBody"
-                    title="Toggle Options Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" fill="currentColor"
-                        class="bi bi-chevron-expand" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd"
-                            d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
-                    </svg>
-                </button>
-            </div>
-            <div class="collapse card-body" id="optionsBody">
-                <div class="form-row align-items-center mb-3">
-                    <div class="col-auto">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input" id="enablePenalties"
-                                name="use_penalties" {% if request.form.get('use_penalties') %}checked{% endif %}>
-                            <label class="custom-control-label" for="enablePenalties">Enable Penalties on Game
-                                Loss?</label>
-                        </div>
-                    </div>
-                    <div class="col-auto d-none ml-3" id="penaltySourceContainer">
-                        <select id="penaltySourceSelect" name="penalty_tab_id" class="form-control custom-select"
-                            aria-label="Penalty Source Tab" style="width: auto; min-width: 150px;">
-                            <option value="" disabled selected>Loading tabs...</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="challengeName">Challenge Name (Optional):</label>
-                    <input type="text" id="challengeName" name="challenge_name" class="form-control"
-                        placeholder="My Awesome Challenge" value="{{ request.form.get('challenge_name', '') }}">
-                    <small class="form-text text-secondary">Give your challenge a name (used when sharing).</small>
-                </div>
-
-            </div>
-        </div>
-
-        {# --- Section 2: Mode & Parameters --- #}
-        <div class="card shadow-md mb-5">
-            <div class="card-header h5 d-flex justify-content-between align-items-center">
-                <span>2. Mode & Parameters</span>
-                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                    data-target="#modeParamsBody" aria-expanded="true" aria-controls="modeParamsBody"
-                    title="Toggle Mode & Parameters Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" fill="currentColor"
-                        class="bi bi-chevron-expand" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd"
-                            d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
-                    </svg>
-                </button>
-            </div>
-            <div class="collapse card-body" id="modeParamsBody">
-                <div class="form-group row mb-4 align-items-center"> {# Increased margin #}
-                    <label class="col-sm-4 col-lg-3 col-form-label font-weight-bold">Challenge Mode:</label>
-                    <div class="col-sm-8 col-lg-9">
-                        <div class="custom-control custom-radio custom-control-inline">
-                            <input class="custom-control-input mode-radio" type="radio" name="group_mode"
-                                id="modeSingleGroup" value="single" {% if request.form.get('group_mode', 'single'
-                                )=='single' %}checked{% endif %}>
-                            <label class="custom-control-label" for="modeSingleGroup">Single Group </label>
-                        </div>
-                        <div class="custom-control custom-radio custom-control-inline">
-                            <input class="custom-control-input mode-radio" type="radio" name="group_mode"
-                                id="modeMultiGroup" value="multi" {% if request.form.get('group_mode')=='multi'
-                                %}checked{% endif %}>
-                            <label class="custom-control-label" for="modeMultiGroup">Multigroup </label>
-                            <small class="text-warning login-required-msg ml-2 d-none">(Login required)</small>
-                        </div>
-                        <small class="form-text text-secondary d-block mt-1">Single saves locally. Multigroup requires
-                            login.</small>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group col-md-6 col-lg-4">
-                        <label for="numPlayers" class="font-weight-bold" id="numPlayersLabel">Number of Players:</label>
-                        <select id="numPlayers" name="num_players" class="form-control custom-select">
-                            <option value="1" {% if request.form.get('num_players', '1' )=='1' %}selected{% endif %}>1
-                            </option>
-                            <option value="2" {% if request.form.get('num_players')=='2' %}selected{% endif %}>2
-                            </option>
-                            <option value="3" {% if request.form.get('num_players')=='3' %}selected{% endif %}>3
-                            </option>
-                            <option value="4" {% if request.form.get('num_players')=='4' %}selected{% endif %}>4
-                            </option>
-                            <option value="5" {% if request.form.get('num_players')=='5' %}selected{% endif %}>5
-                            </option>
-                        </select>
-                        <small class="form-text text-secondary">Scales difficulty appropriately.</small>
-                    </div>
-                    <div class="form-group col-md-6 col-lg-4 d-none" id="maxGroupsContainer">
-                        <label for="maxGroups">Max Groups (Multigroup):</label>
-                        <input type="number" id="maxGroups" name="max_groups" class="form-control"
-                            value="{{ request.form.get('max_groups', 10) }}" min="1" max="10">
-                        <small class="form-text text-secondary">Max groups allowed when shared.</small>
-                    </div>
-                </div>
-                <div class="form-row mt-3 align-items-center">
-                    <div class="form-group col-md-6 col-lg-4">
-                        <label for="desiredDiff" class="font-weight-bold">Target Difficulty:</label>
-                        <input type="number" step="0.1" id="desiredDiff" name="desired_diff" class="form-control"
-                            placeholder="e.g., 60.0" max="1500" min="0" required
-                            value="{{ request.form.get('desired_diff', 60) }}">
-                    </div>
-                    <div class="form-group col-md-12 col-lg-8">
-                        <label for="spinB2B" class="font-weight-bold">
-                            Back-to-Back Probability: <output class="badge badge-secondary ml-2 range-value-display">{{
-                                request.form.get('raw_b2b', 1) }}</output>
-                        </label>
-                        <input type="range" id="spinB2B" name="raw_b2b" class="custom-range" min="0" max="10" step="1"
-                            value="{{ request.form.get('raw_b2b', 1) }}"
-                            oninput="this.previousElementSibling.querySelector('output').textContent = this.value">
-                        <div class="d-flex justify-content-between w-100 px-1"> <small
-                                class="text-secondary">None</small>
-                            <small class="text-secondary">High</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {# --- Section 3: Select Games & Modes --- #}
-        <div class="card shadow-md mb-5">
-            <div class="card-header h5 d-flex justify-content-between align-items-center">
-                <span>3. Select Games & Modes</span>
-                <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-                    data-target="#gamesModesBody" aria-expanded="true" aria-controls="gamesModesBody"
-                    title="Toggle Games & Modes Section">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" fill="currentColor"
-                        class="bi bi-chevron-expand" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd"
-                            d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
-                    </svg>
-                </button>
-            </div>
-            <div class="collapse show" id="gamesModesBody">
-                <div class="d-flex align-items-end flex-wrap px-3 pt-3">
-                    <!-- dropdown -->
-                    <div class="form-group mb-2 mr-auto"> <!-- mr‑auto pushes buttons right -->
-                        <label for="gameSourceSelect">Game Entries Source Tab:</label>
-                        <select id="gameSourceSelect" name="game_tab_id" class="form-control custom-select">
-                            <option value="" disabled selected>Loading tabs...</option>
-                        </select>
-                        <small class="form-text text-secondary">
-                            Select the tab containing the games list.
-                        </small>
-                    </div>
-
-                    <!-- buttons -->
-                    <div class="btn-group mb-2">
-                        <button type="button" id="selectAllGamesBtn" class="btn btn-sm btn-outline-primary">
-                            Select&nbsp;All
-                        </button>
-                        <button type="button" id="deselectAllGamesBtn" class="btn btn-sm btn-outline-secondary">
-                            Deselect&nbsp;All
+        {# --- Row 1: Options | Mode & Parameters --- #}
+        <div class="row g-4 match-height"> {# Row 1 has consistent spacing #}
+            {# Col 1.1 Options #}
+            <div class="col-lg-6">
+                <div class="card shadow-sm glass-effect h-100">
+                    <div class="card-header h5 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-sliders me-2"></i>Options</span>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-toggle="collapse"
+                            data-target="#optionsBody" aria-expanded="true" aria-controls="optionsBody"
+                            title="Toggle Options Section">
+                            <i class="bi bi-chevron-expand"></i>
                         </button>
                     </div>
-                </div>
-                <div class="card-body p-0"> {# Remove padding for full-width table wrapper #}
-
-                    <div class="table-responsive game-selection-table-wrapper">
-                        <table class="table table-hover table-sm mb-0 game-selection-table"> {# Removed table-dark #}
-                            <thead> {# Thead styled by CSS #}
-                                <tr>
-                                    <th style="width:45%;">Game</th>
-                                    <th style="width:15%;">Weight</th>
-                                    <th style="width:40%;">Allowed Modes</th>
-                                </tr>
-                            </thead>
-                            <tbody id="gamesSelectionTbody">
-                                <tr>
-                                    <td colspan="3" class="text-center text-secondary py-4">Select Game Source Tab
-                                        above...
-                                    </td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr id="showMoreGamesRow" class="d-none">
-                                    <td colspan="3" class="text-center py-2">
-                                        <button type="button" id="showLessGamesBtn"
-                                            class="btn btn-outline-secondary btn-sm mr-2 d-none">
-                                            ▲ Show less
-                                        </button>
-
-                                        <button type="button" id="showMoreGamesBtn"
-                                            class="btn btn-outline-primary btn-sm">
-                                            ▼ Show more
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tfoot>
-
-
-                        </table>
+                    <div class="collapse show card-body" id="optionsBody">
+                        {# Penalties #}
+                        <div class="d-flex align-items-center flex-wrap mb-3">
+                            <div class="custom-control custom-checkbox me-3 mb-2 mb-sm-0">
+                                <input type="checkbox" class="custom-control-input" id="enablePenalties"
+                                    name="use_penalties" {% if request.form.get('use_penalties') %}checked{% endif %}>
+                                <label class="custom-control-label fw-bold" for="enablePenalties">Enable
+                                    Penalties?</label>
+                            </div>
+                            <div id="penaltySourceContainer" class="d-none flex-grow-1" style="min-width: 180px;">
+                                <select id="penaltySourceSelect" name="penalty_tab_id"
+                                    class="form-control form-control-sm custom-select" aria-label="Penalty Source Tab">
+                                    <option value="" disabled selected>Loading penalty tabs...</option>
+                                </select>
+                            </div>
+                        </div>
+                        {# Challenge Name #}
+                        <div class="form-group mb-0">
+                            <label for="challengeName" class="fw-bold">Challenge Name <small>(Optional)</small></label>
+                            <input type="text" id="challengeName" name="challenge_name"
+                                class="form-control form-control-sm" placeholder="e.g., Weekend Grind"
+                                value="{{ request.form.get('challenge_name', '') }}">
+                            <small class="form-text text-secondary mt-1">Used when sharing the challenge.</small>
+                        </div>
                     </div>
                 </div>
+            </div>{# End Col 1.1 #}
 
-            </div>
-        </div>
-        {# --- Form Error Display --- #}
-        <div id="formErrorDisplay" class="alert alert-danger text-center" style="display: none;"></div>
+            {# Col 1.2 Mode & Parameters #}
+            <div class="col-lg-6">
+                <div class="card shadow-sm glass-effect h-100">
+                    <div class="card-header h5 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-diagram-3 me-2"></i>Mode & Parameters</span>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-toggle="collapse"
+                            data-target="#modeParamsBody" aria-expanded="true" aria-controls="modeParamsBody"
+                            title="Toggle Mode & Parameters Section">
+                            <i class="bi bi-chevron-expand"></i>
+                        </button>
+                    </div>
+                    <div class="collapse show card-body" id="modeParamsBody">
+                        {# Challenge Mode Radio Buttons #}
+                        <div class="form-group mb-4">
+                            <label class="fw-bold d-block mb-2">Challenge Mode:</label>
+                            <div class="d-flex flex-wrap">
+                                <div class="custom-control custom-radio me-3 mb-1">
+                                    <input class="custom-control-input mode-radio" type="radio" name="group_mode"
+                                        id="modeSingleGroup" value="single" {% if
+                                        request.form.get('group_mode', 'single' )=='single' %}checked{% endif %}>
+                                    <label class="custom-control-label" for="modeSingleGroup">Single Group
+                                    </label>
+                                </div>
+                                <div class="custom-control custom-radio me-3 mb-1">
+                                    <input class="custom-control-input mode-radio" type="radio" name="group_mode"
+                                        id="modeMultiGroup" value="multi" {% if request.form.get('group_mode')=='multi'
+                                        %}checked{% endif %}>
+                                    <label class="custom-control-label" for="modeMultiGroup">Multigroup </label>
+                                </div>
+                            </div>
+                            <small class="text-warning login-required-msg mt-1 d-none">(Login required for
+                                Multigroup)</small>
+                            <small class="form-text text-secondary d-block mt-1">Single saves locally. Multigroup
+                                requires login and allows sharing.</small>
+                        </div>
+                        {# Player/Group Size Inputs #}
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="numPlayers" class="fw-bold" id="numPlayersLabel">Number of Players:</label>
+                                <select id="numPlayers" name="num_players"
+                                    class="form-control form-control-sm custom-select">
+                                    {% for i in range(1, 6) %}
+                                    <option value="{{ i }}" {% if request.form.get('num_players', '1' )|int==i
+                                        %}selected{% endif %}>{{ i }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-secondary mt-1">Scales difficulty appropriately.</small>
+                            </div>
+                            <div class="col-md-6 d-none" id="maxGroupsContainer">
+                                <label for="maxGroups" class="fw-bold">Max Groups:</label>
+                                <input type="number" id="maxGroups" name="max_groups"
+                                    class="form-control form-control-sm"
+                                    value="{{ request.form.get('max_groups', 10) }}" min="1" max="20">
+                                <small class="form-text text-secondary mt-1">Max groups for shared challenges.</small>
+                            </div>
+                        </div>
+                        {# Difficulty and B2B Sliders #}
+                        <div class="row g-3">
+                            <div class="col-md-6">
 
-        {# --- Submit Button --- #}
-        {# Use btn-warning for the secondary accent color #}
-        <button type="submit" class="btn btn-warning btn-lg btn-block mt-4 mb-5 shadow-lg generate-btn">
-            <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-            <span>Generate Challenge</span>
-        </button>
-    </form>
+                                <label for="desiredDiff" class="fw-bold">
+                                    Target Difficulty
 
-    {# --- Result Section --- #}
-    <hr class="my-5">
-    <div id="challengeResultWrapper" class="mb-5" style="display:none;">
-        <h2 class="mb-4 text-light text-center">Generated Challenge</h2>
-        <div id="challengeResult" class="card p-4 mb-3 shadow-lg result-card glass-effect">
-            <p class="text-center text-secondary">Loading result...</p>
-        </div>
-        </div>
-        <div class="result-actions text-center mt-4">
-            {% if current_user.is_authenticated %}
-            {# Use btn-info (mapped to primary blue) #}
-            <button id="shareChallengeBtn" class="btn btn-info btn-lg mx-2 action-btn" style="display:none;">
-                <span class="spinner-border spinner-border-sm"></span>
-                <span>Share Challenge</span>
-            </button>
-            {% endif %}
-            <a href="#" id="viewLocalChallengeBtn" class="btn btn-secondary btn-lg mx-2 action-btn"
-                style="display:none;" role="button" target="_blank">View Locally Saved Challenge</a>
-        </div>
-        <div id="shareResult" class="mt-3 share-result-display" style="display:none;"></div>
-    </div>
+                                </label>
+                                {# Tooltip attributes moved to the input element #}
+                                <input type="number" step="0.1" id="desiredDiff" name="desired_diff"
+                                    class="form-control form-control-sm" placeholder="e.g., 60.0" max="1500" min="0.2"
+                                    required value="{{ request.form.get('desired_diff', 60) }}" data-toggle="tooltip"
+                                    data-placement="top"
+                                    title="Controls overall challenge length/difficulty. Higher values mean more wins required.">
+                                {# Shortened visible help text remains #}
+                                <small class="form-text text-secondary mt-1">
+                                    (Guideline: 10 ≈ 1 hour playtime)
+                                </small>
+
+                            </div>
+                            <div class="col-md-6">
+
+                                <label for="spinB2B" class="fw-bold d-block mb-1" data-toggle="tooltip"
+                                    data-placement="top"
+                                    title="Higher values increase the chance of getting Back-to-Back (B2B) segments. At 100%, all generated segments will be B2B (2-4 wins).">
+                                    B2B Probability:
+                                    {# Give output an ID and remove inline update/content #}
+                                    <output class="range-value-display" id="b2bValueDisplay"></output>
+                                    <i class="bi bi-info-circle-fill text-secondary small ms-1 align-middle"></i>
+                                </label>
+                                <input type="range" id="spinB2B" name="raw_b2b" class="custom-range align-middle"
+                                    min="0" max="10" step="1" value="{{ request.form.get('raw_b2b', 1) }}">
+                                {# Updated track labels #}
+                                <div class="d-flex justify-content-between w-100 px-1 small text-secondary">
+                                    <span>0%</span>
+                                    <span>100%</span>
+                                </div>
+                                {# Added help text #}
+                                <small class="form-text text-secondary mt-1">
+                                    Increases chance of multiple wins needed in sequence.
+                                </small>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> {# End Col 1.2 #}
+        </div> {# End Row 1 #}
+
+        {# --- Row 2: Game Selection | Generate & Result Column --- #}
+        <div class="row g-4 match-height"> {# Row 2 needs spacing too #}
+            {# Col 2.1 Game Selection #}
+            <div class="col-lg-6">
+                <div class="card shadow-sm glass-effect h-100">
+                    <div class="card-header h5 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-joystick me-2"></i>Select Games & Modes</span>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" type="button" data-toggle="collapse"
+                            data-target="#gamesModesBody" aria-expanded="true" aria-controls="gamesModesBody"
+                            title="Toggle Games & Modes Section">
+                            <i class="bi bi-chevron-expand"></i>
+                        </button>
+                    </div>
+                    <div class="collapse show card-body" id="gamesModesBody">
+                        {# Game Source Dropdown #}
+                        <div class="form-group mb-3">
+                            <label for="gameSourceSelect" class="fw-bold">Game Entries Source:</label>
+                            <select id="gameSourceSelect" name="game_tab_id"
+                                class="form-control form-control-sm custom-select">
+                                <option value="" disabled selected>Loading tabs...</option>
+                                {# JS Populates this #}
+                            </select>
+                            <small class="form-text text-secondary mt-1">Choose the list of games to use for
+                                generation.</small>
+                        </div>
+                        {# Select/Deselect Buttons #}
+                        <div class="d-flex justify-content-end mb-3">
+                            <div class="btn-group">
+                                <button type="button" id="selectAllGamesBtn"
+                                    class="btn btn-sm btn-outline-primary">Select All</button>
+                                <button type="button" id="deselectAllGamesBtn"
+                                    class="btn btn-sm btn-outline-secondary">Deselect All</button>
+                            </div>
+                        </div>
+                        {# Game Selection Table Wrapper #}
+                        <div class="table-responsive game-selection-table-wrapper border rounded">
+                            <table class="table table-hover table-sm mb-0 game-selection-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50%;">Game</th>
+                                        <th style="width:15%;">Weight</th>
+                                        <th style="width:35%;">Allowed Modes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gamesSelectionTbody">
+                                    <tr>
+                                        <td colspan="3" class="text-center text-secondary py-4">Select Game Source Tab
+                                            above...</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr id="showMoreGamesRow" class="d-none">
+                                        <td colspan="3" class="text-center py-2">
+                                            <button type="button" id="showLessGamesBtn"
+                                                class="btn btn-outline-secondary btn-sm me-2 d-none">▲ Show
+                                                less</button>
+                                            <button type="button" id="showMoreGamesBtn"
+                                                class="btn btn-outline-primary btn-sm">▼ Show more</button>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div> {# End Card Body #}
+                </div>
+            </div> {# End Col 2.1 #}
+
+            {# Col 2.2 Generate Button & Result Area #}
+            <div class="col-lg-6">
+                {# Container with flex layout for button and results area #}
+                <div class="result-column-content">
+
+                    {# --- Generate Button Container (INSIDE FORM) --- #}
+                    <div class="generate-button-container text-center">
+                        <button type="submit"
+                            class="btn btn-warning btn-lg shadow-lg generate-btn d-inline-flex align-items-center">
+                            <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                            <i class="bi bi-magic me-2"></i>
+                            <span>Generate Challenge</span>
+                        </button>
+                        <div id="formErrorDisplay" class="alert alert-danger mt-3" style="display: none;"></div>
+                    </div>
+                    {# --- End Generate Button Container --- #}
+
+                    {# --- Result Wrapper (Placeholder, OUTSIDE form logic but inside layout column) --- #}
+                    {# This outer div is targeted by JS to be shown/hidden #}
+                    <div id="challengeResultWrapper" style="display:none;">
+                        <hr class="my-4" style="border-color: var(--surface-border);">
+                        <h3 class="mb-3 text-light text-center h4">Generated Challenge</h3>
+                        {# Inner div where HTML result content is injected #}
+                        <div id="challengeResult" class="p-4 mb-3 shadow-lg result-card glass-effect">
+                            <p class="text-center text-secondary">Waiting for generation...</p>
+                        </div>
+                        {# Action buttons shown after generation #}
+                        <div class="result-actions text-center mt-3 d-flex justify-content-center flex-wrap gap-2">
+                            {% if current_user.is_authenticated %}
+                            <button id="shareChallengeBtn" class="btn btn-primary btn-lg action-btn"
+                                style="display:none;">
+                                <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                                <i class="bi bi-share-fill me-1"></i>
+                                <span>Share Challenge</span>
+                            </button>
+                            {% endif %}
+                            <a href="#" id="viewLocalChallengeBtn" class="btn btn-secondary btn-lg action-btn"
+                                style="display:none;" role="button" target="_blank">
+                                <i class="bi bi-eye-fill me-1"></i>
+                                View Locally Saved Challenge
+                            </a>
+                        </div>
+                        {# Div for displaying share success/error #}
+                        <div id="shareResult" class="mt-3 share-result-display text-center" style="display:none;"></div>
+                    </div>
+                    {# --- End Result Wrapper --- #}
+                    <div id="gameModeModalsContainer">
+                        {# JS will inject modal HTML here #}
+                    </div>
+                </div> {# End result-column-content #}
+            </div> {# End Col 2.2 #}
+
+        </div> {# End Row 2 #}
+
+    </form> {# End Main Form #}
 
 </div> {# End container #}
 
-{# --- Pass data needed by JS --- #}
+{# --- Pass data needed by JS (remains the same) --- #}
 <script>
     window.csrfToken = "{{ csrf_token() }}";
     window.generateChallengeUrl = "{{ url_for('challenge_api.generate_challenge') }}";
@@ -266,15 +444,47 @@
     window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }};
 </script>
 {% endblock %}
-<script>
-    const el = document.getElementById('desiredDiff'),
-        MAX = 1500;
-    el.addEventListener('input', () => {
-        if (+el.value > MAX) el.value = MAX;
-    });
-</script>
+
+
 {% block scripts %}
 {{ super() }}
+{# --- Load JS modules for this page (remains the same) --- #}
+<script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/localStorageUtils.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/challenge_generator/form.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/challenge_generator/share.js') }}"></script>
+
+{# Script for clamping inputs (remains the same) #}
+<script>
+    const diffInput = document.getElementById('desiredDiff');
+    const maxDiff = 1500;
+    if (diffInput) {
+        diffInput.addEventListener('input', () => {
+            if (+diffInput.value > maxDiff) diffInput.value = maxDiff;
+        });
+    }
+    const maxGroupsInput = document.getElementById('maxGroups');
+    const maxGroupsAllowed = 20;
+    if (maxGroupsInput) {
+        maxGroupsInput.addEventListener('input', () => {
+            let currentValue = parseInt(maxGroupsInput.value, 10);
+            if (isNaN(currentValue) || currentValue < 1) {
+                // maxGroupsInput.value = 1;
+            } else if (currentValue > maxGroupsAllowed) {
+                maxGroupsInput.value = maxGroupsAllowed;
+            }
+        });
+    }
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof $ !== 'undefined' && $.fn.tooltip) {
+            $('[data-toggle="tooltip"]').tooltip();
+            console.log("Tooltips initialized.");
+        } else {
+            console.warn("jQuery or Bootstrap Tooltip component not found. Tooltips may not work.");
+        }
+    });
+</script>
 {% endblock %}

@@ -99,7 +99,7 @@ if __name__ == "__main__":
     print("----------------------------------------")
 
     # Define the extensions to copy
-    relevant_extensions = {'.py', '.html', '.js'}
+    relevant_extensions = {'.py', '.html', '.js', '.css', '.txt', '.json', '.xml'}
 
     # --- Use current directory as source ---
     source_path = os.getcwd() # Get current working directory explicitly
