@@ -200,7 +200,7 @@
                             <input type="text" id="challengeName" name="challenge_name"
                                 class="form-control form-control-sm" placeholder="e.g., Weekend Grind"
                                 value="{{ request.form.get('challenge_name', '') }}">
-                            <small class="form-text text-secondary mt-1">Used when sharing the challenge.</small>
+                            <small class="form-text text-secondary mt-1">Title of the challenge.</small>
                         </div>
                     </div>
                 </div>
@@ -238,8 +238,7 @@
                             </div>
                             <small class="text-warning login-required-msg mt-1 d-none">(Login required for
                                 Multigroup)</small>
-                            <small class="form-text text-secondary d-block mt-1">Single saves locally. Multigroup
-                                requires login and allows sharing.</small>
+                            
                         </div>
                         {# Player/Group Size Inputs #}
                         <div class="row g-3 mb-4">
@@ -252,7 +251,7 @@
                                         %}selected{% endif %}>{{ i }}</option>
                                     {% endfor %}
                                 </select>
-                                <small class="form-text text-secondary mt-1">Scales difficulty appropriately.</small>
+                                
                             </div>
                             <div class="col-md-6 d-none" id="maxGroupsContainer">
                                 <label for="maxGroups" class="fw-bold">Max Groups:</label>

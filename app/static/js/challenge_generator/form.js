@@ -2,20 +2,22 @@
 // (Previously static/js/challenge/challenge_form.js)
 
 // Assuming these paths are correct after restructuring
-import { getLocalOnlyTabs as getGameTabs, getLocalOnlyEntries as getGameEntries, initLocalStorage as initGameStorage } from "../games/localStorageUtils.js";
+import { getLocalOnlyTabs as getGameTabs, getLocalOnlyEntries, initLocalStorage as initGameStorage } from "../games/localStorageUtils.js";
 import { getLocalPenaltyTabs, initPenaltiesLocalStorage } from "../penalties/penaltyLocalStorageUtils.js";
 // Assuming local_storage.js is now in utils/
 import { saveChallengeToLocalStorage } from '../utils/local_storage.js';
 // Assuming helpers.js is in utils/
 import { showError, escapeHtml, setLoading } from '../utils/helpers.js';
 import { loadAndSaveGlobalDefaults } from '../games/gamesExtensions.js';
-import { loadDefaultPenaltiesFromDB } from '../penalties/penaltyExtensions.js';
+import { loadAndSaveGlobalPenaltyDefaults } from '../penalties/penaltyExtensions.js';
+import { apiFetch } from "../utils/api.js";
 // Flag to prevent recursion during mode change for anonymous users
 const selectedGames = new Set();
 let isForcingMode = false;
 const PAGE_SIZE = 10;        // how many games visible per click
 let gamesShown = PAGE_SIZE;  // current slice size
-
+window.indexPageGameTabs = { tabs: {}, entries: {} };
+window.indexPagePenaltyTabs = { tabs: {}, entries: {} };
 //  helper to re‑apply checks
 function restoreChecked(checkedSet) {
     document.querySelectorAll('.game-select-checkbox').forEach(cb => {
@@ -155,25 +157,22 @@ function populatePenaltySourceDropdown() {
  * Populates the game source dropdown from local storage tabs.
  */
 function populateGameSourceDropdown() {
-    // ... (function content remains the same) ...
     const dropdown = document.getElementById("gameSourceSelect");
-    if (!dropdown) {
-        console.error("Game source dropdown (#gameSourceSelect) missing.");
-        return;
-    }
-    dropdown.innerHTML = ''; // Clear previous options
-
-    let defaultExists = false; // Declare before try
+    if (!dropdown) { console.error("Game source dropdown missing."); return; }
+    dropdown.innerHTML = ''; let defaultExists = false;
 
     try {
-        const tabs = getGameTabs(); // Assumes this returns {} or null/undefined if none
-        if (!tabs) {
-            console.warn("No game tabs data found in local storage.");
+        // *** Read from correct source based on login ***
+        const isLoggedIn = window.IS_AUTHENTICATED === true;
+        const tabs = isLoggedIn ? (window.indexPageGameTabs?.tabs || {}) : getGameTabs(); 
+        // *** End Read Source ***
+
+        if (!tabs || Object.keys(tabs).length === 0) {
             dropdown.innerHTML = '<option value="" disabled selected>No game tabs found</option>';
-            return; // Exit if no tabs object
+            return;
         }
 
-        // Add default option if it exists
+        // Add default first if it exists
         if (tabs["default"]) {
             const option = document.createElement("option");
             option.value = "default";
@@ -182,23 +181,23 @@ function populateGameSourceDropdown() {
             defaultExists = true;
         }
 
-        // Add other tabs
-        for (const tabId in tabs) {
-            if (tabId !== "default") {
+        // Add other tabs, sorting by name
+        Object.entries(tabs)
+            .filter(([tabId]) => tabId !== 'default') // Exclude default
+            .sort(([, tabA], [, tabB]) => (tabA.name || '').localeCompare(tabB.name || '')) // Sort by name
+            .forEach(([tabId, tabData]) => {
                 const option = document.createElement("option");
                 option.value = tabId;
-                option.textContent = tabs[tabId]?.name || tabId; // Use name, fallback to ID
+                option.textContent = tabData?.name || tabId;
                 dropdown.appendChild(option);
-            }
-        }
+            });
 
-        // Set dropdown value after adding all options
+        // Set initial selection
         if (defaultExists) {
             dropdown.value = "default";
         } else if (dropdown.options.length > 0) {
             dropdown.value = dropdown.options[0].value;
         } else {
-            // No tabs found at all (neither default nor others)
             dropdown.innerHTML = '<option value="" disabled selected>No game tabs found</option>';
         }
 
@@ -229,27 +228,18 @@ function updateGameSelectionCard() {
 
     let entries = []; // Initialize as empty array
     try {
-        const allTabsData = getGameEntries();
-        if (allTabsData && allTabsData.hasOwnProperty(selectedTab)) {
-            const specificTabEntries = allTabsData[selectedTab];
-            if (Array.isArray(specificTabEntries)) {
-                entries = specificTabEntries;
-                console.log(`[updateGameSelectionCard] Found ${entries.length} entries for tab '${selectedTab}'.`);
-                if (entries.length > 0) {
-                    // console.log("First entry structure:", JSON.stringify(entries[0])); 
-                }
-            } else {
-                console.warn(`[updateGameSelectionCard] Data for tab '${selectedTab}' is not an array. Received:`, specificTabEntries);
-            }
-        } else {
-            console.warn(`[updateGameSelectionCard] No data found for tab '${selectedTab}' in the retrieved object. Received:`, allTabsData);
-        }
-    }
-    catch (e) {
-        console.error(`[updateGameSelectionCard] Error getting/parsing local entries for tab '${selectedTab}':`, e);
-        tbody.innerHTML = `<tr><td colspan="3" class="text-danger text-center">Error loading games. Check console.</td></tr>`;
-        return;
-    }
+        
+        const isLoggedIn = window.IS_AUTHENTICATED === true;
+        const sourceEntries = isLoggedIn ? (window.indexPageGameTabs?.entries || {}) : getLocalOnlyEntries(); // Use alias
+       
+
+        if (sourceEntries && sourceEntries.hasOwnProperty(selectedTab)) {
+            const specificTabEntries = sourceEntries[selectedTab];
+            if (Array.isArray(specificTabEntries)) { entries = specificTabEntries; }
+            else { console.warn(`Data for tab '${selectedTab}' is not an array.`); }
+        } else { console.warn(`No data found for tab '${selectedTab}'.`); }
+    } catch (e) { console.error(`Error getting/parsing entries for tab '${selectedTab}':`, e); tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Error loading games.</td></tr>`; return; }
+
 
     const grouped = {};
     entries.forEach(entry => {
@@ -604,13 +594,90 @@ function handleChallengeFormSubmit(event) {
 // --- Initialization Function ---
 // This function sets up the event listeners and initial state for the generation form.
 // It is NOT exported because it's called directly by the DOMContentLoaded listener below.
-function initializeChallengeForm() {
+async function initializeChallengeForm() {
     console.log("Initializing challenge form script...");
 
     // Init storages
     initGameStorage();
     initPenaltiesLocalStorage();
+    const isLoggedIn = window.IS_AUTHENTICATED === true;
+    const csrfToken = window.csrfToken; // Assumes this is set globally
+    if (isLoggedIn && csrfToken) {
+        console.log("User logged in, attempting to fetch saved tabs for index page...");
+        const loadingPromises = [];
 
+        // Fetch Game Tabs
+        loadingPromises.push(
+            apiFetch('/api/tabs/load', {}, csrfToken)
+                .then(data => {
+                    console.log("[Index Init] Game Tabs API Response:", data);
+                    if (typeof data === 'object' && data !== null) {
+                        // Populate game state
+                        window.indexPageGameTabs.tabs = {};
+                        window.indexPageGameTabs.entries = {};
+                        for (const tabId in data) {
+                            window.indexPageGameTabs.tabs[tabId] = { name: data[tabId]?.tab_name || `Tab ${tabId}` };
+                            // Normalize entries on load here as well
+                            const rawEntries = data[tabId]?.entries;
+                            window.indexPageGameTabs.entries[tabId] = Array.isArray(rawEntries) ? rawEntries.map(e => ({
+                                id: e.id || `local-${Date.now()}-${Math.random().toString(36).substring(2,7)}`,
+                                game: e.game || e.Spiel || '',
+                                gameMode: e.gameMode || e.Spielmodus || '',
+                                difficulty: (e.difficulty !== undefined ? parseFloat(e.difficulty) : (e.Schwierigkeit !== undefined ? parseFloat(e.Schwierigkeit) : 1.0)).toFixed(1),
+                                numberOfPlayers: e.numberOfPlayers !== undefined ? parseInt(e.numberOfPlayers) : (e.Spieleranzahl !== undefined ? parseInt(e.Spieleranzahl) : 1),
+                                weight: e.weight !== undefined ? parseFloat(e.weight) : 1.0
+                            })) : [];
+                        }
+                        console.log("[Index Init] Populated window.indexPageGameTabs");
+                    } else { throw new Error("Invalid game tab data format"); }
+                })
+                .catch(err => {
+                    console.error("Failed to load game tabs for index page:", err);
+                    showFlash("Could not load your saved game tabs.", "warning");
+                    // Keep local storage as fallback
+                })
+        );
+
+        // Fetch Penalty Tabs
+        loadingPromises.push(
+            apiFetch('/api/penalties/load_tabs', {}, csrfToken)
+                .then(data => {
+                    console.log("[Index Init] Penalty Tabs API Response:", data);
+                    if (typeof data === 'object' && data !== null) {
+                        // Populate penalty state
+                        window.indexPagePenaltyTabs.tabs = {};
+                        window.indexPagePenaltyTabs.entries = {};
+                         for (const tabId in data) {
+                            window.indexPagePenaltyTabs.tabs[tabId] = { name: data[tabId]?.tab_name || `Penalty Tab ${tabId}` };
+                            // Normalize entries on load
+                            const rawEntries = data[tabId]?.penalties; // Key is 'penalties' here
+                            window.indexPagePenaltyTabs.entries[tabId] = Array.isArray(rawEntries) ? rawEntries.map(p => ({
+                                id: p.id || `local-p-${Date.now()}-${Math.random().toString(36).substring(2,7)}`,
+                                name: p.name || "",
+                                probability: p.probability !== undefined ? parseFloat(p.probability).toFixed(4) : '0.0000',
+                                description: p.description || ""
+                            })) : [];
+                        }
+                        console.log("[Index Init] Populated window.indexPagePenaltyTabs");
+                    } else { throw new Error("Invalid penalty tab data format"); }
+                })
+                .catch(err => {
+                    console.error("Failed to load penalty tabs for index page:", err);
+                    showFlash("Could not load your saved penalty tabs.", "warning");
+                    // Keep local storage as fallback
+                })
+        );
+
+        // Wait for both fetches to complete (or fail)
+        await Promise.all(loadingPromises);
+        console.log("API tab loading finished for index page.");
+
+    } else {
+        console.log("User not logged in, index page will use local storage for tabs.");
+        // Ensure state objects are empty if not logged in
+        window.indexPageGameTabs = { tabs: {}, entries: {} };
+        window.indexPagePenaltyTabs = { tabs: {}, entries: {} };
+    }
     // Grab elements
     const challengeForm = document.getElementById("challengeForm");
     const gameSourceSelect = document.getElementById("gameSourceSelect");
@@ -638,30 +705,12 @@ function initializeChallengeForm() {
 
     // Populate dropdowns + initial card
     if (gameSourceSelect) {
-        populateGameSourceDropdown(); // Populates the dropdown options
-
-
+        populateGameSourceDropdown(); // Reads from window.indexPageGameTabs if logged in
         gameSourceSelect.addEventListener('change', () => {
-
-            updateGameSelectionCard();
-
-
-            gameSelectionTbody?.querySelectorAll('.game-select-checkbox').forEach(cb => {
-                const event = new Event('change', { bubbles: true });
-                cb.dispatchEvent(event);
-            });
-            // --- End of added snippet ---
+             gamesShown = PAGE_SIZE; selectedGames.clear();
+             updateGameSelectionCard(); // Reads from window.indexPageGameTabs if logged in
         });
-
-
-        updateGameSelectionCard();
-
-
-        gameSelectionTbody?.querySelectorAll('.game-select-checkbox').forEach(cb => {
-            const event = new Event('change', { bubbles: true });
-            cb.dispatchEvent(event);
-        });
-        // --- End of added snippet ---
+         updateGameSelectionCard(); // Initial population
     }
 
     if (penaltySourceSelect) {
@@ -798,12 +847,17 @@ function initializeChallengeForm() {
 // This ensures all HTML elements are loaded before the script tries to interact with them.
 document.addEventListener('DOMContentLoaded', async () => { // <-- Add async here
 
+    if (typeof window.generateChallengeUrl === 'undefined') { console.error('CRITICAL ERROR: window.generateChallengeUrl is not defined.'); /* ... */ return; }
+    if (typeof window.IS_AUTHENTICATED === 'undefined') { console.error('CRITICAL ERROR: window.IS_AUTHENTICATED flag is not defined.'); /* ... */ return; }
+    if (typeof window.csrfToken === 'undefined') { console.error('CRITICAL ERROR: window.csrfToken is not defined.'); /* ... */ return; } // Added CSRF check
+
+
     if (!localStorage.getItem('defaults_loaded')) {
         console.log("Loading default game entries and penalties from DB...");
         try {
             // Wait for both loading functions to complete
-            await loadDefaultEntriesFromDB(); // <-- Add await
-            await loadDefaultPenaltiesFromDB(); // <-- Add await
+            await loadAndSaveGlobalDefaults(); 
+            await loadAndSaveGlobalPenaltyDefaults(); 
 
             // Only set the flag and reload if both succeed
             localStorage.setItem('defaults_loaded', 'true');
@@ -838,5 +892,5 @@ document.addEventListener('DOMContentLoaded', async () => { // <-- Add async her
     }
 
     // Call the main initialization function for the challenge form page
-    initializeChallengeForm();
+    await initializeChallengeForm();
 });

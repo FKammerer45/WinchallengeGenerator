@@ -13,23 +13,22 @@
         <div class="modal-body">
           <div id="newPenaltyAlert"></div> {# For JS alerts #}
           <form id="newPenaltyForm" novalidate> {# Added novalidate #}
-            <div class="form-group">
-              <label for="newPenaltyName">Penalty Name</label>
-              <input type="text" class="form-control" id="newPenaltyName" name="name" placeholder="e.g., Inverted Mouse" required>
+            <div class="form-group mb-3"> {# Added mb-3 #}
+              <label for="newPenaltyName" class="form-label">Penalty Name</label> {# Use form-label #}
+              <input type="text" class="form-control form-control-sm" id="newPenaltyName" name="name" placeholder="e.g., Play with one hand" required> {# Use form-control-sm #}
             </div>
-            <div class="form-group">
-              <label for="newProbability">Probability (0.0 to 1.0)</label>
-              <input type="number" class="form-control" id="newProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.2" required>
+            <div class="form-group mb-3"> {# Added mb-3 #}
+              <label for="newProbability" class="form-label">Probability (0.0 to 1.0)</label> {# Use form-label #}
+              <input type="number" class="form-control form-control-sm" id="newProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.1" required> {# Use form-control-sm #}
             </div>
-            <div class="form-group">
-              <label for="newDescription">Description (Optional)</label>
-              <textarea class="form-control" id="newDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea>
+            <div class="form-group mb-0"> {# Removed mb-3 #}
+              <label for="newDescription" class="form-label">Description (Optional)</label> {# Use form-label #}
+              <textarea class="form-control form-control-sm" id="newDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea> {# Use form-control-sm #}
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          {# Use primary (blue) accent #}
-          <button type="button" id="saveNewPenaltyBtn" class="btn btn-primary">Save</button>
+          <button type="button" id="saveNewPenaltyBtn" class="btn btn-primary">Save</button> {# Use primary accent #}
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
@@ -49,26 +48,24 @@
         <div class="modal-body">
            <div id="editPenaltyAlert"></div> {# For JS alerts #}
           <form id="editPenaltyForm" novalidate> {# Added novalidate #}
-            <input type="hidden" id="editPenaltyEntryId" name="entry_id">
-            <div class="form-group">
-              <label for="editPenaltyName">Penalty Name</label>
-              <input type="text" class="form-control" id="editPenaltyName" name="name" placeholder="e.g., Inverted Mouse" required>
+            <input type="hidden" id="editPenaltyEntryId" name="entry_id"> {# Keep hidden ID field #}
+            <div class="form-group mb-3"> {# Added mb-3 #}
+              <label for="editPenaltyName" class="form-label">Penalty Name</label> {# Use form-label #}
+              <input type="text" class="form-control form-control-sm" id="editPenaltyName" name="name" placeholder="e.g., Play with one hand" required> {# Use form-control-sm #}
             </div>
-            <div class="form-group">
-              <label for="editProbability">Probability (0.0 to 1.0)</label>
-              <input type="number" class="form-control" id="editProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.2" required>
+            <div class="form-group mb-3"> {# Added mb-3 #}
+              <label for="editProbability" class="form-label">Probability (0.0 to 1.0)</label> {# Use form-label #}
+              <input type="number" class="form-control form-control-sm" id="editProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.1" required> {# Use form-control-sm #}
             </div>
-            <div class="form-group">
-              <label for="editDescription">Description (Optional)</label>
-              <textarea class="form-control" id="editDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea>
+            <div class="form-group mb-0"> {# Removed mb-3 #}
+              <label for="editDescription" class="form-label">Description (Optional)</label> {# Use form-label #}
+              <textarea class="form-control form-control-sm" id="editDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea> {# Use form-control-sm #}
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          {# Use primary (blue) accent #}
-          <button type="button" id="updatePenaltyBtn" class="btn btn-primary">Save Changes</button>
-          {# Use danger (red) accent #}
-          <button type="button" id="deletePenaltyBtn" class="btn btn-danger">Delete Penalty</button>
+          <button type="button" id="updatePenaltyBtn" class="btn btn-primary">Save Changes</button> {# Use primary accent #}
+          <button type="button" id="deletePenaltyBtn" class="btn btn-danger">Delete Penalty</button> {# Use danger accent #}
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
