@@ -1,41 +1,41 @@
+{# app/templates/games/games.html #}
+
 {% extends "base.html" %}
 {% block title %}Games Configuration{% endblock %}
 {% import "_form_helpers.html" as forms %}
 {% block head %}
     {{ super() }}
-    {# Base style.css is linked in base.html #}
     <style> body { background-color: var(--base-bg, #030712); } </style>
 {% endblock %}
 
 
 {% block content %}
-{# Added config-page-container class for CSS targeting #}
 <div class="container mt-4 config-page-container">
   <h2 class="mb-4 page-title">Games Configuration</h2>
-  <p class="text-secondary mb-4">Manage your game lists and settings for challenge generation. Tabs are saved locally in your browser. Logged-in users can save/load tabs to their account. Double-click a tab name (except Default) to rename it locally.</p>
+  <p class="text-secondary mb-4">Manage your game lists and settings for challenge generation. Tabs are saved locally in your browser if not logged in. For logged-in users, changes are saved automatically to your account. Double-click a tab name (except Default) to rename it.</p> {# Updated text #}
 
-  {# Script variables needed by JS for this page #}
   <script>
     const isLoggedIn = {{ current_user.is_authenticated| tojson }};
-    const csrfToken = "{{ csrf_token() }}"; // Needed for API calls via extensions
+    const csrfToken = "{{ csrf_token() }}"; // Renders the token from Flask-WTF
+  
+    // Assign to window object for global access in modules
+    window.isLoggedIn = isLoggedIn;
+    window.csrfToken = csrfToken;
   </script>
-
-  {# Confirmation Modal for Loading Defaults (Defined in games_modals.html) #}
-  {# This modal structure is included below #}
 
   {# --- Top Button Row (Conditional on Login) --- #}
   {% if current_user.is_authenticated %}
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
-      <div >
-          <button id="saveTabBtn" class="btn btn-success btn-sm mr-2 mb-2">Save Current Tab</button>
-          <button id="deleteTabBtn" class="btn btn-danger btn-sm mr-2 mb-2">Delete Current Tab</button>
-          <button id="loadSavedTabsBtn" class="btn btn-info btn-sm mr-2 mb-2">Load Saved Tabs</button>
+      <div class="btn-group mb-2" role="group" aria-label="Tab Actions"> {# Group related buttons #}
+          {# <button id="saveTabBtn"...> Removed #}
+          <button id="duplicateTabBtn" class="btn btn-info btn-sm" title="Create a copy of the current tab">Duplicate Tab</button> {# ADDED Button - Use info color #}
+          <button id="deleteTabBtn" class="btn btn-danger btn-sm">Delete Current Tab</button>
+          {# <button id="loadSavedTabsBtn"...> Removed #}
       </div>
-      <small class="text-secondary mb-2">You can save up to 5 tabs.</small>
+      <small class="text-secondary mb-2">Max 5 custom tabs allowed.</small> {# Updated max tabs text #}
   </div>
   {% endif %}
   {# --- End Top Button Row --- #}
-
 
   {# --- Tabs Navigation --- #}
   <ul class="nav nav-tabs mb-0" id="gamesTab" role="tablist">
@@ -55,42 +55,39 @@
   <div class="tab-content" id="gamesTabContent">
     {# Default Tab Pane #}
     <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
-       {# --- Tab Action Buttons (Horizontal) --- #}
-       <div class="d-flex justify-content-start my-3 flex-wrap">
-           <button id="loadDefaultEntriesBtn" class="btn btn-warning mr-2 mb-2" title="Load all entries from the central database into this local tab">Load Defaults</button>
-           <button class="btn btn-primary insertGameBtn mb-2" data-tab="default" title="Add a new entry to this local tab">Insert New Entry</button>
+       <div class="d-flex justify-content-start my-3 flex-wrap gap-2"> {# Use gap for spacing #}
+           <button id="loadDefaultEntriesBtn" class="btn btn-warning" title="Load global default entries, overwriting this tab">Load Global Defaults</button>
+           <button class="btn btn-primary insertGameBtn" data-tab="default" title="Add a new entry to this tab">Insert New Entry</button>
        </div>
-       {# --- End Tab Action Buttons --- #}
-       {# Include table structure #}
        {% include "games/games_table.html" %}
     </div>
     {# JS will insert other tab panes here #}
   </div>
   {# --- End Tab Content --- #}
 
+  {# Loading Tabs Placeholder #}
+  <div id="loadingTabsPlaceholder" class="text-center text-secondary my-4" style="display: none;">
+      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Loading Your Tabs...
+  </div>
 
+  {# Action Confirmation Modal #}
+  {{ forms.confirm_action_modal(modal_id='actionConfirmModal', title_id='actionConfirmTitle', body_id='actionConfirmBody', ok_id='actionConfirmOk') }}
 
-  {% include "games/games_modals.html" %}
+  {% include "games/games_modals.html" %} {# Includes New/Edit Modals #}
+  {{ forms.rename_tab_modal('game') }} {# Rename modal #}
 
-  {{ forms.rename_tab_modal('game') }}
 </div> {# End container #}
 {% endblock %}
 
 
-
+{# Scripts remain the same, games.js needs the listener #}
 {% block scripts %}
 {{ super() }}
-{# Load JS module for this page #}
-<script type="module" src="{{ url_for('static', filename='js/games/games.js') }}"></script>
-{# Inline script for default tab rename alert #}
-<script>
-  // Keep this script for the rename alert functionality
-  document.addEventListener('dblclick', function(event) {
-      const link = event.target.closest('.nav-link');
-      if (link && link.id === 'default-tab') {
-          event.preventDefault();
-          alert("The Default tab cannot be renamed or deleted.");
-      }
-  });
-</script>
+<script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/localStorageUtils.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/tabManagement.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/entryManagement.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/gamesExtensions.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/games/games.js') }}"></script> {# Main orchestrator #}
 {% endblock %}

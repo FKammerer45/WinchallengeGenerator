@@ -1,41 +1,38 @@
-// static/js/games/entryManagement.js
-// Manages rendering and CRUD operations for game entries in localStorage, now with grouping.
+// app/static/js/games/entryManagement.js
 
+// --- CORRECTED Imports ---
 import {
-    addLocalGameEntry,
-    updateLocalGameEntry,
-    // *** removeLocalGameEntry is NOT defined here, removed from import ***
-    getLocalEntries,
-    getLocalTabs
+    addLocalOnlyGameEntry,    // Use renamed function
+    updateLocalOnlyGameEntry, // Use renamed function
+    removeLocalOnlyGameEntry, // Use renamed function
+    getLocalOnlyEntries     // Use renamed function
 } from "./localStorageUtils.js";
-// Import showError directly, aliased if preferred
-import { escapeHtml, showError } from "../utils/helpers.js";
+// Use helpers from the utils directory
+import { escapeHtml, showError, confirmModal, showFlash } from "../utils/helpers.js";
+// Import autosave trigger function
+import { triggerAutosave } from "./gamesExtensions.js";
+// --- END CORRECTED Imports ---
 
 
-
-
+// --- Alert Helpers defined FIRST ---
 function showGameModalAlert(message, type = 'danger', containerId = 'newGameAlert') {
     const alertContainer = document.getElementById(containerId);
     if (!alertContainer) {
         console.error(`Alert container '#${containerId}' not found.`);
-        // Fallback to standard alert if container missing
         if(message) alert(`(${type.toUpperCase()}) ${message.replace(/<br>/g, '\n')}`);
         return;
     }
-
     if (message) {
-        // Construct Bootstrap alert HTML
-        const alertTypeClass = `alert-${type}`; // e.g., alert-danger, alert-success
+        const alertTypeClass = `alert-${type}`;
         alertContainer.innerHTML = `
             <div class="alert ${alertTypeClass} alert-dismissible fade show" role="alert" style="margin-bottom: 0;">
-                ${message} 
+                ${message}
                 <button type="button" class="close" data-dismiss="alert" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>`;
-        alertContainer.style.display = 'block'; // Ensure container is visible
+        alertContainer.style.display = 'block';
     } else {
-        // Clear the container and hide it
         alertContainer.innerHTML = '';
         alertContainer.style.display = 'none';
     }
@@ -46,47 +43,37 @@ function showNewGameAlert(message, type = 'danger') {
 function showEditGameAlert(message, type = 'danger') {
     showGameModalAlert(message, type, 'editGameAlert');
 }
-// --- groupEntriesForDisplay function ---
-// Groups entries by game name and calculates display ranges/lists.
+// --- END Alert Helpers ---
+
+// --- groupEntriesForDisplay function (should be present) ---
 function groupEntriesForDisplay(entries) {
     const grouped = {};
-    if (!Array.isArray(entries)) return grouped;
-
+    if (!Array.isArray(entries)) { return grouped; }
     entries.forEach(entry => {
         if (!entry || !entry.game) return;
         const gameName = entry.game.trim();
         if (!gameName) return;
-
         if (!grouped[gameName]) {
             grouped[gameName] = { modes: new Set(), difficulties: [], players: [], entryIds: [] };
         }
-
-        if (entry.gameMode) grouped[gameName].modes.add(entry.gameMode.trim());
-        if (entry.difficulty !== undefined) grouped[gameName].difficulties.push(parseFloat(entry.difficulty));
-        if (entry.numberOfPlayers !== undefined) grouped[gameName].players.push(parseInt(entry.numberOfPlayers));
+        if (entry.gameMode) grouped[gameName].modes.add(String(entry.gameMode).trim());
+        const difficulty = parseFloat(entry.difficulty); if (!isNaN(difficulty)) grouped[gameName].difficulties.push(difficulty);
+        const players = parseInt(entry.numberOfPlayers); if (!isNaN(players)) grouped[gameName].players.push(players);
         if (entry.id) grouped[gameName].entryIds.push(entry.id);
     });
-
-    // Process aggregated data
     for (const gameName in grouped) {
         const data = grouped[gameName];
-        data.modes = Array.from(data.modes).sort().join(', '); // Comma-separated modes
-
+        data.modes = Array.from(data.modes).sort().join(', ');
         const uniqueDiffs = [...new Set(data.difficulties)].sort((a, b) => a - b);
-        if (uniqueDiffs.length === 0) data.diffRange = 'N/A';
-        else if (uniqueDiffs.length === 1) data.diffRange = uniqueDiffs[0].toFixed(1);
-        else data.diffRange = `${uniqueDiffs[0].toFixed(1)}-${uniqueDiffs[uniqueDiffs.length - 1].toFixed(1)}`;
-
+        if (uniqueDiffs.length === 0) data.diffRange = 'N/A'; else if (uniqueDiffs.length === 1) data.diffRange = uniqueDiffs[0].toFixed(1); else data.diffRange = `${uniqueDiffs[0].toFixed(1)} - ${uniqueDiffs[uniqueDiffs.length - 1].toFixed(1)}`;
         const uniquePlayers = [...new Set(data.players)].sort((a, b) => a - b);
-        if (uniquePlayers.length === 0) data.playerRange = 'N/A';
-        else if (uniquePlayers.length === 1) data.playerRange = uniquePlayers[0].toString();
-        else data.playerRange = `${uniquePlayers[0]}-${uniquePlayers[uniquePlayers.length - 1]}`;
+        if (uniquePlayers.length === 0) data.playerRange = 'N/A'; else if (uniquePlayers.length === 1) data.playerRange = uniquePlayers[0].toString(); else data.playerRange = `${uniquePlayers[0]} - ${uniquePlayers[uniquePlayers.length - 1]}`;
     }
     return grouped;
 } // (End groupEntriesForDisplay)
 
+
 // --- renderGamesForTab function ---
-// Renders the grouped game entries into the table.
 export function renderGamesForTab(tabId) {
     let normalizedTabId = tabId;
     if (tabId && tabId !== "default" && !tabId.startsWith("tabPane-")) {
@@ -94,22 +81,35 @@ export function renderGamesForTab(tabId) {
     } else if (!tabId) { console.error("renderGamesForTab: Invalid tabId:", tabId); return; }
 
     let entries = [];
-    try { entries = getLocalEntries()[tabId] || []; }
-    catch (e) { console.error(`Error getting local entries for tab ${tabId}:`, e); }
+    try {
+        // *** Get entries based on login status ***
+        const isLoggedIn = window.isLoggedIn === true; // Use global flag
+        if (isLoggedIn) {
+            entries = window.userTabsData?.entries?.[tabId] || [];
+        } else {
+            entries = getLocalOnlyEntries()[tabId] || []; // Use renamed local function
+        }
+         // console.log(`[Render] Tab ${tabId}. LoggedIn: ${isLoggedIn}. Found ${entries.length} entries.`);
+    }
+    catch (e) { console.error(`Error getting entries for tab ${tabId}:`, e); }
 
     const tbody = document.querySelector(`#${normalizedTabId} .gamesTable`);
-    if (!tbody) { return; }
+    if (!tbody) { return; } // Pane might not exist yet during initial load
 
     tbody.innerHTML = ""; // Clear existing rows
-    const groupedEntries = groupEntriesForDisplay(entries);
+    const groupedEntries = groupEntriesForDisplay(entries); // Use grouping function
     const sortedGameNames = Object.keys(groupedEntries).sort();
 
     if (sortedGameNames.length > 0) {
         sortedGameNames.forEach(gameName => {
             const data = groupedEntries[gameName];
             const row = document.createElement('tr');
+            // Get actual IDs from the ungrouped list for this game
+            const entryIdsForGame = entries.filter(e => e.game === gameName).map(e => e.id);
+
             row.dataset.gameName = gameName;
-            row.dataset.entryIds = JSON.stringify(data.entryIds);
+            // Store the actual IDs associated with this grouped row
+            row.dataset.entryIds = JSON.stringify(entryIdsForGame || []);
             row.innerHTML = `
                 <td>${escapeHtml(gameName)}</td>
                 <td>${escapeHtml(data.modes) || '<span class="text-muted small">N/A</span>'}</td>
@@ -119,212 +119,270 @@ export function renderGamesForTab(tabId) {
             tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-3">No entries added to this tab yet.</td></tr>`; // Updated placeholder text color
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-3">No entries added to this tab yet.</td></tr>`;
     }
 } // (End renderGamesForTab)
 
 
-// --- handleSaveNewGame function ---
-// Handles saving a single new game entry.
+// --- Helper functions for conditional data update ---
+function saveOrUpdateEntryData(tabId, entryData, isUpdate = false) {
+     if (!tabId || !entryData) return false;
+     const entryId = entryData.id;
+     const isLoggedIn = window.isLoggedIn === true; // Use global flag
+
+     if (isLoggedIn) {
+         if (!window.userTabsData?.entries) return false;
+         if (!Array.isArray(window.userTabsData.entries[tabId])) window.userTabsData.entries[tabId] = [];
+         const entries = window.userTabsData.entries[tabId];
+         const existingIndex = entries.findIndex(e => String(e?.id) === String(entryId));
+
+         if (isUpdate) {
+             if (existingIndex !== -1) entries[existingIndex] = entryData;
+             else return false; // Cannot update if not found
+         } else {
+             if (existingIndex === -1) entries.push(entryData);
+             else entries[existingIndex] = entryData; // Overwrite if duplicate ID somehow
+         }
+         console.log(`[Data State] ${isUpdate ? 'Updated' : 'Added'} entry ${entryId} in state for tab ${tabId}`);
+         return true;
+     } else {
+         try {
+             if (isUpdate) updateLocalOnlyGameEntry(tabId, entryId, entryData);
+             else addLocalOnlyGameEntry(tabId, entryData);
+             return true;
+         } catch (e) { return false; }
+     }
+}
+function removeEntryData(tabId, entryId) {
+    if (!tabId || !entryId) {
+        console.error("[removeEntryData] Missing tabId or entryId");
+        return false;
+    }
+    const idToRemove = String(entryId); // Ensure consistent string comparison
+    const isLoggedIn = window.isLoggedIn === true;
+    console.log(`[removeEntryData] Attempting removal. Tab: ${tabId}, ID: ${idToRemove}, LoggedIn: ${isLoggedIn}`);
+
+    if (isLoggedIn) {
+        if (!window.userTabsData?.entries?.[tabId] || !Array.isArray(window.userTabsData.entries[tabId])) {
+            console.error(`[removeEntryData] Invalid state for tab ${tabId}`);
+            return false;
+        }
+        const entries = window.userTabsData.entries[tabId];
+        const initialLength = entries.length;
+        window.userTabsData.entries[tabId] = entries.filter(e => String(e?.id) !== idToRemove);
+        const removed = window.userTabsData.entries[tabId].length < initialLength;
+        if (removed) {
+            console.log(`[Data State] Removed entry ${idToRemove} from state for tab ${tabId}. New count: ${window.userTabsData.entries[tabId].length}`);
+        } else {
+            console.warn(`[Data State] Entry ${idToRemove} not found in state for tab ${tabId}.`);
+        }
+        return removed; // Return true only if something was removed
+    } else {
+         try {
+             // removeLocalOnlyGameEntry should return true/false
+             const success = removeLocalOnlyGameEntry(tabId, idToRemove);
+             if(success) console.log(`[Local Storage] Removed entry ${idToRemove} from tab ${tabId}`);
+             else console.warn(`[Local Storage] Entry ${idToRemove} not found in tab ${tabId}`);
+             return success;
+         } catch (e) {
+             console.error(`[removeEntryData] Error removing local entry:`, e);
+             return false;
+          }
+    }
+}
+// --- End Helper functions ---
+
+
+// --- MODIFIED handleSaveNewGame ---
 export function handleSaveNewGame() {
     const form = document.getElementById("newGameForm");
-    if (!form) {
-        console.error("New game form (#newGameForm) not found");
-        // Maybe show a general page alert if possible?
-        return;
-    }
-
+    // ... (existing validation logic) ...
     const gameInput = form.elements.newGameName;
     const modeInput = form.elements.newGameMode;
     const diffInput = form.elements.newDifficulty;
     const playersInput = form.elements.newPlayers;
-
     const game = gameInput?.value.trim();
     const gameMode = modeInput?.value.trim();
-    const difficulty = parseFloat(diffInput?.value); // Parse as float
+    const difficulty = parseFloat(diffInput?.value);
     const numberOfPlayers = parseInt(playersInput?.value);
 
-    showNewGameAlert(null); // Clear previous errors in the new game modal
-
+    showNewGameAlert(null); // Clear alerts
     let errors = [];
-    if (!game) errors.push("Game name is required.");
-    if (!gameMode) errors.push("Game mode is required.");
+    if (!game) errors.push("Game name required.");
+    if (!gameMode) errors.push("Game mode required.");
+    if (isNaN(difficulty) || difficulty <= 0.1 || difficulty > 10.0) errors.push("Difficulty must be > 0.1 and <= 10.0.");
+    if (isNaN(numberOfPlayers) || numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers)) errors.push("Players must be 1-99.");
 
-    // Difficulty Validation (Must be > 0.1)
-    if (isNaN(difficulty)) {
-        errors.push("Difficulty must be a number.");
-    } else if (difficulty <= 0.1) { // Check if less than or equal to 0.1
-        errors.push("Difficulty must be greater than 0.1 (e.g., 0.2 or higher).");
-    } else if (difficulty > 10.0) { // Upper bound check
-        errors.push("Difficulty cannot exceed 10.0.");
-    }
-    // Optional: Check for too many decimal places
-    // else if (String(difficulty).includes('.') && String(difficulty).split('.')[1].length > 1) {
-    //     errors.push("Difficulty should have at most one decimal place (e.g., 5.0, 7.5).");
-    // }
-
-    // Player Validation
-    if (isNaN(numberOfPlayers)) {
-        errors.push("Number of players must be an integer.");
-    } else if (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers)) {
-        errors.push("Number of players must be a whole number between 1 and 99.");
-    }
-
-    // Show errors if any occurred
     if (errors.length > 0) {
-        showNewGameAlert(errors.join("<br>"), 'danger'); // Show errors in a red box
-        return;
+        showNewGameAlert(errors.join("<br>"), 'danger'); return;
     }
 
-    // Proceed if validation passed
     const currentTab = window.currentTargetTab || "default";
-    let tabName = "Default";
-    try {
-        // Safely access tabs, default to "Default" if needed
-        const tabs = getLocalTabs();
-        tabName = tabs[currentTab]?.name || "Default";
-    } catch (e) { console.error("Error reading tabs for tabName:", e); }
-
+    const newEntryId = "local-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9); // Always generate local ID first
     const newEntry = {
-        id: "local-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
-        game,
-        gameMode,
-        difficulty: difficulty.toFixed(1), // Store consistently with one decimal place
-        numberOfPlayers,
-        tabName,
-        weight: 1.0 // Assuming a default weight
+        id: newEntryId, game, gameMode,
+        difficulty: difficulty.toFixed(1), numberOfPlayers,
+        weight: 1.0
     };
 
-    try {
-        addLocalGameEntry(currentTab, newEntry); // Save to localStorage
-        renderGamesForTab(currentTab); // Refresh the table UI
-        $('#newGameModal').modal('hide'); // Close the modal using jQuery/Bootstrap
-        form.reset(); // Reset the form fields
-    } catch (error) {
-        console.error("Error saving entry or rendering tab:", error);
-        showNewGameAlert("Failed to save entry. Please try again.", 'danger'); // Show save error
+    if (saveOrUpdateEntryData(currentTab, newEntry, false)) { // Use helper
+        renderGamesForTab(currentTab); // Refresh UI
+        $('#newGameModal').modal('hide'); // Close modal
+        form.reset();
+        triggerAutosave(currentTab); // <<< TRIGGER AUTOSAVE
+    } else {
+        showNewGameAlert("Failed to save entry data.", 'danger');
     }
 } // (End handleSaveNewGame)
 
 
-// --- Complete handleUpdateGame Function ---
+// --- MODIFIED handleUpdateGame ---
 export function handleUpdateGame() {
     const form = document.getElementById("editGameForm");
     const gameNameDisplay = document.getElementById("editGameNameDisplay");
     const modesContainer = document.getElementById("editGameModesContainer");
     const currentTab = window.currentTargetTab || "default";
+    const gameName = gameNameDisplay?.textContent;
 
-    const gameName = gameNameDisplay?.textContent; // Get game name from display element
-
-    if (!form || !modesContainer || !gameName || !currentTab) {
-        console.error("Cannot update: Missing form elements, game name, or tab context.");
-        showEditGameAlert("An internal error occurred. Cannot save changes."); // Use edit alert
-        return;
-    }
-
-    showEditGameAlert(null); // Clear previous errors in the edit modal
+    if (!form || !modesContainer || !gameName || !currentTab) { /*...*/ return; }
+    showEditGameAlert(null); // Clear alerts
 
     const modeSections = modesContainer.querySelectorAll(".edit-mode-section");
-    let allUpdates = [];
+    let allEntriesToUpdate = [];
     let errors = [];
 
-    if (modeSections.length === 0) {
-        // If all modes were deleted via the 'X' button, just close the modal and refresh
+    if (modeSections.length === 0) { // Handle deletion of all modes
         $('#editGameModal').modal('hide');
-        renderGamesForTab(currentTab);
+        triggerAutosave(currentTab); // Save the empty state
         return;
     }
 
     modeSections.forEach((section, index) => {
-        const entryId = section.dataset.entryId;
-        const modeInput = section.querySelector(".edit-mode-name-input");
-        const diffInput = section.querySelector(".edit-mode-difficulty");
-        const playersInput = section.querySelector(".edit-mode-players");
+        // ... (existing validation logic for each mode section) ...
+         const entryId = section.dataset.entryId;
+         const modeInput = section.querySelector(".edit-mode-name-input");
+         const diffInput = section.querySelector(".edit-mode-difficulty");
+         const playersInput = section.querySelector(".edit-mode-players");
+         const gameMode = modeInput?.value.trim();
+         const difficulty = parseFloat(diffInput?.value);
+         const numberOfPlayers = parseInt(playersInput?.value);
 
-        const gameMode = modeInput?.value.trim();
-        const difficulty = parseFloat(diffInput?.value); // Parse as float
-        const numberOfPlayers = parseInt(playersInput?.value);
-
-        // --- Validation per mode ---
-        let modeErrors = [];
-        if (!entryId) modeErrors.push(`Internal error: Missing ID for mode #${index + 1}.`);
-        if (!gameMode) modeErrors.push(`Mode name is required for entry #${index + 1}.`);
-
-        // Difficulty Validation (Must be > 0.1)
-        if (isNaN(difficulty)) {
-            modeErrors.push(`Difficulty must be a number for mode "${gameMode || index + 1}".`);
-        } else if (difficulty <= 0.1) { // Check lower bound
-            modeErrors.push(`Difficulty for "${gameMode || index + 1}" must be > 0.1.`);
-        } else if (difficulty > 10.0) { // Check upper bound
-             modeErrors.push(`Difficulty for "${gameMode || index + 1}" cannot exceed 10.0.`);
-        }
-        // Optional: Check for too many decimal places
-        // else if (String(difficulty).includes('.') && String(difficulty).split('.')[1].length > 1) {
-        //     modeErrors.push(`Difficulty for "${gameMode || index + 1}" should have at most one decimal place.`);
-        // }
-
-        // Player Validation
-        if (isNaN(numberOfPlayers)) {
-            modeErrors.push(`Number of players must be an integer for mode "${gameMode || index + 1}".`);
-        } else if (numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers)) {
-            modeErrors.push(`Players for "${gameMode || index + 1}" must be 1-99.`);
-        }
-        // --- End Validation ---
+         let modeErrors = [];
+         if (!entryId) modeErrors.push(`Internal error: Missing ID.`);
+         if (!gameMode) modeErrors.push(`Mode name required.`);
+         if (isNaN(difficulty) || difficulty <= 0.1 || difficulty > 10.0) modeErrors.push(`Invalid difficulty.`);
+         if (isNaN(numberOfPlayers) || numberOfPlayers < 1 || numberOfPlayers > 99 || !Number.isInteger(numberOfPlayers)) modeErrors.push(`Invalid players.`);
 
         if (modeErrors.length === 0) {
-            // Get original weight/tabName for context if needed
-            const allEntries = getLocalEntries();
-            const originalEntry = (allEntries[currentTab] || []).find(e => e.id === entryId);
+             allEntriesToUpdate.push({
+                id: entryId, game: gameName, gameMode,
+                difficulty: difficulty.toFixed(1), numberOfPlayers,
+                weight: 1.0 // Assuming weight fixed
+             });
+        } else { errors.push(`Mode "${gameMode || index+1}": ${modeErrors.join(' ')}`); }
+    });
 
-            allUpdates.push({
-                id: entryId,
-                game: gameName, // Use the game name from the modal title
-                gameMode,
-                difficulty: difficulty.toFixed(1), // Store consistently
-                numberOfPlayers,
-                // Preserve original weight/tabName if they exist
-                weight: originalEntry?.weight ?? 1.0,
-                tabName: originalEntry?.tabName ?? "Default"
-            });
-        } else {
-            errors.push(...modeErrors); // Add specific mode errors to the overall list
-        }
-    }); // End forEach section
-
-    // Show errors if any occurred during validation
     if (errors.length > 0) {
-        showEditGameAlert(errors.join("<br>"), 'danger'); // Show errors in red box
+        showEditGameAlert(errors.join("<br>"), 'danger'); return;
+    }
+
+    // Update data using helper
+    let allSucceeded = true;
+    allEntriesToUpdate.forEach(updatedEntry => {
+        if (!saveOrUpdateEntryData(currentTab, updatedEntry, true)) { // isUpdate = true
+            allSucceeded = false;
+            errors.push(`Failed to update data for mode "${escapeHtml(updatedEntry.gameMode)}".`);
+        }
+    });
+
+    if (allSucceeded) {
+        renderGamesForTab(currentTab); // Refresh UI
+        $('#editGameModal').modal('hide'); // Close modal
+        triggerAutosave(currentTab); // <<<< TRIGGER AUTOSAVE
+    } else {
+        showEditGameAlert(errors.join("<br>"), 'danger');
+    }
+} // (End handleUpdateGame)
+
+// --- Moved and MODIFIED handleDeleteSingleMode ---
+export async function handleDeleteSingleMode(e) {
+    // 1. Check if the clicked element is indeed the delete button
+    const button = e.target.closest('.delete-single-mode-btn'); // Use closest to handle clicks on icon inside button
+    if (!button) return; // Exit if the click wasn't on or inside a delete button
+
+    console.log("handleDeleteSingleMode triggered for button:", button); // Debug
+
+    // 2. Get necessary data from the button and context
+    const entryId = button.dataset.entryId;
+    const modeName = button.dataset.modeName || 'this mode';
+    const section = button.closest('.edit-mode-section');
+    // *** Explicitly get tab ID from the modal context if possible, fallback to window ***
+    const modalElement = button.closest('#editGameModal');
+    const hiddenGameNameInput = modalElement?.querySelector('#editGameNameHidden'); // Example: If game name stored here helps find tab
+    const currentTab = window.currentTargetTab; // Rely on global context set when modal opened
+    const alertContainer = document.getElementById("editGameAlert"); // Target edit modal's alert
+
+    console.log(`Attempting to delete: entryId=${entryId}, modeName=${modeName}, currentTab=${currentTab}`); // Debug
+
+    // 3. Validate necessary data
+    if (!entryId || !section || !currentTab || !alertContainer) {
+        console.error("Cannot delete mode: Missing context (id, section, tab, alert).");
+        showEditGameAlert("Internal error: cannot delete mode.", "danger");
         return;
     }
 
-    // Proceed with updates if validation passed for all modes
-    try {
-        let updateSuccess = true;
-        allUpdates.forEach(updatedEntry => {
-            try {
-                updateLocalGameEntry(currentTab, updatedEntry.id, updatedEntry);
-            } catch (updateError) {
-                console.error(`Failed to update entry ID ${updatedEntry.id}:`, updateError);
-                // Collect errors for final message if needed
-                errors.push(`Failed to save changes for mode "${escapeHtml(updatedEntry.gameMode)}".`);
-                updateSuccess = false;
-            }
-        });
+    // 4. Confirmation
+    const ok = await confirmModal(
+        `Are you sure you want to delete the mode "${escapeHtml(modeName)}"?`,
+        "Confirm mode deletion"
+    );
+    if (!ok) {
+        console.log("User cancelled delete.");
+        return; // User cancelled
+    }
 
-        // If any individual update failed, show errors
-        if (!updateSuccess) {
-            showEditGameAlert(errors.join("<br>"), 'danger');
-            return;
+    // 5. Disable button and attempt data removal
+    button.disabled = true;
+    const spinner = button.querySelector('.spinner-border-sm'); // Optional: Add spinner logic if needed
+    if (spinner) spinner.style.display = 'inline-block';
+
+    // Call the helper function to remove data from state/localStorage
+    const removed = removeEntryData(currentTab, entryId);
+
+    // 6. Handle result
+    if (removed) {
+        console.log(`Data removed successfully for entry ${entryId}`);
+        section.remove(); // Remove section from modal UI immediately
+
+        // Update main table view outside the modal
+        renderGamesForTab(currentTab);
+
+        // Trigger autosave if logged in
+        if (window.isLoggedIn === true) {
+            triggerAutosave(currentTab);
         }
 
-        // If all updates succeeded
-        renderGamesForTab(currentTab); // Refresh the table UI
-        $('#editGameModal').modal('hide'); // Close the modal
+        // Check if modal is now empty
+        const modesContainer = document.getElementById("editGameModesContainer");
+        const remainingSections = modesContainer?.querySelectorAll('.edit-mode-section').length;
+        console.log(`Mode section removed visually. Remaining: ${remainingSections}`);
 
-    } catch (error) {
-        // Catch general errors during the update process
-        console.error("Error updating entries:", error);
-        showEditGameAlert("An unexpected error occurred while saving changes.", 'danger');
+        showFlash(`Mode "${escapeHtml(modeName)}" deleted.`, "success", 2000);
+
+        // Optionally close modal if it becomes empty
+        if (remainingSections === 0) {
+             console.log("No modes left, closing edit modal.");
+             // Ensure jQuery/Bootstrap modal('hide') is available
+             if (typeof $ !== 'undefined' && $.fn.modal) {
+                $('#editGameModal').modal('hide');
+             }
+        }
+
+    } else {
+        // If removeEntryData returned false (likely entry not found in data source)
+        console.error(`Failed to remove data for entry ${entryId}. Entry might be out of sync.`);
+        showEditGameAlert(`Failed to delete mode "${escapeHtml(modeName)}". Data inconsistency might exist.`, "danger");
+        button.disabled = false; // Re-enable button on failure
+        if (spinner) spinner.style.display = 'none';
     }
-}
-
+} // (End handleDeleteSingleMode)

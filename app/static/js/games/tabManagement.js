@@ -1,189 +1,248 @@
-// tabManagement.js
-import { getLocalTabs, setLocalTabs, getLocalEntries, setLocalEntries } from "./localStorageUtils.js";
+// app/static/js/games/tabManagement.js
 
-// Keep track of the highest tab number seen or created in this session
-// Initialize by finding the max existing number from localStorage
-let currentMaxTabNum = 1; // Start counter assuming 'default' exists
-try {
-    const existingTabs = getLocalTabs();
-    if (existingTabs) {
-        Object.keys(existingTabs).forEach(tabId => {
-            if (tabId.startsWith("tabPane-")) {
-                const num = parseInt(tabId.split("-")[1]);
-                if (!isNaN(num) && num > currentMaxTabNum) {
-                    currentMaxTabNum = num;
-                }
-            }
-        });
-    }
-} catch (e) { console.error("Error initializing tabCount:", e); }
+import {
+  getLocalOnlyTabs, setLocalOnlyTabs, getLocalOnlyEntries, setLocalOnlyEntries
+} from "./localStorageUtils.js";
+import { apiFetch } from "../utils/api.js";
+import { showFlash } from "../utils/helpers.js";
+import { renderGamesForTab } from "./entryManagement.js";
 
-export function getNextTabCount() {
-    currentMaxTabNum++;
-    return currentMaxTabNum;
+// Keep track of the highest tab ID number used (for generating unique IDs)
+let currentMaxTabIdNum = 0; // Renamed for clarity
+
+// Function to initialize or update the max ID number based on current tabs
+function initializeMaxTabIdNum() {
+  let highestNumFound = 0;
+  try {
+      const isLoggedIn = window.isLoggedIn === true;
+      const existingTabs = isLoggedIn && window.userTabsData?.tabs
+                         ? window.userTabsData.tabs
+                         : getLocalOnlyTabs(); // Read from correct source
+
+      if (existingTabs) {
+          Object.keys(existingTabs).forEach(tabId => {
+              // Check specifically for the tabPane-ID pattern
+              if (tabId.startsWith("tabPane-")) {
+                  const num = parseInt(tabId.split("-")[1]);
+                  if (!isNaN(num) && num > highestNumFound) {
+                      highestNumFound = num;
+                  }
+              }
+          });
+      }
+      currentMaxTabIdNum = highestNumFound; // Update the global tracker
+      console.log("Re-initialized games tab ID counter max to:", currentMaxTabIdNum);
+  } catch (e) {
+      console.error("Error initializing/updating games tab ID counter:", e);
+      // Decide on fallback behavior, maybe keep the existing value?
+      // currentMaxTabIdNum = currentMaxTabIdNum; // Keep existing on error
+  }
 }
 
+// Call initialization once when the script loads (or after data is loaded in games.js)
+// Note: It might be better to call this from games.js AFTER user tabs are loaded.
+// For now, we'll initialize it here based on local storage/initial state if available.
+initializeMaxTabIdNum();
 
-// Creates the UI and updates localStorage for a *new* tab
-export function createNewTab() {
-  const tabNumber = getNextTabCount(); // Get next available number
-  const newTabId = `tabPane-${tabNumber}`; // e.g., tabPane-2
-  const newTabName = `Tab ${tabNumber}`;    // e.g., Tab 2
+// Gets the next unique ID number
+export function getNextTabIdNumber() {
+  // OPTIONAL: Re-scan here for absolute safety, but good initialization is usually enough
+  // initializeMaxTabIdNum(); // Uncomment if you suspect state issues between loads
+  currentMaxTabIdNum++;
+  console.log("getNextTabIdNumber returning:", currentMaxTabIdNum);
+  return currentMaxTabIdNum;
+}
 
-  console.log(`Creating new tab: ID=${newTabId}, Name=${newTabName}`);
+// Finds the next available "Tab N" name
+function findNextAvailableTabName(currentTabsData) {
+  let nextNameNum = 1;
+  let newTabName = `Tab ${nextNameNum}`;
+  const existingNames = Object.values(currentTabsData || {}).map(tab => tab.name);
 
-  // --- Create and Insert Tab Link ---
+  while (existingNames.includes(newTabName)) {
+      nextNameNum++;
+      newTabName = `Tab ${nextNameNum}`;
+  }
+  return newTabName;
+}
+
+// --- MODIFIED createNewTab ---
+export async function createNewTab() {
+
+  const isLoggedIn = window.isLoggedIn === true;
+  const currentTabs = isLoggedIn ? (window.userTabsData?.tabs || {}) : getLocalOnlyTabs();
+  const MAX_CUSTOM_TABS = 5; // Define the limit
+
+  // --- Check Max Tab Limit ---
+  const customTabCount = Object.keys(currentTabs).filter(id => id !== 'default').length;
+  if (customTabCount >= MAX_CUSTOM_TABS) {
+      showFlash(`You have reached the maximum limit of ${MAX_CUSTOM_TABS} custom tabs.`, "warning");
+      return; // Stop creation
+  }
+  // --- End Check ---
+
+  // --- Find the next available "Tab N" name ---
+  const newTabName = findNextAvailableTabName(currentTabs);
+  // --- End Name Finding ---
+
+  // --- Get a unique ID number ---
+  // Ensure the counter is up-to-date before getting the next number
+  initializeMaxTabIdNum(); // Update based on current reality
+  const tabIdNumber = getNextTabIdNumber(); // Increment and get the new highest
+  const newTabId = `tabPane-${tabIdNumber}`;
+  const linkId = `tab-${tabIdNumber}`; // Use the same unique number for the link ID
+  // --- End ID Generation ---
+
+  console.log(`Creating new tab: ID=${newTabId}, LinkID=${linkId}, Name=${newTabName}`);
+
+  // --- Create UI Elements (Link and Pane) ---
   const newTabLink = document.createElement("a");
-  newTabLink.classList.add("nav-link");
-  newTabLink.id = `tab-${tabNumber}`; // Link ID
+  newTabLink.className = "nav-link";
+  newTabLink.id = linkId; // *** Use the generated linkId ***
   newTabLink.setAttribute("data-toggle", "tab");
-  newTabLink.href = `#${newTabId}`; // Target pane ID
+  newTabLink.href = `#${newTabId}`; // Pane ID
   newTabLink.role = "tab";
   newTabLink.setAttribute("aria-controls", newTabId);
-  newTabLink.setAttribute("aria-selected", "false"); // New tabs aren't active initially
+  newTabLink.setAttribute("aria-selected", "false");
   newTabLink.textContent = newTabName;
-  newTabLink.setAttribute("data-tab", newTabId); // Store pane ID for easy access
+  newTabLink.setAttribute("data-tab", newTabId);
 
   const newTabItem = document.createElement("li");
-  newTabItem.classList.add("nav-item");
+  newTabItem.className = "nav-item";
   newTabItem.appendChild(newTabLink);
 
   const addTabBtn = document.getElementById("addTabBtn");
-  if (addTabBtn?.parentNode?.parentNode) { // Ensure button and its list item parent exist
-       addTabBtn.parentNode.parentNode.insertBefore(newTabItem, addTabBtn.parentNode);
-  } else {
-      console.error("Could not find insertion point for new tab link.");
-      // Fallback or error? For now, proceed to create pane.
-  }
+  addTabBtn?.parentNode?.parentNode?.insertBefore(newTabItem, addTabBtn.parentNode);
 
-  // --- Create and Insert Tab Pane ---
   const newTabPane = document.createElement("div");
-  newTabPane.classList.add("tab-pane", "fade"); // Start faded out
-  newTabPane.id = newTabId;
+  newTabPane.className = "tab-pane fade";
+  newTabPane.id = newTabId; // Use unique pane ID
   newTabPane.setAttribute("role", "tabpanel");
-  newTabPane.setAttribute("aria-labelledby", `tab-${tabNumber}`);
-
-  // Basic inner structure for a new tab
+  newTabPane.setAttribute("aria-labelledby", linkId); // *** Use the generated linkId ***
+  // --- Rest of pane innerHTML and saving logic remains the same ---
   newTabPane.innerHTML = `
-    <div class="my-3">
-      <button class="btn btn-primary insertGameBtn" data-tab="${newTabId}" title="Add a new entry to this tab">Insert New Entry</button>
-      </div>
-    <table class="table table-dark table-striped">
-      <thead>
-        <tr>
-          <th>Game</th>
-          <th>Game Mode</th>
-          <th>Difficulty</th>
-          <th>Number of Players</th>
-        </tr>
-      </thead>
-      <tbody class="gamesTable">
-        <tr><td colspan="4" class="text-center text-muted">No entries added to this tab yet.</td></tr>
-      </tbody>
-    </table>
-  `;
-  const tabContentContainer = document.getElementById("gamesTabContent");
-   if(tabContentContainer) {
-       tabContentContainer.appendChild(newTabPane);
-   } else {
-        console.error("Tab content container ('gamesTabContent') not found.");
-        // If this fails, the tab is unusable. Maybe remove the link item?
-        newTabItem.remove(); // Clean up link if pane fails
-        throw new Error("Could not add tab content pane."); // Stop creation
-   }
+    <div class="d-flex justify-content-start my-3 flex-wrap gap-2">
+        <button class="btn btn-primary insertGameBtn" data-tab="${newTabId}" title="Add a new entry to this tab">Insert New Entry</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm config-table mb-0">
+            <thead> <tr> <th>Game</th> <th>Game Mode</th> <th>Difficulty</th> <th>Players</th> </tr> </thead>
+            <tbody class="gamesTable"> <tr><td colspan="4" class="text-center text-secondary py-3">No entries yet.</td></tr> </tbody>
+        </table>
+    </div>`;
+  document.getElementById("gamesTabContent")?.appendChild(newTabPane);
+  // --- End UI Element Creation ---
 
 
-  // --- Update Local Storage ---
+  // --- Update Data Store (Conditional) ---
   try {
-      const tabs = getLocalTabs();
-      tabs[newTabId] = { name: newTabName };
-      setLocalTabs(tabs);
+      if (isLoggedIn) {
+           // Add to in-memory state immediately
+           if(window.userTabsData) {
+               window.userTabsData.tabs[newTabId] = { name: newTabName };
+               window.userTabsData.entries[newTabId] = [];
+               console.log(`Tab ${newTabId} added to JS state.`);
+           } else { throw new Error("Internal state error: window.userTabsData missing."); }
 
-      const entries = getLocalEntries();
-      if (!entries[newTabId]) { // Should not exist, but check
-        entries[newTabId] = []; // Initialize empty entry list
-        setLocalEntries(entries);
+           // API Call to save the new (empty) tab structure
+           console.log(`[New Tab] Calling API to save empty tab ${newTabId}...`);
+           const csrfToken = window.csrfToken;
+           // The backend already has the max tab check, so this should fail if somehow
+           // the frontend check was bypassed, but the frontend check provides better UX.
+           await apiFetch('/api/tabs/save', {
+               method: 'POST',
+               body: { tabId: newTabId, tabName: newTabName, entries: [] }
+           }, csrfToken);
+           console.log(`[New Tab] API save successful for ${newTabId}`);
+           showFlash(`Tab "${newTabName}" created.`, "success");
+
+      } else {
+          // Anonymous: Update localStorage
+          const tabs = getLocalOnlyTabs();
+          tabs[newTabId] = { name: newTabName };
+          setLocalOnlyTabs(tabs);
+
+          const entries = getLocalOnlyEntries();
+          entries[newTabId] = [];
+          setLocalOnlyEntries(entries);
+          console.log(`Tab ${newTabId} added to localStorage.`);
       }
-      console.log(`Tab ${newTabId} added to localStorage.`);
-      // Optional: Activate the new tab programmatically
-      // $(newTabLink).tab('show'); // Requires jQuery/Bootstrap JS fully loaded
-  } catch(e) {
-      console.error(`Failed to update localStorage for new tab ${newTabId}:`, e);
-      // Attempt to clean up UI?
-      newTabItem.remove();
-      newTabPane.remove();
-      alert("Error saving new tab locally. Please try again.");
-  }
-}
+      // Activate the new tab
+       if (typeof $ !== 'undefined' && $.fn.tab) { $(newTabLink).tab('show'); }
 
-// Creates only the UI for a tab based on existing localStorage data (used on page load)
+  } catch (e) {
+      console.error(`Failed to create or save new tab ${newTabId}:`, e);
+      // Clean up UI elements if data update failed
+      newTabItem?.remove();
+      newTabPane?.remove();
+      showFlash(`Error creating tab: ${e.message}`, "danger");
+      // Decrement counter if saving failed after incrementing?
+      // It might be safer to let initializeMaxTabIdNum fix it on next load/action.
+  }
+} // End createNewTab
+
+// createTabFromLocalData function (ensure it uses normalized IDs correctly)
 export function createTabFromLocalData(tabId, tabName) {
-   console.log(`Recreating UI for existing tab: ID=${tabId}, Name=${tabName}`);
-   // Basic validation
-   if(!tabId || !tabName) {
-       console.error("createTabFromLocalData requires valid tabId and tabName.");
-       return;
-   }
+ console.log(`Recreating UI for existing tab: ID=${tabId}, Name=${tabName}`);
+ if(!tabId || !tabName) return; // Basic validation
 
-  // Try to extract number for consistent IDing, fallback needed
-  const tabNumberMatch = tabId.match(/tabPane-(\d+)/);
-  const tabNumber = tabNumberMatch ? tabNumberMatch[1] : tabId; // Use tabId if no number found
+ // --- Extract number for link ID, use fallback if pattern mismatch ---
+ const tabNumberMatch = tabId.match(/tabPane-(\d+)/);
+ const tabIdNumber = tabNumberMatch ? tabNumberMatch[1] : tabId.replace(/[^a-zA-Z0-9-_]/g, ''); // Sanitize fallback
+ const linkId = tabId === 'default' ? 'default-tab' : `tab-${tabIdNumber}`; // Handle default ID
 
-  // --- Create and Insert Tab Link ---
-  const newTabLink = document.createElement("a");
-  newTabLink.classList.add("nav-link");
-  newTabLink.id = `tab-${tabNumber}`; // Link ID using number or id
-  newTabLink.setAttribute("data-toggle", "tab");
-  newTabLink.href = `#${tabId}`; // Target pane ID
-  newTabLink.role = "tab";
-  newTabLink.setAttribute("aria-controls", tabId);
-  newTabLink.setAttribute("aria-selected", "false"); // Loaded tabs are not active initially
-  newTabLink.textContent = tabName;
-  newTabLink.setAttribute("data-tab", tabId); // Store pane ID
+ // --- Create Link ---
+ const newTabLink = document.createElement("a");
+ newTabLink.className = "nav-link";
+ newTabLink.id = linkId; // Use potentially corrected link ID
+ newTabLink.setAttribute("data-toggle", "tab");
+ newTabLink.href = `#${tabId}`; // Pane ID remains the original tabId
+ newTabLink.role = "tab";
+ newTabLink.setAttribute("aria-controls", tabId);
+ newTabLink.setAttribute("aria-selected", "false"); // Start inactive
+ newTabLink.textContent = tabName;
+ newTabLink.setAttribute("data-tab", tabId); // Store original pane ID
 
-  const newTabItem = document.createElement("li");
-  newTabItem.classList.add("nav-item");
-  newTabItem.appendChild(newTabLink);
+ const newTabItem = document.createElement("li");
+ newTabItem.className = "nav-item";
+ newTabItem.appendChild(newTabLink);
 
-  const addTabBtn = document.getElementById("addTabBtn");
-   if (addTabBtn?.parentNode?.parentNode) {
-       addTabBtn.parentNode.parentNode.insertBefore(newTabItem, addTabBtn.parentNode);
-  } else {
-      console.error("Could not find insertion point for loaded tab link.");
-      return; // Don't create pane if link fails
+ const addTabBtn = document.getElementById("addTabBtn");
+ addTabBtn?.parentNode?.parentNode?.insertBefore(newTabItem, addTabBtn.parentNode);
+
+ // --- Create Pane ---
+ const newTabPane = document.createElement("div");
+ newTabPane.className = "tab-pane fade"; // Start inactive
+ newTabPane.id = tabId; // Use the original tabId
+ newTabPane.setAttribute("role", "tabpanel");
+ newTabPane.setAttribute("aria-labelledby", linkId); // Use the generated link's ID
+
+ // Add correct buttons based on tabId
+ let buttonsHtml = '';
+ if (tabId === 'default') {
+      buttonsHtml = `<button id="loadDefaultEntriesBtn" class="btn btn-warning mr-2" title="Load global defaults">Load Global Defaults</button>`;
+ }
+  // Always add Insert button
+ buttonsHtml += `<button class="btn btn-primary insertGameBtn" data-tab="${tabId}" title="Add new entry">Insert New Entry</button>`;
+
+ newTabPane.innerHTML = `
+  <div class="d-flex justify-content-start my-3 flex-wrap gap-2"> ${buttonsHtml} </div>
+  <div class="table-responsive">
+   <table class="table table-hover table-sm config-table mb-0">
+     <thead> <tr> <th>Game</th> <th>Game Mode</th> <th>Difficulty</th> <th>Players</th> </tr> </thead>
+     <tbody class="gamesTable"><tr><td colspan="4" class="text-center text-secondary py-3">Loading...</td></tr></tbody>
+   </table>
+  </div>`;
+ document.getElementById("gamesTabContent")?.appendChild(newTabPane);
+
+  // --- Update Max ID Counter After Recreating ---
+  // Ensure the global counter knows about this potentially high ID number
+  if (tabNumberMatch && !isNaN(parseInt(tabNumberMatch[1]))) {
+      const num = parseInt(tabNumberMatch[1]);
+      if (num > currentMaxTabIdNum) {
+          currentMaxTabIdNum = num;
+          console.log("Updated max tab ID counter after recreating tab:", currentMaxTabIdNum);
+      }
   }
-
-
-  // --- Create and Insert Tab Pane ---
-  const newTabPane = document.createElement("div");
-  newTabPane.classList.add("tab-pane", "fade");
-  newTabPane.id = tabId;
-  newTabPane.setAttribute("role", "tabpanel");
-  newTabPane.setAttribute("aria-labelledby", `tab-${tabNumber}`);
-
-  // Inner structure is the same as for a new tab
-  newTabPane.innerHTML = `
-    <div class="my-3">
-      <button class="btn btn-primary insertGameBtn" data-tab="${tabId}" title="Add a new entry to this tab">Insert New Entry</button>
-       </div>
-    <table class="table table-dark table-striped">
-      <thead>
-        <tr>
-          <th>Game</th>
-          <th>Game Mode</th>
-          <th>Difficulty</th>
-          <th>Number of Players</th>
-        </tr>
-      </thead>
-      <tbody class="gamesTable">
-        </tbody>
-    </table>
-  `;
-   const tabContentContainer = document.getElementById("gamesTabContent");
-   if(tabContentContainer) {
-       tabContentContainer.appendChild(newTabPane);
-   } else {
-        console.error("Tab content container ('gamesTabContent') not found when recreating tab.");
-        newTabItem.remove(); // Clean up link if pane fails
-   }
-}
+  // --- End Update ---
+} // End createTabFromLocalData

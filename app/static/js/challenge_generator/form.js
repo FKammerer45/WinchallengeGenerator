@@ -2,13 +2,13 @@
 // (Previously static/js/challenge/challenge_form.js)
 
 // Assuming these paths are correct after restructuring
-import { getLocalTabs as getGameTabs, getLocalEntries, initLocalStorage as initGameStorage } from "../games/localStorageUtils.js";
+import { getLocalOnlyTabs as getGameTabs, getLocalOnlyEntries as getGameEntries, initLocalStorage as initGameStorage } from "../games/localStorageUtils.js";
 import { getLocalPenaltyTabs, initPenaltiesLocalStorage } from "../penalties/penaltyLocalStorageUtils.js";
 // Assuming local_storage.js is now in utils/
 import { saveChallengeToLocalStorage } from '../utils/local_storage.js';
 // Assuming helpers.js is in utils/
 import { showError, escapeHtml, setLoading } from '../utils/helpers.js';
-import { loadDefaultEntriesFromDB } from '../games/gamesExtensions.js';
+import { loadAndSaveGlobalDefaults } from '../games/gamesExtensions.js';
 import { loadDefaultPenaltiesFromDB } from '../penalties/penaltyExtensions.js';
 // Flag to prevent recursion during mode change for anonymous users
 const selectedGames = new Set();
@@ -229,7 +229,7 @@ function updateGameSelectionCard() {
 
     let entries = []; // Initialize as empty array
     try {
-        const allTabsData = getLocalEntries(selectedTab);
+        const allTabsData = getGameEntries();
         if (allTabsData && allTabsData.hasOwnProperty(selectedTab)) {
             const specificTabEntries = allTabsData[selectedTab];
             if (Array.isArray(specificTabEntries)) {
@@ -685,7 +685,7 @@ function initializeChallengeForm() {
             if (selectedTab && gameSelectionTbody) {
                 try {
                     // Reuse logic similar to updateGameSelectionCard to get all unique game names
-                    const allTabsData = getLocalEntries(selectedTab);
+                    const allTabsData = getGameEntries();
                     let entries = [];
                     if (allTabsData && allTabsData.hasOwnProperty(selectedTab)) {
                         const specificTabEntries = allTabsData[selectedTab];

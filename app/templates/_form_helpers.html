@@ -48,3 +48,25 @@
     </div>
   </div>
 {%- endmacro %}
+{% macro confirm_action_modal(modal_id='actionConfirmModal', title_id='actionConfirmTitle', body_id='actionConfirmBody', ok_id='actionConfirmOk', title='Please confirm', ok_text='OK', cancel_text='Cancel') %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" role="dialog" aria-labelledby="{{ title_id }}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow"> {# Style handled by style.css #}
+      <div class="modal-header py-2"> {# Reduced padding #}
+        <h5 class="modal-title" id="{{ title_id }}">{{ title }}</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="{{ body_id }}">
+        {# Content set dynamically by JS #}
+        Are you sure you want to proceed?
+      </div>
+      <div class="modal-footer py-2"> {# Reduced padding #}
+        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">{{ cancel_text }}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="{{ ok_id }}">{{ ok_text }}</button> {# Use primary color for OK #}
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}

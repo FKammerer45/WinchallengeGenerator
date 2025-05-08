@@ -5,7 +5,7 @@ window.soundManager = (function() { // Start of IIFE
 
     const SOUND_SETTINGS_KEY = 'winChallengeSoundSettings';
     let isMuted = false;
-    let currentVolume = 0.75; // Default volume (0.0 to 1.0)
+    let currentVolume = 0.4; // Default volume (0.0 to 1.0)
     let audioInstances = []; // Keep track of playing sounds
 
     /**

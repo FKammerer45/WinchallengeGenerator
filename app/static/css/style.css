@@ -2144,3 +2144,9 @@ button.close {
 .volume-slider-container .custom-range:hover::-moz-range-thumb {
    background: var(--text-primary);
 }
+
+#actionConfirmModal {
+  /* Default Bootstrap modal z-index is often around 1050-1055 */
+  /* Set this higher */
+  z-index: 1060;
+}
