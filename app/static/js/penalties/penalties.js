@@ -45,7 +45,7 @@ async function handleDuplicatePenaltyTab() {
     const sourceTabName = activeLink.textContent.trim();
 
     if (!sourceTabId) return showFlash("Could not identify the active tab.", "danger");
-    if (sourceTabId === 'default') return showFlash("Cannot duplicate the 'Default' tab.", "info");
+    
 
     // --- Max Tab Check ---
     const MAX_CUSTOM_TABS = 5;
@@ -116,7 +116,7 @@ async function handleDuplicatePenaltyTab() {
           <div class="table-responsive">
               <table class="table table-hover table-sm config-table mb-0">
                   <thead> <tr> <th>Name</th> <th>Probability</th> <th>Description</th> </tr> </thead>
-                  <tbody class="penaltiesTable"></tbody> {# Use penalty table class #}
+                  <tbody class="penaltiesTable"></tbody> 
               </table>
           </div>`;
         document.getElementById("penaltiesTabContent")?.appendChild(newTabPane); // Use penalty content ID

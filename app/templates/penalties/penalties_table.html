@@ -1,18 +1,22 @@
 {# templates/penalties/penalties_table.html #}
 {# Use standard table classes - style.css handles the theme #}
-<div class="table-responsive"> {# Added responsive wrapper #}
-    <table class="table table-hover table-sm config-table mb-0"> {# Removed table-dark, added mb-0 #}
-        <thead>
-          <tr>
-            {# Added scope attribute for accessibility #}
-            <th scope="col">Name</th>
-            <th scope="col">Probability (0.0-1.0)</th> {# Clarified range #}
-            <th scope="col">Description</th>
-          </tr>
-        </thead>
-        <tbody class="penaltiesTable">
-          {# JS populates this #}
-          <tr><td colspan="3" class="text-center text-secondary py-4">Loading penalties...</td></tr>
-        </tbody>
-    </table>
+<div class="glass-effect p-1 rounded"></div>
+<div class="table-responsive">
+  <table class="table table-hover table-sm config-table mb-0"> {# Removed table-dark, added mb-0 #}
+    <thead>
+      <tr>
+        {# Added scope attribute for accessibility #}
+        <th scope="col">Name</th>
+        <th scope="col">Probability (0.0-1.0)</th> {# Clarified range #}
+        <th scope="col">Description</th>
+      </tr>
+    </thead>
+    <tbody class="penaltiesTable">
+      {# JS populates this #}
+      <tr>
+        <td colspan="3" class="text-center text-secondary py-4">Loading penalties...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 </div>

@@ -52,7 +52,7 @@ def games_config():
 def penalties_config():
     """Renders the penalties configuration page."""
     # Pass any necessary context for the template
-    return render_template("penalties.html")
+    return render_template("penalties/penalties.html")
 
 @main.route('/impressum')
 def impressum():

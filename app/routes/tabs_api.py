@@ -158,7 +158,9 @@ def delete_tab():
 
     client_tab_id = data["tabId"]
     logger.debug("User %s: Request received for /api/tabs/delete for client_tab_id: %s", current_user.id, client_tab_id)
-
+    if client_tab_id == "default":
+        logger.warning("User %s: Attempted to delete 'default' game tab via API.", current_user.id)
+        return jsonify({"error": "The 'Default' game tab cannot be deleted via this endpoint."}), 400
 
     try:
         tab_to_delete = db.session.query(SavedGameTab).filter_by(

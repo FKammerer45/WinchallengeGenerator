@@ -46,12 +46,11 @@ initializeMaxTabIdNum();
 
 // Gets the next unique ID number
 export function getNextTabIdNumber() {
-  // OPTIONAL: Re-scan here for absolute safety, but good initialization is usually enough
-  // initializeMaxTabIdNum(); // Uncomment if you suspect state issues between loads
-  currentMaxTabIdNum++;
-  console.log("getNextTabIdNumber returning:", currentMaxTabIdNum);
-  return currentMaxTabIdNum;
-}
+    initializeMaxTabIdNum(); // Ensure it's always up-to-date
+    currentMaxTabIdNum++;
+    console.log("getNextTabIdNumber returning:", currentMaxTabIdNum);
+    return currentMaxTabIdNum;
+  }
 
 // Finds the next available "Tab N" name
 function findNextAvailableTabName(currentTabsData) {

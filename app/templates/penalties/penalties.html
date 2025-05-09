@@ -1,0 +1,135 @@
+{# app/templates/penalties.html #}
+
+{% extends "base.html" %}
+{% block title %}Penalties Configuration{% endblock %}
+{% import "_form_helpers.html" as forms %}
+
+{% block head %}
+    {{ super() }}
+    <style>
+        body { background-color: var(--base-bg, #030712); }
+        /* Add a subtle hover effect for non-active tabs if not already in style.css */
+        .config-page-container .nav-tabs .nav-link:not(.active):hover {
+            background-color: var(--surface-highlight, rgba(255,255,255,0.05));
+            border-color: transparent;
+        }
+        .action-button-row .btn-group .btn {
+            margin-right: 0;
+        }
+        .add-tab-button i { /* Style for the plus icon */
+            font-size: 1.1rem;
+            vertical-align: middle;
+        }
+    </style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container mt-4 config-page-container">
+  <h2 class="mb-4 page-title"><i class="bi bi-shield-exclamation me-2"></i>Penalties Configuration</h2>
+  <p class="text-secondary mb-4">
+    Manage your penalty lists. Tabs are saved locally if not logged in.
+    For logged-in users, changes are saved automatically.
+    Double-click a tab name (except Default) to rename it locally.
+  </p>
+
+  {# --- Pass data to JavaScript (No change here) --- #}
+  <script>
+    const isLoggedIn = {{ current_user.is_authenticated| tojson }};
+    const csrfToken = "{{ csrf_token() }}";
+    window.isLoggedIn = isLoggedIn;
+    window.csrfToken = csrfToken;
+  </script>
+
+  {# --- Confirmation Modal for Loading Defaults (Penalty Specific) - No structural change needed --- #}
+  <div class="modal fade" id="confirmLoadDefaultPenaltiesModal" tabindex="-1" role="dialog" aria-labelledby="confirmLoadDefaultPenaltiesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmLoadDefaultPenaltiesModalLabel">Load Default Penalties</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          Load global defaults? This will override penalties currently in your local 'Default' tab.
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" id="confirmLoadDefaultPenaltiesBtn" class="btn btn-primary">Yes, Load</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# --- Top Button Row (Conditional on Login) - REFINED --- #}
+  {% if current_user.is_authenticated %}
+  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 flex-wrap action-button-row" style="border-bottom: 1px solid var(--surface-border);">
+      <div class="btn-group mb-2" role="group" aria-label="Penalty Tab Actions">
+          <button id="duplicatePenaltyTabBtn" class="btn btn-info btn-sm" title="Create a copy of the current penalty tab">
+              <i class="bi bi-front me-1"></i>Duplicate Tab
+          </button>
+          <button id="deletePenaltyTabBtn" class="btn btn-danger btn-sm" title="Delete the currently active custom penalty tab">
+              <i class="bi bi-trash3 me-1"></i>Delete Current Tab
+          </button>
+      </div>
+      <small class="text-secondary mb-2">Max 5 custom tabs allowed.</small>
+  </div>
+  {% endif %}
+  {# --- End Top Button Row --- #}
+
+  {# --- Tabs Navigation - Refined Add Button --- #}
+  <ul class="nav nav-tabs mb-0" id="penaltiesTab" role="tablist">
+    <li class="nav-item">
+       <a class="nav-link active" id="default-penalty-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
+        aria-selected="true" title="This tab cannot be renamed or deleted.">Default</a>
+    </li>
+    {# JS inserts other tabs here #}
+    <li class="nav-item">
+      <a class="nav-link add-tab-button" href="#" id="addPenaltyTabBtn" role="tab" title="Add New Penalty Tab">
+        <i class="bi bi-plus-circle-dotted"></i> {# Using a Bootstrap Icon #}
+      </a>
+    </li>
+    <li id="loadingPenaltyTabsPlaceholder" class="nav-item ms-2 align-self-center text-secondary small" style="display: none;">
+      <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Loading Tabs...
+    </li>
+  </ul>
+  {# --- End Tabs Navigation --- #}
+
+  {# --- Tab Content --- #}
+  <div class="tab-content" id="penaltiesTabContent">
+    <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-penalty-tab">
+       <div class="d-flex justify-content-start my-3 flex-wrap gap-2">
+           <button id="loadDefaultPenaltiesBtn" class="btn btn-warning" title="Load default penalties from the database into this local tab">
+               <i class="bi bi-cloud-download me-1"></i>Load Global Defaults
+           </button>
+           <button class="btn btn-primary insertPenaltyBtn" data-tab="default" title="Add a new penalty to this tab">
+               <i class="bi bi-plus-lg me-1"></i>Insert New Penalty
+           </button>
+       </div>
+       {% include "penalties/penalties_table.html" %}
+    </div>
+     {# JS inserts other tab panes here #}
+  </div>
+  {# --- End Tab Content --- #}
+
+  {# Modals #}
+  {% include "penalties/penalties_modals.html" %}
+  {{ forms.confirm_action_modal(modal_id='actionConfirmModal', title_id='actionConfirmTitle', body_id='actionConfirmBody', ok_id='actionConfirmOk') }}
+  {{ forms.rename_tab_modal('penalty') }}
+
+</div> {# End Container #}
+{% endblock %}
+
+
+{% block scripts %}
+    {{ super() }}
+    {# JS includes remain the same #}
+    <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyTabManagement.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyEntryManagement.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyExtensions.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/penalties/penalties.js') }}"></script>
+{% endblock %}

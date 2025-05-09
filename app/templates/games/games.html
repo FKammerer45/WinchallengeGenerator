@@ -2,42 +2,64 @@
 
 {% extends "base.html" %}
 {% block title %}Games Configuration{% endblock %}
-{% import "_form_helpers.html" as forms %}
+{% import "_form_helpers.html" as forms %} {# Ensure this path is correct #}
+
 {% block head %}
     {{ super() }}
-    <style> body { background-color: var(--base-bg, #030712); } </style>
+    <style>
+        body { background-color: var(--base-bg, #030712); }
+        /* Add a subtle hover effect for non-active tabs if not already in style.css */
+        .config-page-container .nav-tabs .nav-link:not(.active):hover {
+            background-color: var(--surface-highlight, rgba(255,255,255,0.05));
+            border-color: transparent; /* Or a slightly lighter border */
+        }
+        .action-button-row .btn-group .btn {
+            margin-right: 0; /* Remove individual margin if btn-group handles spacing */
+        }
+        .add-tab-button i { /* Style for the plus icon */
+            font-size: 1.1rem;
+            vertical-align: middle;
+        }
+    </style>
 {% endblock %}
 
 
 {% block content %}
 <div class="container mt-4 config-page-container">
-  <h2 class="mb-4 page-title">Games Configuration</h2>
-  <p class="text-secondary mb-4">Manage your game lists and settings for challenge generation. Tabs are saved locally in your browser if not logged in. For logged-in users, changes are saved automatically to your account. Double-click a tab name (except Default) to rename it.</p> {# Updated text #}
+  <h2 class="mb-4 page-title"><i class="bi bi-joystick me-2"></i>Games Configuration</h2>
+  <p class="text-secondary mb-4">
+    Manage your game lists and settings for challenge generation.
+    Tabs are saved locally in your browser if not logged in.
+    For logged-in users, changes are saved automatically to your account.
+    Double-click a tab name (except Default) to rename it.
+  </p>
 
+  {# --- Pass data to JavaScript (No change here) --- #}
   <script>
     const isLoggedIn = {{ current_user.is_authenticated| tojson }};
-    const csrfToken = "{{ csrf_token() }}"; // Renders the token from Flask-WTF
-  
-    // Assign to window object for global access in modules
+    const csrfToken = "{{ csrf_token() }}";
     window.isLoggedIn = isLoggedIn;
     window.csrfToken = csrfToken;
   </script>
 
-  {# --- Top Button Row (Conditional on Login) --- #}
+  {# --- Top Button Row (Conditional on Login) - REFINED --- #}
   {% if current_user.is_authenticated %}
-  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
-      <div class="btn-group mb-2" role="group" aria-label="Tab Actions"> {# Group related buttons #}
-          {# <button id="saveTabBtn"...> Removed #}
-          <button id="duplicateTabBtn" class="btn btn-info btn-sm" title="Create a copy of the current tab">Duplicate Tab</button> {# ADDED Button - Use info color #}
-          <button id="deleteTabBtn" class="btn btn-danger btn-sm">Delete Current Tab</button>
-          {# <button id="loadSavedTabsBtn"...> Removed #}
+  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 flex-wrap action-button-row" style="border-bottom: 1px solid var(--surface-border);">
+      <div class="btn-group mb-2" role="group" aria-label="Tab Actions">
+          <button id="duplicateTabBtn" class="btn btn-info btn-sm" title="Create a copy of the current tab">
+              <i class="bi bi-front me-1"></i>Duplicate Tab
+          </button>
+          <button id="deleteTabBtn" class="btn btn-danger btn-sm" title="Delete the currently active custom tab">
+              <i class="bi bi-trash3 me-1"></i>Delete Current Tab
+          </button>
       </div>
-      <small class="text-secondary mb-2">Max 5 custom tabs allowed.</small> {# Updated max tabs text #}
+      <small class="text-secondary mb-2">Max 5 custom tabs allowed.</small>
   </div>
   {% endif %}
   {# --- End Top Button Row --- #}
 
-  {# --- Tabs Navigation --- #}
+
+  {# --- Tabs Navigation - Refined Add Button --- #}
   <ul class="nav nav-tabs mb-0" id="gamesTab" role="tablist">
     <li class="nav-item">
       <a class="nav-link active" id="default-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
@@ -45,49 +67,53 @@
     </li>
     {# JS will insert other tabs here #}
     <li class="nav-item">
-      <a class="nav-link add-tab-button" href="#" id="addTabBtn" role="tab" title="Add New Tab">+</a>
+      {# Enhanced Add Tab Button #}
+      <a class="nav-link add-tab-button" href="#" id="addTabBtn" role="tab" title="Add New Tab">
+        <i class="bi bi-plus-circle-dotted"></i> {# Using a Bootstrap Icon #}
+      </a>
+    </li>
+    {# Loading Placeholder #}
+    <li id="loadingTabsPlaceholder" class="nav-item ms-2 align-self-center text-secondary small" style="display: none;">
+      <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Loading Tabs...
     </li>
   </ul>
   {# --- End Tabs Navigation --- #}
 
 
-  {# --- Tab Content --- #}
+  {# --- Tab Content (structure is fine, content comes from partials) --- #}
   <div class="tab-content" id="gamesTabContent">
     {# Default Tab Pane #}
     <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-tab">
-       <div class="d-flex justify-content-start my-3 flex-wrap gap-2"> {# Use gap for spacing #}
-           <button id="loadDefaultEntriesBtn" class="btn btn-warning" title="Load global default entries, overwriting this tab">Load Global Defaults</button>
-           <button class="btn btn-primary insertGameBtn" data-tab="default" title="Add a new entry to this tab">Insert New Entry</button>
+       <div class="d-flex justify-content-start my-3 flex-wrap gap-2">
+           <button id="loadDefaultEntriesBtn" class="btn btn-warning" title="Load global default entries, overwriting this tab">
+               <i class="bi bi-cloud-download me-1"></i>Load Global Defaults
+           </button>
+           <button class="btn btn-primary insertGameBtn" data-tab="default" title="Add a new entry to this tab">
+               <i class="bi bi-plus-lg me-1"></i>Insert New Entry
+           </button>
        </div>
        {% include "games/games_table.html" %}
     </div>
-    {# JS will insert other tab panes here #}
+     {# JS inserts other tab panes here #}
   </div>
   {# --- End Tab Content --- #}
 
-  {# Loading Tabs Placeholder #}
-  <div id="loadingTabsPlaceholder" class="text-center text-secondary my-4" style="display: none;">
-      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Loading Your Tabs...
-  </div>
-
-  {# Action Confirmation Modal #}
+  {# Modals and Confirmation (structure is fine, content improvements in their respective files if needed) #}
   {{ forms.confirm_action_modal(modal_id='actionConfirmModal', title_id='actionConfirmTitle', body_id='actionConfirmBody', ok_id='actionConfirmOk') }}
-
-  {% include "games/games_modals.html" %} {# Includes New/Edit Modals #}
-  {{ forms.rename_tab_modal('game') }} {# Rename modal #}
+  {% include "games/games_modals.html" %}
+  {{ forms.rename_tab_modal('game') }}
 
 </div> {# End container #}
 {% endblock %}
 
-
-{# Scripts remain the same, games.js needs the listener #}
 {% block scripts %}
-{{ super() }}
-<script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/games/localStorageUtils.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/games/tabManagement.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/games/entryManagement.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/games/gamesExtensions.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/games/games.js') }}"></script> {# Main orchestrator #}
+    {{ super() }}
+    {# JS includes remain the same #}
+    <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/games/localStorageUtils.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/games/tabManagement.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/games/entryManagement.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/games/gamesExtensions.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/games/games.js') }}"></script>
 {% endblock %}

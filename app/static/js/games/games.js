@@ -37,7 +37,7 @@ async function handleDuplicateTab() {
     const sourceTabName = activeLink.textContent.trim();
 
     if (!sourceTabId) return showFlash("Could not identify the active tab.", "danger");
-    if (sourceTabId === 'default') return showFlash("Cannot duplicate the 'Default' tab.", "info");
+   
 
     // --- ADD MAX TAB CHECK HERE ---
     const MAX_CUSTOM_TABS = 5; // Define the limit
@@ -216,84 +216,101 @@ async function fetchAndRenderGlobalDefaults() {
     }
 }
 
-async function loadUserTabsFromAPI() {
-    console.log("Attempting to load user tabs from API...");
+export async function loadUserTabsFromAPI() {
+    console.log("[Load API Tabs] Attempting to load user game tabs..."); // Game-specific log
     const loadingPlaceholder = document.getElementById('loadingTabsPlaceholder');
-    const tabList = document.getElementById('gamesTab');
-    const addTabBtnLi = document.getElementById('addTabBtn')?.parentNode;
+    const tabList = document.getElementById('gamesTab'); // Use 'gamesTab' for games
 
-    // --- UI Cleanup (keep as is) ---
+    // --- UI Cleanup (More Robust) ---
     if(loadingPlaceholder) loadingPlaceholder.style.display = 'block';
-    if(tabList) {
-        const itemsToRemove = tabList.querySelectorAll('.nav-item:not(:first-child):not(:last-child)');
+
+    if (tabList) {
+        const itemsToRemove = [];
+        // Iterate over all nav-items
+        tabList.querySelectorAll('.nav-item').forEach(item => {
+            const link = item.querySelector('a.nav-link');
+            // Remove if it's not the default tab AND not the add tab button
+            if (link && link.id !== 'default-tab' && link.id !== 'addTabBtn') {
+                itemsToRemove.push(item);
+            }
+        });
         itemsToRemove.forEach(item => item.remove());
+        console.log(`[Load API Tabs] Cleared ${itemsToRemove.length} existing custom tab links for games.`);
     }
-    const tabContent = document.getElementById('gamesTabContent');
-    if(tabContent){
+
+    const tabContent = document.getElementById('gamesTabContent'); // Use 'gamesTabContent'
+    if (tabContent) {
          const panesToRemove = tabContent.querySelectorAll('.tab-pane:not(#default)');
          panesToRemove.forEach(pane => pane.remove());
+         console.log(`[Load API Tabs] Cleared custom tab panes for games.`);
     }
     // --- End UI Cleanup ---
 
     try {
-        const data = await apiFetch('/api/tabs/load');
-        console.log("API load response:", data);
-        if (typeof data !== 'object' || data === null) throw new Error("Invalid data format.");
+        const data = await apiFetch('/api/tabs/load'); // Game tabs endpoint
+        console.log("[Load API Tabs] Raw API Response (Games):", JSON.stringify(data, null, 2));
+        if (typeof data !== 'object' || data === null) throw new Error("Invalid data format from game tabs API.");
 
-        // Reset global state
-        window.userTabsData.tabs = {};
-        window.userTabsData.entries = {};
+        window.userTabsData = { tabs: {}, entries: {} }; // Reset game-specific state
+        console.log("[Load API Tabs] Initialized window.userTabsData for games.");
 
-        let hasUserDefault = false; // Flag if user has a saved default
-        let firstTabId = 'default'; // Default to activate 'default' tab
+        let hasUserDefault = false;
+        let firstTabId = 'default';
 
-        // Process loaded tabs
-        for (const tabId in data) {
+        const sortedTabIds = Object.keys(data).sort((a, b) => {
+             if (a === 'default') return -1; if (b === 'default') return 1;
+             const numA = parseInt(a.split('-')[1] || '0');
+             const numB = parseInt(b.split('-')[1] || '0');
+             return numA - numB;
+        });
+        console.log("[Load API Tabs] Processing sortedTabIds (Games):", sortedTabIds);
+
+        for (const tabId of sortedTabIds) {
             const tabData = data[tabId];
-             if (!tabData) continue; // Skip if tabData is null/undefined
+             if (!tabData) {
+                 console.warn(`[Load API Tabs] No data found for game tabId: ${tabId}. Skipping.`);
+                 continue;
+             }
+            console.log(`[Load API Tabs] Processing game tabId: ${tabId}, tabData:`, JSON.stringify(tabData));
 
-             // Store tab definition and entries
-             window.userTabsData.tabs[tabId] = { name: tabData.tab_name || `Tab ${tabId}` };
-             window.userTabsData.entries[tabId] = Array.isArray(tabData.entries) ? tabData.entries : [];
+            window.userTabsData.tabs[tabId] = { name: tabData.tab_name || `Tab ${tabId}` }; // Game tabs
+            window.userTabsData.entries[tabId] = Array.isArray(tabData.entries) ? tabData.entries : []; // Game entries
 
-             if (tabId === 'default') {
+            console.log(`[Load API Tabs] Updated state for game tab ${tabId}.`);
+
+            if (tabId === 'default') {
                 hasUserDefault = true;
-                console.log("User has a saved default tab. Rendering its entries.");
-                renderGamesForTab('default'); // Render user's saved default
+                console.log("[Load API Tabs] User has a saved default game tab. Rendering its entries.");
+                renderGamesForTab('default');
             } else {
-                // Create UI for non-default tabs
                 createTabFromLocalData(tabId, window.userTabsData.tabs[tabId].name);
                 renderGamesForTab(tabId);
-                if (firstTabId === 'default') firstTabId = tabId; // Activate first *custom* tab if default exists
+                if (firstTabId === 'default') firstTabId = tabId;
             }
         }
 
-        // *** If user had NO saved default tab in the DB, fetch and render global defaults ***
         if (!hasUserDefault) {
-            console.log("User has no saved default tab in DB. Fetching global defaults...");
-            await fetchAndRenderGlobalDefaults(); // Fetch, render, and potentially auto-save
-            firstTabId = 'default'; // Ensure default is active after loading globals
+            console.log("[Load API Tabs] User has no saved default game tab. Fetching global defaults for games...");
+            await loadAndSaveGlobalDefaults(); // Game-specific defaults loader
+            firstTabId = 'default';
         }
 
-        // Activate the appropriate tab
-        const tabLink = document.querySelector(`.nav-link[href="#${firstTabId}"]`);
+        const tabLink = document.querySelector(`#gamesTab .nav-link[href="#${firstTabId}"]`); // Target gamesTab
         if (tabLink && typeof $ !== 'undefined' && $.fn.tab) {
-            console.log(`Activating tab: ${firstTabId}`);
             $(tabLink).tab('show');
+            console.log(`[Load API Tabs] Activated game tab: ${firstTabId}`);
         } else {
-            console.warn(`Could not activate tab ${firstTabId} programmatically.`);
-            // Add fallback if needed
+            console.warn(`[Load API Tabs] Could not activate game tab ${firstTabId}.`);
         }
-
-        console.log("User tabs processing complete.");
-        // Removed flash message from here, let fetchAndRender handle its own message
-        apiLoadFailed = false;
+        console.log("[Load API Tabs] User game tabs processing complete.");
+        apiLoadFailed = false; // Reset flag on success
 
     } catch (error) {
-        console.error("Error loading user tabs from API:", error);
-        showFlash(`Could not load your saved tabs: ${error.message}. Using local backup if available.`, "danger");
-        apiLoadFailed = true;
-        initializeUILocally(); // Fallback to local
+        console.error("[Load API Tabs] Error loading user game tabs from API:", error);
+        showFlash(`Could not load your saved game tabs: ${error.message}. Using local backup if available.`, "danger");
+        apiLoadFailed = true; // Set flag
+        // initializeUILocally(); // This will be called in games.js if apiLoadFailed is true
+        throw error; // Re-throw to be caught by games.js
     } finally {
          if(loadingPlaceholder) loadingPlaceholder.style.display = 'none';
     }
@@ -333,60 +350,75 @@ function initializeUILocally() {
     }
 }
 
-// --- MODIFIED DOMContentLoaded Listener ---
-document.addEventListener("DOMContentLoaded", async () => { // Added async
+document.addEventListener("DOMContentLoaded", async () => {
     const gamesTabContent = document.getElementById("gamesTabContent");
-    if (!gamesTabContent) return; // Not the games page
+    if (!gamesTabContent) return;
 
     console.log("Initializing Games page...");
 
-    // Remove the manual "Load Saved Tabs" button
     const loadSavedBtn = document.getElementById('loadSavedTabsBtn');
     if (loadSavedBtn) loadSavedBtn.remove();
 
-    // Add a placeholder for loading state
-    const tabNav = document.getElementById('gamesTab');
+    const tabNav = document.getElementById('gamesTab'); // This is the <ul> for tabs
+    const originalAddTabButtonLi = document.getElementById('addTabBtn')?.parentNode; // Get the original <li> of the add button
+
     if (tabNav) {
         const loadingLi = document.createElement('li');
         loadingLi.id = 'loadingTabsPlaceholder';
-        loadingLi.className = 'nav-item ms-2 align-self-center text-secondary small'; // Use ms-auto if needed
+        loadingLi.className = 'nav-item ms-2 align-self-center text-secondary small';
         loadingLi.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Loading Tabs...`;
         loadingLi.style.display = 'none'; // Hidden initially
-        // Insert before the '+' button's parent li
-        const addBtnLi = document.getElementById('addTabBtn')?.parentNode;
-        if (addBtnLi) tabNav.insertBefore(loadingLi, addBtnLi);
+
+        // Insert loading placeholder BEFORE the add tab button's list item, if it exists
+        if (originalAddTabButtonLi && tabNav.contains(originalAddTabButtonLi)) {
+            tabNav.insertBefore(loadingLi, originalAddTabButtonLi);
+        } else if (tabNav.lastElementChild) {
+            // Fallback: if add button's li isn't found reliably, insert before the last generic child
+            // This is less ideal but might prevent errors if the structure is unexpected
+            tabNav.insertBefore(loadingLi, tabNav.lastElementChild);
+        } else {
+            // Fallback: if tabNav is empty, just append
+            tabNav.appendChild(loadingLi);
+        }
     }
 
-
     // --- Load data based on login status ---
+    // This section can modify the tab list (tabNav) by calling createTabFromLocalData etc.
     if (isLoggedIn) {
-        await loadUserTabsFromAPI(); // Wait for API load
-        // If API load failed, maybe fallback to local?
+        await loadUserTabsFromAPI();
         if (apiLoadFailed) {
             console.log("API load failed, falling back to local UI initialization.");
-            initializeUILocally(); // Attempt to show local data as backup
+            initializeUILocally();
         }
     } else {
         console.log("User not logged in, initializing UI locally.");
         initializeUILocally();
-        // Hide server-specific buttons for anonymous users
-        document.getElementById('saveTabBtn')?.remove();
         document.getElementById('deleteTabBtn')?.remove();
-        document.getElementById('duplicateTabBtn')?.remove(); // Hide duplicate if added later
+        document.getElementById('duplicateTabBtn')?.remove();
     }
     // --- End Load data ---
 
-
-    // --- Attach Core Event Listeners (remain mostly the same, but ensure they use the correct data source later) ---
+    // --- Attach Core Event Listeners ---
+    // Re-fetch addTabBtn AFTER potential DOM modifications by loadUserTabsFromAPI or initializeUILocally
+    // This is crucial if those functions rebuild parts of the tab navigation.
     const addTabBtn = document.getElementById("addTabBtn");
     if (addTabBtn) {
-        addTabBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            try {
-                createNewTab(); // createNewTab will need modification in later step for API call
-            } catch (tabError) { console.error("Error creating new tab:", tabError); showFlash("Failed to create new tab.", "danger"); }
-        });
-    } else { console.error("Add Tab button ('addTabBtn') not found."); }
+        // Check if a listener is already attached to avoid duplicates if this runs multiple times (unlikely for DOMContentLoaded)
+        if (!addTabBtn.dataset.listenerAttached) {
+            addTabBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                try {
+                    createNewTab();
+                } catch (tabError) {
+                    console.error("Error creating new tab:", tabError);
+                    showFlash("Failed to create new tab.", "danger");
+                }
+            });
+            addTabBtn.dataset.listenerAttached = 'true'; // Mark as attached
+        }
+    } else {
+        console.error("Add Tab button ('addTabBtn') still not found after tab loading logic.");
+    }
 
     // --- Attach Duplicate Tab Listener ---
     const duplicateBtn = document.getElementById('duplicateTabBtn');

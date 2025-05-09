@@ -17,6 +17,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
 });
 
-// --- REDUNDANT submitChallengeForm function removed ---
-
-// --- UNUSED initializeTimer function removed ---

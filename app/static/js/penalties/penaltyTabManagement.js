@@ -42,8 +42,7 @@ initializeMaxPenaltyTabIdNum();
 
 // Gets the next unique penalty tab ID number
 export function getNextPenaltyTabIdNumber() {
-  // Optional: Re-scan here if needed
-  // initializeMaxPenaltyTabIdNum();
+  initializeMaxPenaltyTabIdNum();
   currentMaxPenaltyTabIdNum++;
   console.log("getNextPenaltyTabIdNumber returning:", currentMaxPenaltyTabIdNum);
   return currentMaxPenaltyTabIdNum;

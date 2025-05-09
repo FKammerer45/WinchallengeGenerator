@@ -1,18 +1,18 @@
 {# Table displaying game entries - Use standard classes, styled by style.css #}
-<div class="table-responsive"> {# Added responsive wrapper #}
-    <table class="table table-hover table-sm config-table mb-0"> {# Removed table-dark #}
-      <thead>
-        <tr>
-          <th scope="col">Game</th>
-          <th scope="col">Game Mode</th>
-          <th scope="col">Difficulty</th>
-          <th scope="col">Number of Players</th>
-        </tr>
-      </thead>
-      <tbody class="gamesTable" id="defaultGamesTable">
-        {# JS populates this for non-default tabs #}
-        {# Example placeholder for default tab if needed #}
-        <tr><td colspan="4" class="text-center text-secondary py-4">Loading games...</td></tr>
-      </tbody>
-    </table>
-</div>
+ <div class="glass-effect p-1 rounded"> 
+  <div class="table-responsive">
+      <table class="table table-hover table-sm config-table mb-0">
+          <thead>
+              <tr>
+                  <th scope="col">Game</th>
+                  <th scope="col">Game Mode</th>
+                  <th scope="col">Difficulty</th>
+                  <th scope="col">Number of Players</th>
+              </tr>
+          </thead>
+          <tbody class="gamesTable" id="defaultGamesTable">
+              <tr><td colspan="4" class="text-center text-secondary py-4">Loading games...</td></tr>
+          </tbody>
+      </table>
+  </div>
+ </div> 

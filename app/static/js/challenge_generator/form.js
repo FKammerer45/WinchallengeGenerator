@@ -465,7 +465,7 @@ function handleChallengeFormSubmit(event) {
     try {
         // --- Add logging and use identical logic ---
         console.log(`[Submit] Getting entries for selected tab: ${selectedGameTab}`); // DEBUG
-        const allTabsData = getLocalEntries(selectedGameTab);
+        const allTabsData = getLocalOnlyEntries(selectedGameTab);
         console.log("[Submit] Raw data received from getLocalEntries:", JSON.stringify(allTabsData)); // DEBUG
 
         let currentEntries = [];
