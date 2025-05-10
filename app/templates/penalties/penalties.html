@@ -2,35 +2,115 @@
 
 {% extends "base.html" %}
 {% block title %}Penalties Configuration{% endblock %}
-{% import "_form_helpers.html" as forms %}
+{% import "_form_helpers.html" as forms %} {# Ensure this path is correct #}
 
 {% block head %}
     {{ super() }}
+    {# Ensure Bootstrap Icons are linked in base.html or link them here if not already #}
+    {# <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"> #}
     <style>
-        body { background-color: var(--base-bg, #030712); }
-        .config-page-container .nav-tabs .nav-link:not(.active):hover {
+        body { 
+            background-color: var(--base-bg, #030712); /* Dark background */
+            color: var(--text-primary, #e0e0e0); /* Light text */
+        }
+        .config-page-container .page-title {
+            color: var(--text-accent, #67a3ff); /* Accent color for title */
+            font-weight: 600;
+        }
+        .config-page-container .text-secondary {
+            color: var(--text-secondary, #adb5bd) !important; /* Softer secondary text */
+        }
+        .nav-tabs {
+            border-bottom-color: var(--surface-border-light, #495057);
+        }
+        .nav-tabs .nav-link {
+            border-color: var(--surface-border, #343a40);
+            color: var(--text-secondary, #adb5bd);
+            border-bottom-width: 0; 
+            margin-right: 2px; 
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+            border-radius: var(--border-radius-sm, 0.25rem) var(--border-radius-sm, 0.25rem) 0 0 !important;
+        }
+        .nav-tabs .nav-link:hover:not(.active) {
             background-color: var(--surface-highlight, rgba(255,255,255,0.05));
-            border-color: transparent;
+            border-color: var(--surface-border, #495057);
+            color: var(--text-primary, #e0e0e0);
         }
-        .action-button-row .btn-group .btn {
-            margin-right: 0;
+        .nav-tabs .nav-link.active {
+            background-color: var(--surface-card, #1f2937); 
+            color: var(--text-accent, #67a3ff);
+            border-color: var(--surface-border, #343a40);
+            border-bottom-color: transparent; 
+            font-weight: 500;
         }
-        .add-tab-button i { /* Style for the plus icon */
+        .tab-content {
+            background-color: var(--surface-card, #1f2937); 
+            border: 1px solid var(--surface-border, #343a40);
+            border-top: none; 
+            padding: 1.5rem; 
+            border-radius: 0 0 var(--border-radius, 0.375rem) var(--border-radius, 0.375rem);
+        }
+        .action-button-row {
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--surface-border-light, #495057);
+        }
+        .action-button-row .btn {
+            margin-right: 0.5rem; 
+        }
+        .action-button-row .btn i {
+            margin-right: 0.35rem;
+        }
+        .add-tab-button { 
             font-size: 1.1rem;
-            vertical-align: middle;
+            padding: 0.5rem 0.8rem; 
+        }
+        .add-tab-button:hover i {
+            color: var(--text-accent-hover, #8bbaff);
+        }
+        .loading-placeholder-text { 
+            color: var(--text-secondary);
+        }
+        .config-table th {
+             background-color: var(--surface-header, rgba(255, 255, 255, 0.05)); 
+        }
+        /* Styles for tab grouping (same as games.html) */
+        .tabs-separator {
+            height: 1px;
+            background-color: var(--surface-border-light, #495057);
+            margin: 0.5rem 0.75rem;
+            flex-grow: 0;
+            width: auto;
+            align-self: stretch;
+            display: none;
+            list-style-type: none;
+        }
+        .tabs-spacer { /* Using spacer for penalties as well */
+            width: 10px; 
+            display: none; 
+            list-style-type: none;
+        }
+        .nav-tabs .nav-item.system-default-group-label,
+        .nav-tabs .nav-item.custom-group-label {
+            align-self: center;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-muted, #6c757d);
+            font-style: italic;
+            display: none;
         }
     </style>
 {% endblock %}
 
 
 {% block content %}
-<div class="container mt-4 config-page-container">
-  <h2 class="mb-4 page-title"><i class="bi bi-shield-exclamation me-2"></i>Penalties Configuration</h2>
-  <p class="text-secondary mb-4">
-    Manage your penalty lists. Tabs are saved locally if not logged in.
-    For logged-in users, changes are saved automatically.
-    Double-click a tab name (except system defaults) to rename it.
-  </p>
+<div class="container mt-4 mb-5 config-page-container">
+  <header class="mb-4 text-center">
+    <h2 class="page-title"><i class="bi bi-shield-exclamation me-2"></i>Penalties Configuration</h2>
+    <p class="text-secondary lead fs-6">
+      Define and organize penalties for your challenges.
+    </p>
+  </header>
 
   {# --- Pass data to JavaScript --- #}
   <script>
@@ -38,106 +118,66 @@
     const csrfToken = "{{ csrf_token() }}";
     window.isLoggedIn = isLoggedIn;
     window.csrfToken = csrfToken;
-    // Placeholder for system default definitions that JS will fetch or receive
-    window.SYSTEM_DEFAULT_PENALTY_TABS = {}; 
+    window.SYSTEM_DEFAULT_PENALTY_TABS = {}; // For penalties
   </script>
-
-  {# --- Confirmation Modal for Loading Defaults (Penalty Specific) - Kept for now, JS will decide its new role --- #}
-  <div class="modal fade" id="confirmLoadDefaultPenaltiesModal" tabindex="-1" role="dialog" aria-labelledby="confirmLoadDefaultPenaltiesModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="confirmLoadDefaultPenaltiesModalLabel">Load Default Penalties</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          {_ This message will be updated by JS if the button's function changes. _}
-          Load global defaults? This will override penalties currently in your local 'Default' tab.
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-          <button type="button" id="confirmLoadDefaultPenaltiesBtn" class="btn btn-primary">Yes, Load</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   {# --- Top Button Row (Conditional on Login) --- #}
   {% if current_user.is_authenticated %}
-  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 flex-wrap action-button-row" style="border-bottom: 1px solid var(--surface-border);">
-      <div class="btn-group mb-2" role="group" aria-label="Penalty Tab Actions">
-          <button id="duplicatePenaltyTabBtn" class="btn btn-info btn-sm" title="Create a copy of the current penalty tab">
-              <i class="bi bi-front me-1"></i>Duplicate Tab
+  <div class="d-flex justify-content-between align-items-center mb-3 action-button-row">
+      <div class="btn-group" role="group" aria-label="Penalty Tab Actions">
+          <button id="duplicatePenaltyTabBtn" class="btn btn-outline-info btn-sm" title="Create a copy of the current penalty tab">
+              <i class="bi bi-front"></i>Duplicate Tab
           </button>
-          <button id="deletePenaltyTabBtn" class="btn btn-danger btn-sm" title="Delete the currently active custom penalty tab">
-              <i class="bi bi-trash3 me-1"></i>Delete Current Tab
+          <button id="deletePenaltyTabBtn" class="btn btn-outline-danger btn-sm" title="Delete the currently active custom penalty tab">
+              <i class="bi bi-trash3"></i>Delete Current Tab
           </button>
       </div>
-      <small class="text-secondary mb-2">Max 5 custom tabs allowed (excluding system defaults).</small>
+      <small class="text-secondary">Max 5 custom tabs allowed (excluding system defaults).</small>
   </div>
   {% endif %}
   {# --- End Top Button Row --- #}
 
+
   {# --- Tabs Navigation --- #}
-  <ul class="nav nav-tabs mb-0" id="penaltiesTab" role="tablist">
-    {# JS will insert system default tabs and user-specific tabs here #}
-    <li class="nav-item">
-      <a class="nav-link add-tab-button" href="#" id="addPenaltyTabBtn" role="tab" title="Add New Custom Penalty Tab">
-        <i class="bi bi-plus-circle-dotted"></i>
+  <ul class="nav nav-tabs mb-0 d-flex flex-wrap" id="penaltiesTab" role="tablist">
+    {# JS will insert system default tabs, separator, custom tabs, and manage add button & loading #}
+    <li class="nav-item system-default-group-label" id="systemPenaltyTabsLabel">Default Penalty Sets</li>
+    
+    <li class="tabs-spacer" id="customPenaltyTabsSeparator"></li> 
+    
+    <li class="nav-item custom-group-label" id="customPenaltyTabsLabel">Your Custom Penalty Sets</li>
+
+    <li class="nav-item ms-auto order-last">
+      <a class="nav-link add-tab-button" href="#" id="addPenaltyTabBtn" role="tab" title="Add New Custom Penalty Tab"
+         style="border-radius: var(--border-radius-sm, 0.25rem) var(--border-radius-sm, 0.25rem) 0 0;">
+        <i class="bi bi-plus-lg"></i> 
       </a>
     </li>
-    <li id="loadingPenaltyTabsPlaceholder" class="nav-item ms-2 align-self-center text-secondary small" style="display: none;">
-      <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Loading Tabs...
+    <li id="loadingPenaltyTabsPlaceholder" class="nav-item align-self-center order-last" style="display: none;">
+      <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+      <span class="loading-placeholder-text small">Loading Tabs...</span>
     </li>
   </ul>
   {# --- End Tabs Navigation --- #}
 
+
   {# --- Tab Content --- #}
   <div class="tab-content" id="penaltiesTabContent">
-    {# JS will insert tab panes here for system defaults and user-specific tabs #}
-    {# Example of how a dynamically added tab pane might look (for JS reference):
-    <div class="tab-pane fade" id="some-penalty-client-tab-id" role="tabpanel" aria-labelledby="link-to-some-penalty-client-tab-id">
-       <div class="d-flex justify-content-start my-3 flex-wrap gap-2">
-           <button class="btn btn-primary insertPenaltyBtn" data-tab="some-penalty-client-tab-id" title="Add a new penalty to this tab">
-               <i class="bi bi-plus-lg me-1"></i>Insert New Penalty
-           </button>
-       </div>
-       <! -- include "penalties/penalties_table.html" but the tbody will be specific to this tab -->
-        <div class="glass-effect p-1 rounded">
-          <div class="table-responsive">
-            <table class="table table-hover table-sm config-table mb-0">
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Probability (0.0-1.0)</th>
-                  <th scope="col">Description</th>
-                </tr>
-              </thead>
-              <tbody class="penaltiesTable"> <! -- JS populates this based on tabId -->
-                <tr><td colspan="3" class="text-center text-secondary py-4">Loading penalties...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-    </div>
-    #}
+    {# JS will insert tab panes here #}
   </div>
   {# --- End Tab Content --- #}
 
-  {# Modals #}
-  {% include "penalties/penalties_modals.html" %}
+  {# Modals and Confirmation #}
   {{ forms.confirm_action_modal(modal_id='actionConfirmModal', title_id='actionConfirmTitle', body_id='actionConfirmBody', ok_id='actionConfirmOk') }}
+  {% include "penalties/penalties_modals.html" %} {# This will be overhauled next #}
   {{ forms.rename_tab_modal('penalty') }} {# For renaming penalty tabs #}
 
-</div> {# End Container #}
+</div>
 {% endblock %}
-
 
 {% block scripts %}
     {{ super() }}
-    {# JS includes remain the same #}
+    {# Ensure these script paths are correct and files exist #}
     <script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>

@@ -515,3 +515,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     console.log("Games page initialization finished.");
 });
+

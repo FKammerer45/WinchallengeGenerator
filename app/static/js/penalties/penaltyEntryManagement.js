@@ -1,220 +1,287 @@
 // app/static/js/penalties/penaltyEntryManagement.js
 
-// Use penalty-specific local storage functions
 import {
-  addLocalPenalty, updateLocalPenalty, removeLocalPenalty, getLocalPenalties, getLocalPenaltyTabs
+    addLocalOnlyPenaltyEntry,
+    updateLocalOnlyPenaltyEntry,
+    removeLocalOnlyPenaltyEntry,
+    getLocalOnlyEntries as getLocalOnlyPenaltyEntries
 } from "./penaltyLocalStorageUtils.js";
-// Import shared helpers
-import { escapeHtml, showError, confirmModal, showFlash } from "../utils/helpers.js";
-// Import autosave trigger for penalties
-import { triggerPenaltyAutosave } from "./penaltyExtensions.js";
+import { escapeHtml, confirmModal, showFlash } from "../utils/helpers.js";
+import { triggerAutosavePenalties } from "./penaltyExtensions.js"; // To be created
 
 // --- Alert Helpers ---
-function showPenaltyFormAlert(message, type = 'danger', containerId = 'newPenaltyAlert') { /* ... */ }
-function showEditPenaltyAlert(message, type = 'danger') { showPenaltyFormAlert(message, type, 'editPenaltyAlert'); }
-
-// --- Render penalties into table (Modified for data source) ---
-export function renderPenaltiesForTab(tabId) {
-  let normalizedTabId = tabId;
-  if (tabId && tabId !== "default" && !tabId.startsWith("penaltyPane-")) {
-      normalizedTabId = "penaltyPane-" + tabId;
-  } else if (!tabId) { console.error("renderPenaltiesForTab: Invalid tabId:", tabId); return; }
-
-  let penalties = [];
-  try {
-      const isLoggedIn = window.isLoggedIn === true;
-      if (isLoggedIn) {
-          penalties = window.userPenaltyTabsData?.entries?.[tabId] || [];
-      } else {
-          penalties = getLocalPenalties()[tabId] || [];
-      }
-      // *** ADD LOGGING HERE ***
-      console.log(`[Render Penalties] Rendering tab '${tabId}' (Normalized: '${normalizedTabId}'). Found ${penalties.length} entries in source:`, JSON.stringify(penalties));
-      // *** END LOGGING ***
-  }
-  catch (e) { console.error(`Error getting penalties for tab ${tabId}:`, e); }
-
-  const tbody = document.querySelector(`#${normalizedTabId} .penaltiesTable`);
-  if (!tbody) {
-      // It's possible the tab pane hasn't been fully added to the DOM yet during initial load.
-      // console.warn(`[Render Penalties] Table body not found for selector: #${normalizedTabId} .penaltiesTable`);
-      return;
-  }
-
-  tbody.innerHTML = ""; // Clear existing rows
-  if (penalties.length > 0) {
-      penalties.sort((a, b) => (a.name || '').localeCompare(b.name || '')); // Sort by name
-
-      penalties.forEach(penalty => {
-          const pProb = penalty.probability !== undefined ? parseFloat(penalty.probability).toFixed(2) : 'N/A';
-          const row = document.createElement('tr');
-          row.dataset.id = penalty.id || '';
-          row.innerHTML = `
-              <td>${escapeHtml(penalty.name || 'N/A')}</td>
-              <td>${pProb}</td>
-              <td>${escapeHtml(penalty.description || '')}</td>
-          `;
-          tbody.appendChild(row);
-      });
-  } else {
-      tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">No penalties added to this tab yet.</td></tr>`;
-  }
+function showPenaltyModalAlert(message, type = 'danger', containerId = 'newPenaltyAlert') {
+    const alertContainer = document.getElementById(containerId);
+    if (!alertContainer) {
+        if (message) alert(`(${type.toUpperCase()}) ${message.replace(/<br>/g, '\n')}`);
+        return;
+    }
+    if (message) {
+        alertContainer.innerHTML = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert" style="margin-bottom: 0;">
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>`;
+        alertContainer.style.display = 'block';
+    } else {
+        alertContainer.innerHTML = '';
+        alertContainer.style.display = 'none';
+    }
 }
 
-// --- NEW: Helper functions for conditional data update ---
-function saveOrUpdatePenaltyData(tabId, penaltyData, isUpdate = false) {
-   if (!tabId || !penaltyData) return false;
-   const penaltyId = penaltyData.id;
-   const isLoggedIn = window.isLoggedIn === true;
-
-   if (isLoggedIn) {
-       // Use penalty-specific state object
-       if (!window.userPenaltyTabsData?.entries) return false;
-       if (!Array.isArray(window.userPenaltyTabsData.entries[tabId])) window.userPenaltyTabsData.entries[tabId] = [];
-       const entries = window.userPenaltyTabsData.entries[tabId];
-       const existingIndex = entries.findIndex(p => String(p?.id) === String(penaltyId));
-
-       if (isUpdate) {
-           if (existingIndex !== -1) entries[existingIndex] = penaltyData;
-           else return false; // Cannot update if not found
-       } else {
-           if (existingIndex === -1) entries.push(penaltyData);
-           else entries[existingIndex] = penaltyData; // Overwrite if duplicate ID
-       }
-       console.log(`[Penalty Data State] ${isUpdate ? 'Updated' : 'Added'} penalty ${penaltyId} in state for tab ${tabId}`);
-       return true;
-   } else {
-       try {
-           if (isUpdate) updateLocalPenalty(tabId, penaltyId, penaltyData);
-           else addLocalPenalty(tabId, penaltyData);
-           return true;
-       } catch (e) { return false; }
-   }
+function showNewPenaltyAlert(message, type = 'danger') {
+    showPenaltyModalAlert(message, type, 'newPenaltyAlert');
 }
 
-function removePenaltyData(tabId, penaltyId) {
-   if (!tabId || !penaltyId) { console.error("[removePenaltyData] Missing tabId or penaltyId"); return false;}
-   const idToRemove = String(penaltyId);
-   const isLoggedIn = window.isLoggedIn === true;
-   console.log(`[removePenaltyData] Attempting removal. Tab: ${tabId}, ID: ${idToRemove}, LoggedIn: ${isLoggedIn}`);
+function showEditPenaltyAlert(message, type = 'danger') {
+    showPenaltyModalAlert(message, type, 'editPenaltyAlert');
+}
+// --- END Alert Helpers ---
 
-   if (isLoggedIn) {
-       // Use penalty-specific state object
-       if (!window.userPenaltyTabsData?.entries?.[tabId] || !Array.isArray(window.userPenaltyTabsData.entries[tabId])) {
-           console.error(`[removePenaltyData] Invalid state for tab ${tabId}`); return false;
-       }
-       const entries = window.userPenaltyTabsData.entries[tabId];
-       const initialLength = entries.length;
-       window.userPenaltyTabsData.entries[tabId] = entries.filter(p => String(p?.id) !== idToRemove);
-       const removed = window.userPenaltyTabsData.entries[tabId].length < initialLength;
-       if (removed) console.log(`[Penalty Data State] Removed penalty ${idToRemove} from state tab ${tabId}.`);
-       else console.warn(`[Penalty Data State] Penalty ${idToRemove} not found in state tab ${tabId}.`);
-       return removed;
-   } else {
+// --- Data Abstraction Helpers ---
+function saveOrUpdatePenaltyEntryData(tabId, entryData, isUpdate = false) {
+    if (!tabId || !entryData || !entryData.id) {
+        console.error("saveOrUpdatePenaltyEntryData: Missing tabId, entryData, or entryData.id");
+        return false;
+    }
+    const isLoggedIn = window.isLoggedIn === true;
+
+    if (isLoggedIn) {
+        if (!window.userPenaltyTabsData || !window.userPenaltyTabsData.entries) { // Use 'entries' to match games structure
+            console.error("saveOrUpdatePenaltyEntryData: window.userPenaltyTabsData.entries not initialized.");
+            return false;
+        }
+        if (!Array.isArray(window.userPenaltyTabsData.entries[tabId])) {
+            window.userPenaltyTabsData.entries[tabId] = [];
+        }
+        const entries = window.userPenaltyTabsData.entries[tabId];
+        const existingIndex = entries.findIndex(e => String(e?.id) === String(entryData.id));
+
+        if (isUpdate) {
+            if (existingIndex !== -1) {
+                entries[existingIndex] = { ...entries[existingIndex], ...entryData };
+            } else { return false; }
+        } else {
+            if (existingIndex !== -1) entries[existingIndex] = entryData;
+            else entries.push(entryData);
+        }
+        return true;
+    } else {
         try {
-            const success = removeLocalPenalty(tabId, idToRemove); // Use penalty func
-            if(success) console.log(`[Local Storage] Removed penalty ${idToRemove} from tab ${tabId}`);
-            else console.warn(`[Local Storage] Penalty ${idToRemove} not found in tab ${tabId}`);
-            return success;
-        } catch (e) { console.error(`[removePenaltyData] Error removing local penalty:`, e); return false; }
-   }
+            if (isUpdate) updateLocalOnlyPenaltyEntry(tabId, entryData.id, entryData);
+            else addLocalOnlyPenaltyEntry(tabId, entryData);
+            return true;
+        } catch (e) { return false; }
+    }
 }
-// --- End Helper functions ---
 
+function removePenaltyEntryData(tabId, entryId) {
+    if (!tabId || !entryId) return false;
+    const idToRemove = String(entryId);
+    const isLoggedIn = window.isLoggedIn === true;
 
-// --- MODIFIED Modal Handlers ---
+    if (isLoggedIn) {
+        if (!window.userPenaltyTabsData?.entries?.[tabId] || !Array.isArray(window.userPenaltyTabsData.entries[tabId])) return false;
+        const entries = window.userPenaltyTabsData.entries[tabId];
+        const initialLength = entries.length;
+        window.userPenaltyTabsData.entries[tabId] = entries.filter(e => String(e?.id) !== idToRemove);
+        return window.userPenaltyTabsData.entries[tabId].length < initialLength;
+    } else {
+        return removeLocalOnlyPenaltyEntry(tabId, idToRemove);
+    }
+}
+// --- END Data Abstraction Helpers ---
+
+export function renderPenaltiesForTab(tabId) {
+    if (!tabId) {
+        console.error("renderPenaltiesForTab: tabId is undefined or null.");
+        return;
+    }
+    const paneId = tabId;
+    const tbody = document.querySelector(`#${paneId} .penaltiesTable`);
+
+    if (!tbody) {
+        return;
+    }
+
+    let entries = [];
+    const isLoggedIn = window.isLoggedIn === true;
+    try {
+        if (isLoggedIn) {
+            entries = window.userPenaltyTabsData?.entries?.[tabId] || []; // Use 'entries' key
+        } else {
+            entries = getLocalOnlyPenaltyEntries()[tabId] || [];
+        }
+    } catch (e) {
+        console.error(`Error getting penalty entries for rendering tab ${tabId}:`, e);
+    }
+    
+    tbody.innerHTML = ""; // Clear existing rows
+
+    if (entries.length > 0) {
+        // Sort penalties by name, for example
+        entries.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+        entries.forEach(penalty => {
+            const row = document.createElement('tr');
+            row.dataset.penaltyId = penalty.id; // For editing/deleting later
+
+            // Ensure probability is a number and format it
+            let probabilityDisplay = "N/A";
+            const prob = parseFloat(penalty.probability);
+            if (!isNaN(prob)) {
+                probabilityDisplay = (prob * 100).toFixed(0) + "%"; // Display as percentage
+            }
+
+            row.innerHTML = `
+                <td data-label="Name">${escapeHtml(penalty.name || 'N/A')}</td>
+                <td data-label="Probability">${escapeHtml(probabilityDisplay)}</td>
+                <td data-label="Description" class="text-break">${escapeHtml(penalty.description || 'N/A')}</td>
+            `;
+            // Add dblclick listener for editing directly on the row
+            row.addEventListener('dblclick', () => handleEditPenaltyModalOpen(tabId, penalty.id));
+            tbody.appendChild(row);
+        });
+    } else {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-secondary py-3">No penalties added to this tab yet.</td></tr>`;
+    }
+}
 
 export function handleSaveNewPenalty() {
-const form = document.getElementById("newPenaltyForm");
-// ... (Validation logic remains the same) ...
-const nameInput = form.elements.newPenaltyName;
-const probInput = form.elements.newProbability;
-const descInput = form.elements.newDescription;
-const name = nameInput?.value.trim();
-const probability = parseFloat(probInput?.value);
-const description = descInput?.value.trim();
-showPenaltyFormAlert("", "info", "newPenaltyAlert"); // Clear alerts
-let errors = [];
-if (!name) errors.push("Penalty name is required.");
-if (isNaN(probability) || probability < 0.0 || probability > 1.0) { errors.push("Probability must be between 0.0 and 1.0."); }
-if (errors.length > 0) { showPenaltyFormAlert(errors.join("<br>"), 'danger', 'newPenaltyAlert'); return; }
+    const form = document.getElementById("newPenaltyForm");
+    const nameInput = form.elements.newPenaltyName;
+    const probInput = form.elements.newPenaltyProbability;
+    const descInput = form.elements.newPenaltyDescription;
 
-const currentTab = window.currentPenaltyTab || "default"; // Use penalty context
-const newPenaltyId = "local-p-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
-const newPenalty = {
-  id: newPenaltyId, name,
-  probability: parseFloat(probability.toFixed(4)), // Use consistent precision
-  description
-  // No need for tabName here if context is handled correctly
-};
+    const name = nameInput?.value.trim();
+    const probability = parseFloat(probInput?.value);
+    const description = descInput?.value.trim();
 
-if (saveOrUpdatePenaltyData(currentTab, newPenalty, false)) { // Use helper
-    renderPenaltiesForTab(currentTab); // Refresh UI table
-    $('#newPenaltyModal').modal('hide'); // Hide modal
-    form.reset(); // Reset form
-    triggerPenaltyAutosave(currentTab); // <<< Trigger Penalty Autosave
-} else {
-    showPenaltyFormAlert("Failed to save penalty data.", 'danger', 'newPenaltyAlert');
+    showNewPenaltyAlert(null);
+    let errors = [];
+    if (!name) errors.push("Penalty name is required.");
+    if (isNaN(probability) || probability < 0.0 || probability > 1.0) {
+        errors.push("Probability must be a number between 0.0 and 1.0 (e.g., 0.75 for 75%).");
+    }
+    // Description can be optional
+
+    if (errors.length > 0) {
+        showNewPenaltyAlert(errors.join("<br>"), 'danger');
+        return;
+    }
+
+    const currentTab = window.currentPenaltyTargetTab; // Set by penalties.js
+    if (!currentTab) {
+        showNewPenaltyAlert("Could not determine the current tab. Please try again.", "danger");
+        return;
+    }
+
+    const newEntryId = "local-p-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+    const newEntry = {
+        id: newEntryId,
+        name,
+        probability: probability, // Store as decimal
+        description
+    };
+
+    if (saveOrUpdatePenaltyEntryData(currentTab, newEntry, false)) {
+        renderPenaltiesForTab(currentTab);
+        if (typeof $ !== 'undefined' && $.fn.modal) $('#newPenaltyModal').modal('hide');
+        form.reset();
+        if (window.isLoggedIn) {
+            triggerAutosavePenalties(currentTab); // To be created in penaltyExtensions.js
+        }
+    } else {
+        showNewPenaltyAlert("Failed to save new penalty. Please try again.", 'danger');
+    }
 }
+
+function handleEditPenaltyModalOpen(tabId, penaltyId) {
+    window.currentPenaltyTargetTab = tabId; // Set context for save
+    const isLoggedIn = window.isLoggedIn === true;
+    const entries = isLoggedIn 
+        ? (window.userPenaltyTabsData?.entries?.[tabId] || []) 
+        : (getLocalOnlyPenaltyEntries()[tabId] || []);
+    
+    const penaltyToEdit = entries.find(p => String(p.id) === String(penaltyId));
+
+    if (!penaltyToEdit) {
+        showFlash("Could not find the penalty to edit.", "danger");
+        return;
+    }
+
+    const form = document.getElementById("editPenaltyForm");
+    if (!form) {
+        console.error("Edit penalty form not found!");
+        return;
+    }
+    form.elements.editPenaltyId.value = penaltyToEdit.id;
+    form.elements.editPenaltyName.value = penaltyToEdit.name || "";
+    form.elements.editPenaltyProbability.value = penaltyToEdit.probability !== undefined ? penaltyToEdit.probability : "";
+    form.elements.editPenaltyDescription.value = penaltyToEdit.description || "";
+    
+    showEditPenaltyAlert(null); // Clear previous alerts in edit modal
+    if (typeof $ !== 'undefined' && $.fn.modal) $('#editPenaltyModal').modal('show');
 }
 
 
 export function handleUpdatePenalty() {
-const form = document.getElementById("editPenaltyForm");
-// ... (Validation logic remains the same) ...
-const entryIdInput = form.elements.editPenaltyEntryId;
-const nameInput = form.elements.editPenaltyName;
-const probInput = form.elements.editProbability;
-const descInput = form.elements.editDescription;
-const entryId = entryIdInput?.value;
-const name = nameInput?.value.trim();
-const probability = parseFloat(probInput?.value);
-const description = descInput?.value.trim();
-showEditPenaltyAlert("", "info"); // Clear alerts
-let errors = [];
-if (!entryId) errors.push("Penalty ID is missing.");
-if (!name) errors.push("Penalty name required.");
-if (isNaN(probability) || probability < 0.0 || probability > 1.0) { errors.push("Probability must be between 0.0 and 1.0."); }
-if (errors.length > 0) { showEditPenaltyAlert(errors.join("<br>"), 'danger'); return; }
+    const form = document.getElementById("editPenaltyForm");
+    const id = form.elements.editPenaltyId.value;
+    const name = form.elements.editPenaltyName.value.trim();
+    const probability = parseFloat(form.elements.editPenaltyProbability.value);
+    const description = form.elements.editPenaltyDescription.value.trim();
+    const currentTab = window.currentPenaltyTargetTab;
 
-const currentTab = window.currentPenaltyTab || "default"; // Use penalty context
-const updatedPenalty = {
-  id: entryId, name,
-  probability: parseFloat(probability.toFixed(4)), description
-};
+    showEditPenaltyAlert(null);
+    let errors = [];
+    if (!id) errors.push("Penalty ID missing. Cannot update.");
+    if (!name) errors.push("Penalty name is required.");
+    if (isNaN(probability) || probability < 0.0 || probability > 1.0) {
+        errors.push("Probability must be a number between 0.0 and 1.0.");
+    }
 
-if (saveOrUpdatePenaltyData(currentTab, updatedPenalty, true)) { // Use helper (isUpdate=true)
-    renderPenaltiesForTab(currentTab); // Refresh UI
-    $('#editPenaltyModal').modal('hide'); // Hide modal
-    triggerPenaltyAutosave(currentTab); // <<< Trigger Penalty Autosave
-} else {
-    showEditPenaltyAlert("Failed to update penalty data.", 'danger');
+    if (errors.length > 0) {
+        showEditPenaltyAlert(errors.join("<br>"), 'danger');
+        return;
+    }
+    if (!currentTab) {
+        showEditPenaltyAlert("Could not determine current tab for update.", "danger");
+        return;
+    }
+
+    const updatedEntry = { id, name, probability, description };
+
+    if (saveOrUpdatePenaltyEntryData(currentTab, updatedEntry, true)) { // isUpdate = true
+        renderPenaltiesForTab(currentTab);
+        if (typeof $ !== 'undefined' && $.fn.modal) $('#editPenaltyModal').modal('hide');
+        if (window.isLoggedIn) {
+            triggerAutosavePenalties(currentTab);
+        }
+    } else {
+        showEditPenaltyAlert("Failed to update penalty. Please try again.", 'danger');
+    }
 }
-}
 
-export async function handleDeletePenalty() {
-const entryIdInput = document.getElementById("editPenaltyEntryId");
-const entryId = entryIdInput?.value;
-const form = document.getElementById("editPenaltyForm");
-const penaltyName = form.elements.editPenaltyName?.value || "this penalty";
-const alertContainer = document.getElementById("editPenaltyAlert"); // Target edit modal's alert
+export async function handleDeleteSinglePenalty(tabId, penaltyId, penaltyName) {
+    // This function is called from a confirm modal, so tabId and penaltyId should be passed.
+    if (!tabId || !penaltyId) {
+        showFlash("Cannot delete penalty: missing ID information.", "danger");
+        return;
+    }
+    
+    // Confirmation should happen before calling this, or be integrated here.
+    // For now, assuming confirmation happened.
 
-if (!entryId) { showEditPenaltyAlert("No penalty selected for deletion."); return; }
-
-const ok = await confirmModal(`Delete "${escapeHtml(penaltyName)}"?`, "Confirm deletion");
-if (!ok) return;
-
-const currentTab = window.currentPenaltyTab || "default"; // Use penalty context
-const button = document.getElementById("deletePenaltyBtn"); // Get the button itself
-if(button) button.disabled = true; // Disable during operation
-
-if (removePenaltyData(currentTab, entryId)) { // Use helper
-    renderPenaltiesForTab(currentTab); // Refresh UI
-    $('#editPenaltyModal').modal('hide'); // Hide modal
-    triggerPenaltyAutosave(currentTab); // <<< Trigger Penalty Autosave
-    showFlash(`Penalty "${escapeHtml(penaltyName)}" deleted.`, "success");
-} else {
-    showEditPenaltyAlert(`Failed to delete penalty "${escapeHtml(penaltyName)}".`, 'danger');
-    if(button) button.disabled = false; // Re-enable on failure
-}
+    if (removePenaltyEntryData(tabId, penaltyId)) {
+        renderPenaltiesForTab(tabId);
+        showFlash(`Penalty "${escapeHtml(penaltyName || 'Entry')}" deleted.`, "success");
+        if (window.isLoggedIn) {
+            triggerAutosavePenalties(tabId);
+        }
+    } else {
+        showFlash(`Failed to delete penalty "${escapeHtml(penaltyName || 'Entry')}".`, "danger");
+    }
 }

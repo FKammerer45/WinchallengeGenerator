@@ -1,73 +1,76 @@
-{# templates/penalties/penalties_modals.html #}
+{# app/templates/penalties/penalties_modals.html #}
 
-{# Modal for Inserting a New Penalty Entry #}
-<div class="modal fade" id="newPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="newPenaltyModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content"> {# style.css handles theme #}
-        <div class="modal-header">
-          <h5 class="modal-title" id="newPenaltyModalLabel">Insert New Penalty</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div id="newPenaltyAlert"></div> {# For JS alerts #}
-          <form id="newPenaltyForm" novalidate> {# Added novalidate #}
-            <div class="form-group mb-3"> {# Added mb-3 #}
-              <label for="newPenaltyName" class="form-label">Penalty Name</label> {# Use form-label #}
-              <input type="text" class="form-control form-control-sm" id="newPenaltyName" name="name" placeholder="e.g., Play with one hand" required> {# Use form-control-sm #}
-            </div>
-            <div class="form-group mb-3"> {# Added mb-3 #}
-              <label for="newProbability" class="form-label">Probability (0.0 to 1.0)</label> {# Use form-label #}
-              <input type="number" class="form-control form-control-sm" id="newProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.1" required> {# Use form-control-sm #}
-            </div>
-            <div class="form-group mb-0"> {# Removed mb-3 #}
-              <label for="newDescription" class="form-label">Description (Optional)</label> {# Use form-label #}
-              <textarea class="form-control form-control-sm" id="newDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea> {# Use form-control-sm #}
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="saveNewPenaltyBtn" class="btn btn-primary">Save</button> {# Use primary accent #}
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        </div>
+{# Modal for Adding a New Penalty Entry #}
+<div class="modal fade" id="newPenaltyModal" tabindex="-1" aria-labelledby="newPenaltyModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="newPenaltyModalLabel"><i class="bi bi-shield-plus me-2"></i>Add New Penalty</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"> {# Bootstrap 4 Close Button #}
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="newPenaltyAlert" class="mb-3"></div> {# Alert container for this modal #}
+        <form id="newPenaltyForm">
+          <div class="mb-3">
+            <label for="newPenaltyName" class="form-label"><i class="bi bi-tag-fill me-1"></i>Penalty Name</label>
+            <input type="text" class="form-control" id="newPenaltyName" name="newPenaltyName" placeholder="E.g., Drink Water, 10 Push-ups" required>
+          </div>
+          <div class="mb-3">
+            <label for="newPenaltyProbability" class="form-label"><i class="bi bi-percent me-1"></i>Probability (0.0 to 1.0)</label>
+            <input type="number" class="form-control" id="newPenaltyProbability" name="newPenaltyProbability" step="0.01" min="0.0" max="1.0" placeholder="0.5" required>
+            <small class="form-text text-muted">E.g., 0.5 for 50%, 1.0 for 100% chance.</small>
+          </div>
+          <div class="mb-3">
+            <label for="newPenaltyDescription" class="form-label"><i class="bi bi-card-text me-1"></i>Description (Optional)</label>
+            <textarea class="form-control" id="newPenaltyDescription" name="newPenaltyDescription" rows="3" placeholder="Explain the penalty..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveNewPenaltyBtn"><i class="bi bi-check-circle-fill me-1"></i>Save Penalty</button>
       </div>
     </div>
+  </div>
 </div>
 
-{# Modal for Editing/Deleting an Existing Penalty Entry #}
-<div class="modal fade" id="editPenaltyModal" tabindex="-1" role="dialog" aria-labelledby="editPenaltyModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content"> {# style.css handles theme #}
-        <div class="modal-header">
-          <h5 class="modal-title" id="editPenaltyModalLabel">Edit Penalty</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-           <div id="editPenaltyAlert"></div> {# For JS alerts #}
-          <form id="editPenaltyForm" novalidate> {# Added novalidate #}
-            <input type="hidden" id="editPenaltyEntryId" name="entry_id"> {# Keep hidden ID field #}
-            <div class="form-group mb-3"> {# Added mb-3 #}
-              <label for="editPenaltyName" class="form-label">Penalty Name</label> {# Use form-label #}
-              <input type="text" class="form-control form-control-sm" id="editPenaltyName" name="name" placeholder="e.g., Play with one hand" required> {# Use form-control-sm #}
+
+{# Modal for Editing an Existing Penalty Entry #}
+<div class="modal fade" id="editPenaltyModal" tabindex="-1" aria-labelledby="editPenaltyModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editPenaltyModalLabel"><i class="bi bi-shield-shaded me-2"></i>Edit Penalty</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"> {# Bootstrap 4 Close Button #}
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="editPenaltyForm"> {# Ensure this form has an ID #}
+            <input type="hidden" id="editPenaltyId" name="editPenaltyId"> {# For storing the ID of the penalty being edited #}
+            <div id="editPenaltyAlert" class="mb-3"></div> {# Alert container for this modal #}
+            
+            <div class="mb-3">
+                <label for="editPenaltyName" class="form-label"><i class="bi bi-tag-fill me-1"></i>Penalty Name</label>
+                <input type="text" class="form-control" id="editPenaltyName" name="editPenaltyName" required>
             </div>
-            <div class="form-group mb-3"> {# Added mb-3 #}
-              <label for="editProbability" class="form-label">Probability (0.0 to 1.0)</label> {# Use form-label #}
-              <input type="number" class="form-control form-control-sm" id="editProbability" name="probability" min="0" max="1" step="0.01" placeholder="e.g., 0.1" required> {# Use form-control-sm #}
+            <div class="mb-3">
+                <label for="editPenaltyProbability" class="form-label"><i class="bi bi-percent me-1"></i>Probability (0.0 to 1.0)</label>
+                <input type="number" class="form-control" id="editPenaltyProbability" name="editPenaltyProbability" step="0.01" min="0.0" max="1.0" required>
             </div>
-            <div class="form-group mb-0"> {# Removed mb-3 #}
-              <label for="editDescription" class="form-label">Description (Optional)</label> {# Use form-label #}
-              <textarea class="form-control form-control-sm" id="editDescription" name="description" rows="2" placeholder="Explain what the penalty does"></textarea> {# Use form-control-sm #}
+            <div class="mb-3">
+                <label for="editPenaltyDescription" class="form-label"><i class="bi bi-card-text me-1"></i>Description (Optional)</label>
+                <textarea class="form-control" id="editPenaltyDescription" name="editPenaltyDescription" rows="3"></textarea>
             </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="updatePenaltyBtn" class="btn btn-primary">Save Changes</button> {# Use primary accent #}
-          <button type="button" id="deletePenaltyBtn" class="btn btn-danger">Delete Penalty</button> {# Use danger accent #}
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        {# Delete button can be added here if needed, or handled differently #}
+        <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+        <button type="button" class="btn btn-primary" id="updatePenaltyBtn"><i class="bi bi-check-circle-fill me-1"></i>Save Changes</button>
       </div>
     </div>
+  </div>
 </div>

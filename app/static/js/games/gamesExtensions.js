@@ -4,7 +4,13 @@ import { createTabFromLocalData,getNextTabIdNumber } from "./tabManagement.js";
 import { renderGamesForTab } from "./entryManagement.js";
 import { confirmModal, showFlash } from "../utils/helpers.js";
 import { apiFetch } from "../utils/api.js";
-
+import {
+    initLocalStorage as initGameLocalStorageIfAbsent,
+    getLocalOnlyTabs,
+    getLocalOnlyEntries,
+    setLocalOnlyTabs,
+    setLocalOnlyEntries
+} from "./localStorageUtils.js";
 // --- Autosave Logic (remains largely the same, but ensure it uses window.userTabsData correctly) ---
 let autosaveTimeout = null;
 let isCurrentlySaving = false;
@@ -504,4 +510,114 @@ export async function handleDuplicateTab() {
     } finally {
         if(duplicateBtnElement) duplicateBtnElement.disabled = false;
     }
+}
+
+export async function ensureUserDefaultGameTabs() {
+    // --- DEFINE Constants INSIDE the function ---
+    const SYSTEM_GAME_DEFAULT_DEFINITIONS_URL_LOCAL = '/api/games/default_definitions';
+    const USER_GAME_TABS_LOAD_URL_LOCAL = '/api/tabs/load';
+    const USER_GAME_TABS_SAVE_URL_LOCAL = '/api/tabs/save';
+    // --- END DEFINE Constants ---
+
+    console.log("[ensureUserDefaultGameTabs] Starting process...");
+    const isLoggedIn = window.isLoggedIn === true; 
+    const csrfToken = window.csrfToken; 
+
+    let systemDefaultGameTabsDefinitions;
+    try {
+        // Use the locally defined constant
+        systemDefaultGameTabsDefinitions = await apiFetch(SYSTEM_GAME_DEFAULT_DEFINITIONS_URL_LOCAL);
+        if (typeof systemDefaultGameTabsDefinitions !== 'object' || systemDefaultGameTabsDefinitions === null) {
+            throw new Error("Invalid system default game tab definitions received from API.");
+        }
+        console.log("[ensureUserDefaultGameTabs] System default definitions fetched.");
+    } catch (error) {
+        console.error("[ensureUserDefaultGameTabs] Failed to fetch system default definitions:", error);
+        showFlash("Error: Could not load initial game configurations.", "danger");
+        throw error; 
+    }
+
+    if (isLoggedIn) {
+        console.log("[ensureUserDefaultGameTabs] User is logged in. Checking backend for default tabs.");
+        let userSavedTabsFromApi = {};
+        try {
+            // Use the locally defined constant
+            userSavedTabsFromApi = await apiFetch(USER_GAME_TABS_LOAD_URL_LOCAL);
+            if (typeof userSavedTabsFromApi !== 'object' || userSavedTabsFromApi === null) {
+                userSavedTabsFromApi = {};
+            }
+        } catch (loadError) {
+            console.error("[ensureUserDefaultGameTabs] Error loading user's saved tabs:", loadError);
+        }
+
+        for (const defKey in systemDefaultGameTabsDefinitions) {
+            const sysDef = systemDefaultGameTabsDefinitions[defKey];
+            const clientTabId = sysDef.client_tab_id;
+
+            if (!userSavedTabsFromApi[clientTabId]) {
+                console.log(`[ensureUserDefaultGameTabs] System default game tab "${sysDef.name}" (ID: ${clientTabId}) not found for user. Creating and saving...`);
+                try {
+                    const transformedInitialEntries = (sysDef.entries || []).map(entry => ({
+                        id: entry.id || ("local-g-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9)),
+                        game: entry.Spiel,
+                        gameMode: entry.Spielmodus,
+                        difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
+                        numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
+                        weight: parseFloat(entry.weight) || 1.0
+                    }));
+
+                    const savePayload = {
+                        tabId: clientTabId,
+                        tabName: sysDef.name,
+                        entries: transformedInitialEntries
+                    };
+                    // Use the locally defined constant
+                    const savedTabResponse = await apiFetch(USER_GAME_TABS_SAVE_URL_LOCAL, { method: 'POST', body: savePayload }, csrfToken);
+                    
+                    if (savedTabResponse.status !== 'ok') {
+                        console.error(`[ensureUserDefaultGameTabs] Failed to save system default tab ${sysDef.name} for user:`, savedTabResponse.error);
+                    } else {
+                        console.log(`[ensureUserDefaultGameTabs] Successfully saved new system default tab "${sysDef.name}" for user.`);
+                    }
+                } catch (saveError) {
+                    console.error(`[ensureUserDefaultGameTabs] Exception while saving system default game tab ${clientTabId} for user:`, saveError);
+                }
+            }
+        }
+        console.log("[ensureUserDefaultGameTabs] Logged-in user default tab check complete.");
+
+    } else { // Anonymous user
+        console.log("[ensureUserDefaultGameTabs] User is anonymous. Checking localStorage for default tabs.");
+        initGameLocalStorageIfAbsent(); 
+        let localTabs = getLocalOnlyTabs();
+        let localEntries = getLocalOnlyEntries();
+        let updatedLocal = false;
+
+        for (const defKey in systemDefaultGameTabsDefinitions) {
+            const sysDef = systemDefaultGameTabsDefinitions[defKey];
+            const clientTabId = sysDef.client_tab_id;
+
+            if (!localTabs[clientTabId]) {
+                console.log(`[ensureUserDefaultGameTabs] System default game tab "${sysDef.name}" not found in localStorage. Adding...`);
+                localTabs[clientTabId] = { name: sysDef.name };
+                localEntries[clientTabId] = (sysDef.entries || []).map(entry => ({
+                    id: entry.id || ("local-g-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9)),
+                    game: entry.Spiel,
+                    gameMode: entry.Spielmodus,
+                    difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
+                    numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
+                    weight: parseFloat(entry.weight) || 1.0
+                }));
+                updatedLocal = true;
+            }
+        }
+        if (updatedLocal) {
+            setLocalOnlyTabs(localTabs);
+            setLocalOnlyEntries(localEntries);
+            console.log("[ensureUserDefaultGameTabs] localStorage updated with system default game tabs.");
+        } else {
+            console.log("[ensureUserDefaultGameTabs] localStorage already contains all system default game tabs.");
+        }
+    }
+    console.log("[ensureUserDefaultGameTabs] Process finished.");
 }

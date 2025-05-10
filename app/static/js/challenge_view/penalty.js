@@ -2,7 +2,7 @@
 // Handles the penalty wheel logic for the shared challenge view page.
 
 // Import utility to get penalty data from local storage
-import { getLocalPenalties } from "../penalties/penaltyLocalStorageUtils.js";
+import { getLocalOnlyEntries as getLocalPenalties } from "../penalties/penaltyLocalStorageUtils.js";
 // Import shared helper functions
 import { escapeHtml, showError } from '../utils/helpers.js'; // Use showError instead of local displayStatus
 import { apiFetch } from '../utils/api.js';

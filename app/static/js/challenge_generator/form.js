@@ -3,13 +3,15 @@
 
 // Assuming these paths are correct after restructuring
 import { getLocalOnlyTabs as getGameTabs, getLocalOnlyEntries, initLocalStorage as initGameStorage } from "../games/localStorageUtils.js";
-import { getLocalPenaltyTabs, initPenaltiesLocalStorage } from "../penalties/penaltyLocalStorageUtils.js";
-// Assuming local_storage.js is now in utils/
+import { 
+    initLocalStorage as initPenaltiesLocalStorage, // Use 'as' to rename if desired, or use initLocalStorage directly
+    getLocalOnlyTabs as getLocalPenaltyTabs      // Use 'as' to rename if desired, or use getLocalOnlyTabs directly
+} from "../penalties/penaltyLocalStorageUtils.js";// Assuming local_storage.js is now in utils/
 import { saveChallengeToLocalStorage } from '../utils/local_storage.js';
 // Assuming helpers.js is in utils/
 import { showError, escapeHtml, setLoading } from '../utils/helpers.js';
-import { loadAndSaveGlobalDefaults } from '../games/gamesExtensions.js';
-import { loadAndSaveGlobalPenaltyDefaults } from '../penalties/penaltyExtensions.js';
+import { ensureUserDefaultGameTabs } from '../games/gamesExtensions.js';
+import { ensureUserDefaultPenaltyTabs } from '../penalties/penaltyExtensions.js';
 import { apiFetch } from "../utils/api.js";
 // Flag to prevent recursion during mode change for anonymous users
 const selectedGames = new Set();
@@ -856,8 +858,9 @@ document.addEventListener('DOMContentLoaded', async () => { // <-- Add async her
         console.log("Loading default game entries and penalties from DB...");
         try {
             // Wait for both loading functions to complete
-            await loadAndSaveGlobalDefaults(); 
-            await loadAndSaveGlobalPenaltyDefaults(); 
+            await ensureUserDefaultGameTabs();
+            await ensureUserDefaultPenaltyTabs();  
+            //await loadAndSaveGlobalPenaltyDefaults(); 
 
             // Only set the flag and reload if both succeed
             localStorage.setItem('defaults_loaded', 'true');
