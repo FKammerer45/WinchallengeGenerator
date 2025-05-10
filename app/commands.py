@@ -1,136 +1,102 @@
-# /srv/myflaskapp/WinchallengeGenerator/app/commands.py
+# app/commands.py
 import click
-import logging # Import logging
+import logging
 from flask.cli import with_appcontext
 
 # Import db instance and models from your app package
-from . import db 
-from .models import GameEntry, Penalty
+from . import db
+from .models import GameEntry, Penalty, User # Added User for generate-key
+
+# Import the new default definitions
+from .modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS, DEFAULT_PENALTY_TAB_DEFINITIONS
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
 
-# --- Define Default Data --- 
-# (You can keep this here, or move it to a separate data file and import it)
-DEFAULT_GAMES = [
-    # CSGO
-    {'Spiel': 'CSGO', 'Spielmodus': 'Ranked', 'Schwierigkeit': 7.0, 'Spieleranzahl': 5},
-    {'Spiel': 'CSGO', 'Spielmodus': 'Premier', 'Schwierigkeit': 7.0, 'Spieleranzahl': 5},
-    # League of Legends
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'Aram', 'Schwierigkeit': 3.0, 'Spieleranzahl': 5},
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'FlexQ', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5},
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'DuoQ', 'Schwierigkeit': 8.0, 'Spieleranzahl': 2}, 
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'URF', 'Schwierigkeit': 4.0, 'Spieleranzahl': 5},
-    # Valorant
-    {'Spiel': 'Valorant', 'Spielmodus': 'Ranked', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5},
-    # Age of Empires
-    {'Spiel': 'AgeOfEmpires', 'Spielmodus': 'Ranked', 'Schwierigkeit': 5.0, 'Spieleranzahl': 2}, 
-    # Apex Legends
-    {'Spiel': 'Apex Legends', 'Spielmodus': 'Trios', 'Schwierigkeit': 7.0, 'Spieleranzahl': 3},
-    {'Spiel': 'Apex Legends', 'Spielmodus': 'Duos', 'Schwierigkeit': 7.0, 'Spieleranzahl': 2},
-     # Dota 2
-    {'Spiel': 'Dota 2', 'Spielmodus': 'All Pick', 'Schwierigkeit': 8.0, 'Spieleranzahl': 5},
-    {'Spiel': 'Dota 2', 'Spielmodus': 'Turbo', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5},
-    # Fall Guys
-    {'Spiel': 'Fallguys', 'Spielmodus': 'normal', 'Schwierigkeit': 2.0, 'Spieleranzahl': 1}, 
-    # Fortnite
-    {'Spiel': 'Fortnite', 'Spielmodus': 'Battle Royale (Solo)', 'Schwierigkeit': 5.0, 'Spieleranzahl': 1},
-    {'Spiel': 'Fortnite', 'Spielmodus': 'Battle Royale (Duos)', 'Schwierigkeit': 5.5, 'Spieleranzahl': 2},
-    {'Spiel': 'Fortnite', 'Spielmodus': 'Battle Royale (Squads)', 'Schwierigkeit': 6.0, 'Spieleranzahl': 4},
-     # Overwatch 2
-    {'Spiel': 'Overwatch 2', 'Spielmodus': 'Quick Play', 'Schwierigkeit': 5.0, 'Spieleranzahl': 5},
-    {'Spiel': 'Overwatch 2', 'Spielmodus': 'Competitive', 'Schwierigkeit': 7.5, 'Spieleranzahl': 5},
-    # PUBG
-    {'Spiel': 'PUBG', 'Spielmodus': 'Duos', 'Schwierigkeit': 7.0, 'Spieleranzahl': 2},
-    {'Spiel': 'PUBG', 'Spielmodus': 'squad', 'Schwierigkeit': 8.0, 'Spieleranzahl': 4},
-    # Rainbow Six Siege
-    {'Spiel': 'Rainbow6Siege', 'Spielmodus': 'Ranked', 'Schwierigkeit': 5.0, 'Spieleranzahl': 5},
-     # Rocket League
-    {'Spiel': 'RocketLeague', 'Spielmodus': 'Duos', 'Schwierigkeit': 2.0, 'Spieleranzahl': 2},
-    {'Spiel': 'RocketLeague', 'Spielmodus': 'Trios', 'Schwierigkeit': 2.0, 'Spieleranzahl': 3},
-    # Teamfight Tactics
-    {'Spiel': 'Teamfight Tactics', 'Spielmodus': 'Ranked', 'Schwierigkeit': 6.0, 'Spieleranzahl': 1},
-    {'Spiel': 'Teamfight Tactics', 'Spielmodus': 'Hyper Roll', 'Schwierigkeit': 4.0, 'Spieleranzahl': 1},
-    # Add more games as needed
-]
+# --- Default Data Definitions are now in app/modules/default_definitions.py ---
+# The old DEFAULT_GAMES and DEFAULT_PENALTIES lists are removed from here.
 
-# --- CORRECTED DEFAULT_PENALTIES list ---
-DEFAULT_PENALTIES = [
-    {'name': 'Hydration Check', 'description': 'Take a good sip of water!', 'probability': 1.0},
-    {'name': 'Posture Check', 'description': 'Sit up straight, shoulders back!', 'probability': 1.0},
-    {'name': 'Quick Stretch', 'description': 'Stretch your arms, neck, or back for 10 seconds.', 'probability': 1.0},
-    {'name': 'Compliment Teammate', 'description': 'Give a genuine compliment to a teammate (in voice or chat).', 'probability': 1.0},
-    {'name': 'Compliment Opponent', 'description': 'Acknowledge a good play by an opponent (in chat).', 'probability': 1.0},
-    {'name': 'Deep Breath', 'description': 'Take 3 slow, deep breaths.', 'probability': 1.0},
-    {'name': 'Laugh it Off', 'description': 'Force a smile or a chuckle, even if tilted.', 'probability': 1.0},
-    {'name': 'Positive Affirmation', 'description': 'Say one positive thing about your own gameplay out loud.', 'probability': 1.0},
-    {'name': 'Clean Your Space', 'description': 'Quickly tidy one small thing near your keyboard/mouse.', 'probability': 1.0},
-    {'name': 'Stand Up', 'description': 'Briefly stand up from your chair.', 'probability': 1.0},
-    # Add more penalties with 'probability'
-]
-# --- End Correction ---
-
-
-# Define the CLI command using click decorators
 @click.command("seed-db")
 @with_appcontext # Ensures the command runs within the Flask application context
 def seed_db_command():
-    """Populates the database with default game entries and penalties."""
-    logger.info("Seeding database...") # Use logger
-    
+    """Populates the GameEntry and Penalty tables with unique entries from default_definitions."""
+    logger.info("Seeding database with entries from default_definitions.py...")
+
     try:
-        # Seed Games
-        # Check existing to avoid duplicates
-        existing_games = { (g.Spiel, g.Spielmodus) for g in db.session.query(GameEntry).with_entities(GameEntry.Spiel, GameEntry.Spielmodus).all() }
-        games_to_add = []
-        for game_data in DEFAULT_GAMES:
-            # Create tuple for checking existence
-            game_key = (game_data['Spiel'], game_data['Spielmodus'])
-            if game_key not in existing_games:
-                games_to_add.append(GameEntry(**game_data))
-                existing_games.add(game_key) # Add to set to prevent duplicates within this run
+        # --- Seed GameEntry Table ---
+        # Consolidate all unique game entries from DEFAULT_GAME_TAB_DEFINITIONS
+        all_defined_game_entries = {} # Use a dict to ensure uniqueness by (Spiel, Spielmodus)
+        for tab_key, tab_data in DEFAULT_GAME_TAB_DEFINITIONS.items():
+            for entry in tab_data.get("entries", []):
+                # Create a unique key for the dictionary
+                game_identifier = (entry.get('Spiel'), entry.get('Spielmodus'))
+                if None not in game_identifier and game_identifier not in all_defined_game_entries:
+                    # Store the first occurrence of this game/mode combination
+                    all_defined_game_entries[game_identifier] = {
+                        'Spiel': entry.get('Spiel'),
+                        'Spielmodus': entry.get('Spielmodus'),
+                        'Schwierigkeit': entry.get('Schwierigkeit', 1.0), # Default if missing
+                        'Spieleranzahl': entry.get('Spieleranzahl', 1)    # Default if missing
+                    }
         
-        if games_to_add:
-            db.session.add_all(games_to_add)
-            logger.info(f"Adding {len(games_to_add)} new default game entries.")
+        existing_db_games = { 
+            (g.Spiel, g.Spielmodus) for g in db.session.query(GameEntry.Spiel, GameEntry.Spielmodus).all() 
+        }
+        
+        games_to_add_to_db = []
+        for game_identifier, game_data in all_defined_game_entries.items():
+            if game_identifier not in existing_db_games:
+                games_to_add_to_db.append(GameEntry(**game_data))
+                existing_db_games.add(game_identifier) # Add to set to prevent duplicates within this run
+
+        if games_to_add_to_db:
+            db.session.add_all(games_to_add_to_db)
+            logger.info(f"Adding {len(games_to_add_to_db)} new unique game entries to GameEntry table.")
         else:
-            logger.info("Default game entries already seem to exist or none provided.")
+            logger.info("No new unique game entries to add to GameEntry table from definitions.")
 
-        # Seed Penalties
-        # Check existing to avoid duplicates
-        existing_penalties = { p.name for p in db.session.query(Penalty).with_entities(Penalty.name).all() }
-        penalties_to_add = []
-        for penalty_data in DEFAULT_PENALTIES:
-             # Check if name exists AND ensure probability is included
-             if penalty_data['name'] not in existing_penalties and 'probability' in penalty_data:
-                 penalties_to_add.append(Penalty(**penalty_data))
-                 existing_penalties.add(penalty_data['name']) # Add to set
-             elif penalty_data['name'] not in existing_penalties:
-                 logger.warning(f"Skipping penalty '{penalty_data['name']}' because it's missing 'probability' in seed data.")
+        # --- Seed Penalty Table ---
+        # Consolidate all unique penalty entries from DEFAULT_PENALTY_TAB_DEFINITIONS
+        all_defined_penalty_entries = {} # Use a dict to ensure uniqueness by name
+        for tab_key, tab_data in DEFAULT_PENALTY_TAB_DEFINITIONS.items():
+            for entry in tab_data.get("penalties", []):
+                penalty_name = entry.get('name')
+                if penalty_name and penalty_name not in all_defined_penalty_entries:
+                    all_defined_penalty_entries[penalty_name] = {
+                        'name': penalty_name,
+                        'probability': entry.get('probability', 0.1), # Default if missing
+                        'description': entry.get('description', '')   # Default if missing
+                    }
 
+        existing_db_penalties = { p.name for p in db.session.query(Penalty.name).all() }
+        
+        penalties_to_add_to_db = []
+        for penalty_name, penalty_data in all_defined_penalty_entries.items():
+            if penalty_name not in existing_db_penalties:
+                penalties_to_add_to_db.append(Penalty(**penalty_data))
+                existing_db_penalties.add(penalty_name)
 
-        if penalties_to_add:
-            db.session.add_all(penalties_to_add)
-            logger.info(f"Adding {len(penalties_to_add)} new default penalties.")
+        if penalties_to_add_to_db:
+            db.session.add_all(penalties_to_add_to_db)
+            logger.info(f"Adding {len(penalties_to_add_to_db)} new unique penalties to Penalty table.")
         else:
-             logger.info("Default penalties already seem to exist or none provided.")
+            logger.info("No new unique penalties to add to Penalty table from definitions.")
 
         # Commit changes if anything was added
-        if games_to_add or penalties_to_add:
+        if games_to_add_to_db or penalties_to_add_to_db:
             db.session.commit()
             logger.info("Database seeding committed.")
         else:
-            logger.info("No new default data needed.")
+            logger.info("No new data from definitions to seed into master tables.")
 
     except Exception as e:
-        db.session.rollback() # Rollback on error
-        logger.error(f"Error seeding database: {e}", exc_info=True) # Log error with traceback
-        print(f"Error seeding database: {e}") # Also print for immediate feedback
+        db.session.rollback()
+        logger.error(f"Error seeding database from definitions: {e}", exc_info=True)
+        print(f"Error seeding database: {e}")
     finally:
-        # db.session.remove() # Optional
+        # db.session.remove() # Optional, depending on your session management
         pass
-    print("Database seeding finished.") # Keep print for CLI feedback
-
+    print("Database seeding from definitions finished.")
 
 
 @click.command("generate-key")
@@ -146,7 +112,7 @@ def generate_key_command(username):
 
     try:
         old_key = user.overlay_api_key
-        new_key = user.generate_overlay_key() # Call the new method
+        new_key = user.generate_overlay_key() # Call the method on the User model
         db.session.commit()
         if old_key:
             print(f"Successfully regenerated overlay API key for user '{username}'.")
@@ -167,5 +133,3 @@ def register_commands(app):
     app.cli.add_command(seed_db_command)
     app.cli.add_command(generate_key_command)
     # Add other custom commands here if you create more
-    # app.cli.add_command(another_command)
-

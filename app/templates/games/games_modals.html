@@ -1,78 +1,75 @@
-{# Confirmation Modal for Loading Defaults #}
-<div class="modal fade" id="confirmLoadDefaultModal" tabindex="-1" role="dialog" aria-labelledby="confirmLoadDefaultModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" role="document">
-    <div class="modal-content"> {# Style handled by style.css #}
+{# app/templates/games/games_modals.html #}
+
+{# Modal for Adding a New Game Entry #}
+<div class="modal fade" id="newGameModal" tabindex="-1" aria-labelledby="newGameModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="confirmLoadDefaultModalLabel">Load Default Entries</h5>
+        <h5 class="modal-title" id="newGameModalLabel"><i class="bi bi-controller me-2"></i>Add New Game Entry</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
       <div class="modal-body">
-        Are you sure you want to load the default entries from the database? This will override entries currently in your local 'Default' tab.
+        <div id="newGameAlert" class="mb-3"></div>
+        <form id="newGameForm">
+          <div class="mb-3">
+            <label for="newGameName" class="form-label"><i class="bi bi-joystick me-1"></i>Game Name</label>
+            <input type="text" class="form-control" id="newGameName" name="newGameName" placeholder="E.g., Valorant, League of Legends" required>
+          </div>
+          <div class="mb-3">
+            <label for="newGameMode" class="form-label"><i class="bi bi-gear-wide-connected me-1"></i>Game Mode</label>
+            <input type="text" class="form-control" id="newGameMode" name="newGameMode" placeholder="E.g., Ranked, Aram, Casual" required>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="newDifficulty" class="form-label"><i class="bi bi-graph-up me-1"></i>Difficulty (0.2 - 10.0)</label>
+              <input type="number" class="form-control" id="newDifficulty" name="newDifficulty" step="0.1" min="0.2" max="10.0" placeholder="5.0" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="newPlayers" class="form-label"><i class="bi bi-people-fill me-1"></i>Number of Players</label>
+              <input type="number" class="form-control" id="newPlayers" name="newPlayers" step="1" min="1" max="99" placeholder="1" required>
+            </div>
+          </div>
+        </form>
       </div>
       <div class="modal-footer">
-        <button type="button" id="cancelLoadDefaultBtn" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        <button type="button" id="confirmLoadDefaultBtn" class="btn btn-primary">Yes, Load</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveNewGameBtn"><i class="bi bi-check-circle-fill me-1"></i>Save Game Entry</button>
       </div>
     </div>
   </div>
 </div>
 
 
-{# Modal for Inserting a New Game Entry #}
-<div class="modal fade" id="newGameModal" tabindex="-1" role="dialog" aria-labelledby="newGameModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content"> {# Style handled by style.css #}
-        <div class="modal-header">
-          <h5 class="modal-title" id="newGameModalLabel">Insert New Game Entry</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form id="newGameForm" novalidate>
-            <div id="newGameAlert"></div> {# For JS alerts #}
-            <div class="form-group"> <label for="newGameName">Game</label> <input type="text" class="form-control" id="newGameName" name="Spiel" placeholder="Game Name" list="existingGames" required> <datalist id="existingGames"> {% for g in existing_games %} <option value="{{ g }}"> {% endfor %} </datalist> </div>
-            <div class="form-group"> <label for="newGameMode">Game Mode</label> <input type="text" class="form-control" id="newGameMode" name="Spielmodus" placeholder="Game Mode (e.g., Ranked, Casual)" required> </div>
-            <div class="form-group"> <label for="newDifficulty">Difficulty (0.0 to 10.0)</label> <input type="number" class="form-control" id="newDifficulty" name="Schwierigkeit" min="0" max="10" step="0.1" placeholder="e.g., 7.5" required> </div>
-            <div class="form-group"> <label for="newPlayers">Number of Players (1 to 99)</label> <input type="number" class="form-control" id="newPlayers" name="Spieleranzahl" min="1" max="99" step="1" placeholder="e.g., 5" required> </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          {# *** Ensure this ID is correct *** #}
-          <button type="button" id="saveNewGameBtn" class="btn btn-primary">Save New Entry</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        </div>
+{# Modal for Editing an Existing Game Entry #}
+<div class="modal fade" id="editGameModal" tabindex="-1" aria-labelledby="editGameModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editGameModalLabel">
+            <i class="bi bi-pencil-square me-2"></i>Edit Game: <span id="editGameNameDisplay" class="fw-bold">Game Name</span>
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>
-    </div>
-  </div>
-
-  {# Modal for Editing Game Modes (Redesigned) #}
-  <div class="modal fade" id="editGameModal" tabindex="-1" role="dialog" aria-labelledby="editGameModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-      <div class="modal-content"> {# Style handled by style.css #}
-        <div class="modal-header">
-          <h5 class="modal-title" id="editGameModalLabel">Edit Game Modes for: <span id="editGameNameDisplay" class="font-weight-bold"></span></h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body"> {# *** Ensure this has class="modal-body" *** #}
-          <form id="editGameForm" novalidate>
-            <div id="editGameAlert"></div> {# For JS alerts #}
-            <input type="hidden" id="editGameNameHidden" name="game_name">
-            {# Container where JS injects inputs #}
+      <div class="modal-body">
+        {# The form tag was missing an ID. Added id="editGameForm" #}
+        <form id="editGameForm"> 
+            <input type="hidden" id="editGameNameHidden" name="editGameNameHidden">
+            <div id="editGameAlert" class="mb-3"></div>
+            
+            <h6 class="mb-3"><i class="bi bi-gear-fill me-2"></i>Game Modes:</h6>
             <div id="editGameModesContainer">
-                <p class="text-muted">Loading modes...</p>
+              <p class="text-center text-secondary p-4">Loading game modes...</p>
             </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-           {# *** Ensure this ID is correct *** #}
-          <button type="button" id="updateGameBtn" class="btn btn-primary">Save Changes</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        </div>
+        </form> {# Closing the form tag here, before the footer #}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+        <button type="button" class="btn btn-primary" id="updateGameBtn"><i class="bi bi-check-circle-fill me-1"></i>Save Changes</button>
       </div>
     </div>
   </div>
+</div>

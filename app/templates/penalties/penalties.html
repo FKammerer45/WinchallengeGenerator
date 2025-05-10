@@ -1,4 +1,4 @@
-{# app/templates/penalties.html #}
+{# app/templates/penalties/penalties.html #}
 
 {% extends "base.html" %}
 {% block title %}Penalties Configuration{% endblock %}
@@ -8,7 +8,6 @@
     {{ super() }}
     <style>
         body { background-color: var(--base-bg, #030712); }
-        /* Add a subtle hover effect for non-active tabs if not already in style.css */
         .config-page-container .nav-tabs .nav-link:not(.active):hover {
             background-color: var(--surface-highlight, rgba(255,255,255,0.05));
             border-color: transparent;
@@ -30,18 +29,20 @@
   <p class="text-secondary mb-4">
     Manage your penalty lists. Tabs are saved locally if not logged in.
     For logged-in users, changes are saved automatically.
-    Double-click a tab name (except Default) to rename it locally.
+    Double-click a tab name (except system defaults) to rename it.
   </p>
 
-  {# --- Pass data to JavaScript (No change here) --- #}
+  {# --- Pass data to JavaScript --- #}
   <script>
     const isLoggedIn = {{ current_user.is_authenticated| tojson }};
     const csrfToken = "{{ csrf_token() }}";
     window.isLoggedIn = isLoggedIn;
     window.csrfToken = csrfToken;
+    // Placeholder for system default definitions that JS will fetch or receive
+    window.SYSTEM_DEFAULT_PENALTY_TABS = {}; 
   </script>
 
-  {# --- Confirmation Modal for Loading Defaults (Penalty Specific) - No structural change needed --- #}
+  {# --- Confirmation Modal for Loading Defaults (Penalty Specific) - Kept for now, JS will decide its new role --- #}
   <div class="modal fade" id="confirmLoadDefaultPenaltiesModal" tabindex="-1" role="dialog" aria-labelledby="confirmLoadDefaultPenaltiesModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
       <div class="modal-content">
@@ -52,6 +53,7 @@
           </button>
         </div>
         <div class="modal-body">
+          {_ This message will be updated by JS if the button's function changes. _}
           Load global defaults? This will override penalties currently in your local 'Default' tab.
         </div>
         <div class="modal-footer">
@@ -62,7 +64,7 @@
     </div>
   </div>
 
-  {# --- Top Button Row (Conditional on Login) - REFINED --- #}
+  {# --- Top Button Row (Conditional on Login) --- #}
   {% if current_user.is_authenticated %}
   <div class="d-flex justify-content-between align-items-center mb-3 pb-2 flex-wrap action-button-row" style="border-bottom: 1px solid var(--surface-border);">
       <div class="btn-group mb-2" role="group" aria-label="Penalty Tab Actions">
@@ -73,21 +75,17 @@
               <i class="bi bi-trash3 me-1"></i>Delete Current Tab
           </button>
       </div>
-      <small class="text-secondary mb-2">Max 5 custom tabs allowed.</small>
+      <small class="text-secondary mb-2">Max 5 custom tabs allowed (excluding system defaults).</small>
   </div>
   {% endif %}
   {# --- End Top Button Row --- #}
 
-  {# --- Tabs Navigation - Refined Add Button --- #}
+  {# --- Tabs Navigation --- #}
   <ul class="nav nav-tabs mb-0" id="penaltiesTab" role="tablist">
+    {# JS will insert system default tabs and user-specific tabs here #}
     <li class="nav-item">
-       <a class="nav-link active" id="default-penalty-tab" data-toggle="tab" href="#default" role="tab" aria-controls="default"
-        aria-selected="true" title="This tab cannot be renamed or deleted.">Default</a>
-    </li>
-    {# JS inserts other tabs here #}
-    <li class="nav-item">
-      <a class="nav-link add-tab-button" href="#" id="addPenaltyTabBtn" role="tab" title="Add New Penalty Tab">
-        <i class="bi bi-plus-circle-dotted"></i> {# Using a Bootstrap Icon #}
+      <a class="nav-link add-tab-button" href="#" id="addPenaltyTabBtn" role="tab" title="Add New Custom Penalty Tab">
+        <i class="bi bi-plus-circle-dotted"></i>
       </a>
     </li>
     <li id="loadingPenaltyTabsPlaceholder" class="nav-item ms-2 align-self-center text-secondary small" style="display: none;">
@@ -98,25 +96,40 @@
 
   {# --- Tab Content --- #}
   <div class="tab-content" id="penaltiesTabContent">
-    <div class="tab-pane fade show active" id="default" role="tabpanel" aria-labelledby="default-penalty-tab">
+    {# JS will insert tab panes here for system defaults and user-specific tabs #}
+    {# Example of how a dynamically added tab pane might look (for JS reference):
+    <div class="tab-pane fade" id="some-penalty-client-tab-id" role="tabpanel" aria-labelledby="link-to-some-penalty-client-tab-id">
        <div class="d-flex justify-content-start my-3 flex-wrap gap-2">
-           <button id="loadDefaultPenaltiesBtn" class="btn btn-warning" title="Load default penalties from the database into this local tab">
-               <i class="bi bi-cloud-download me-1"></i>Load Global Defaults
-           </button>
-           <button class="btn btn-primary insertPenaltyBtn" data-tab="default" title="Add a new penalty to this tab">
+           <button class="btn btn-primary insertPenaltyBtn" data-tab="some-penalty-client-tab-id" title="Add a new penalty to this tab">
                <i class="bi bi-plus-lg me-1"></i>Insert New Penalty
            </button>
        </div>
-       {% include "penalties/penalties_table.html" %}
+       <! -- include "penalties/penalties_table.html" but the tbody will be specific to this tab -->
+        <div class="glass-effect p-1 rounded">
+          <div class="table-responsive">
+            <table class="table table-hover table-sm config-table mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Probability (0.0-1.0)</th>
+                  <th scope="col">Description</th>
+                </tr>
+              </thead>
+              <tbody class="penaltiesTable"> <! -- JS populates this based on tabId -->
+                <tr><td colspan="3" class="text-center text-secondary py-4">Loading penalties...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
     </div>
-     {# JS inserts other tab panes here #}
+    #}
   </div>
   {# --- End Tab Content --- #}
 
   {# Modals #}
   {% include "penalties/penalties_modals.html" %}
   {{ forms.confirm_action_modal(modal_id='actionConfirmModal', title_id='actionConfirmTitle', body_id='actionConfirmBody', ok_id='actionConfirmOk') }}
-  {{ forms.rename_tab_modal('penalty') }}
+  {{ forms.rename_tab_modal('penalty') }} {# For renaming penalty tabs #}
 
 </div> {# End Container #}
 {% endblock %}
