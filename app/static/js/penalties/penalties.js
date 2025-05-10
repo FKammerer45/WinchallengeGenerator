@@ -15,50 +15,44 @@ import {
     renderPenaltiesForTab,
     handleSaveNewPenalty,
     handleUpdatePenalty,
-    // handleDeleteSinglePenalty // This is usually triggered from a modal/context, not a top-level button
 } from "./penaltyEntryManagement.js";
 import {
     attachPenaltyTabRenameHandler,
     attachDeletePenaltyTabHandler,
     triggerAutosavePenalties,
     handleDuplicatePenaltyTab,
-    // ensureUserDefaultPenaltyTabs // This is called from form.js or if needed here for robustness
 } from "./penaltyExtensions.js";
 import { escapeHtml, confirmModal, showFlash } from "../utils/helpers.js";
 import { apiFetch } from "../utils/api.js";
 
-// Global state for logged-in users
-window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Use 'entries' key for consistency
+// --- Global States ---
+window.userPenaltyTabsData = { tabs: {}, entries: {} };
 window.SYSTEM_DEFAULT_PENALTY_TABS = {};
 
-// API URL Constants
+// --- Constants for API URLs ---
 const SYSTEM_PENALTY_DEFINITIONS_URL = '/api/penalties/default_definitions';
 const USER_PENALTY_TABS_LOAD_URL = '/api/penalties/load_tabs';
 const USER_PENALTY_TABS_SAVE_URL = '/api/penalties/save_tab';
-const PRIMARY_PENALTY_DEFAULT_ID = "default-all-penalties"; // e.g.
+const PRIMARY_PENALTY_DEFAULT_ID = "default-all-penalties"; // Ensure this matches your actual primary default
 
-// --- Utility: Update Tab Group Visibility for Penalties ---
+// --- Utility: Update Tab Group Visibility ---
 export function updatePenaltyTabGroupVisibility() {
-    const isLoggedIn = window.isLoggedIn === true;
-    const tabsData = isLoggedIn ? (window.userPenaltyTabsData?.tabs || {}) : getLocalOnlyPenaltyTabs();
-    
-    const systemDefaultClientTabIds = window.SYSTEM_DEFAULT_PENALTY_TABS
-        ? Object.values(window.SYSTEM_DEFAULT_PENALTY_TABS).map(def => def.client_tab_id)
-        : [];
+    const systemTabListEl = document.getElementById('penaltiesSystemTabList');
+    const customTabListEl = document.getElementById('penaltiesCustomTabList');
 
     let hasSystemTabs = false;
-    let hasCustomTabs = false;
-    for (const tabId in tabsData) {
-        if (systemDefaultClientTabIds.includes(tabId)) hasSystemTabs = true;
-        else hasCustomTabs = true;
+    if (systemTabListEl && systemTabListEl.querySelector('li.nav-item:not(.system-default-group-label):not(#loadingSystemPenaltyTabsPlaceholder) .nav-link')) {
+        hasSystemTabs = true;
     }
-
-    const systemTabsLabel = document.getElementById('systemPenaltyTabsLabel'); // Ensure these IDs exist in penalties.html
-    const customTabsSeparator = document.getElementById('customPenaltyTabsSeparator');
+    let hasCustomTabs = false;
+    if (customTabListEl && customTabListEl.querySelector('li.nav-item:not(.custom-group-label):not(#loadingCustomPenaltyTabsPlaceholder):not(#addPenaltyTabBtnContainer) .nav-link')) {
+        hasCustomTabs = true;
+    }
+    
+    const systemTabsLabel = document.getElementById('systemPenaltyTabsLabel');
     const customTabsLabel = document.getElementById('customPenaltyTabsLabel');
 
     if (systemTabsLabel) systemTabsLabel.style.display = hasSystemTabs ? 'list-item' : 'none';
-    if (customTabsSeparator) customTabsSeparator.style.display = hasSystemTabs && hasCustomTabs ? 'list-item' : 'none';
     if (customTabsLabel) customTabsLabel.style.display = hasCustomTabs ? 'list-item' : 'none';
 }
 
@@ -69,21 +63,21 @@ async function handleResetPenaltyTabToDefault(event) {
     if (!tabIdToReset) return showFlash("Could not identify penalty tab to reset.", "danger");
 
     const tabDefinition = window.SYSTEM_DEFAULT_PENALTY_TABS ? window.SYSTEM_DEFAULT_PENALTY_TABS[tabIdToReset] : null;
-    if (!tabDefinition || !Array.isArray(tabDefinition.penalties)) { // Check for 'penalties' key
-        return showFlash(`Original default entries for penalty tab "${tabIdToReset}" not found.`, "danger");
+    if (!tabDefinition || !Array.isArray(tabDefinition.penalties)) { 
+        return showFlash(`Original default entries for penalty tab "${escapeHtml(tabIdToReset)}" not found.`, "danger");
     }
-    const tabDisplayName = window.userPenaltyTabsData?.tabs?.[tabIdToReset]?.name || tabDefinition.name || tabIdToReset;
+    const tabDisplayName = (window.isLoggedIn ? window.userPenaltyTabsData?.tabs?.[tabIdToReset]?.name : getLocalOnlyPenaltyTabs()?.[tabIdToReset]?.name) || tabDefinition.name || tabIdToReset;
     const confirmed = await confirmModal(`Reset tab "${escapeHtml(tabDisplayName)}" to system defaults?`, "Confirm Reset");
     if (!confirmed) return;
 
     button.disabled = true;
-    const originalEntries = JSON.parse(JSON.stringify(tabDefinition.penalties)); // Use 'penalties'
+    const originalEntries = JSON.parse(JSON.stringify(tabDefinition.penalties || [])); 
 
     try {
         const isLoggedIn = window.isLoggedIn === true;
         if (isLoggedIn) {
             if (!window.userPenaltyTabsData || !window.userPenaltyTabsData.entries) throw new Error("User data not initialized.");
-            window.userPenaltyTabsData.entries[tabIdToReset] = originalEntries; // Use 'entries' key for state
+            window.userPenaltyTabsData.entries[tabIdToReset] = originalEntries; 
             triggerAutosavePenalties(tabIdToReset);
             showFlash(`Penalty tab "${escapeHtml(tabDisplayName)}" resetting...`, "info", 2000);
         } else {
@@ -102,28 +96,36 @@ async function handleResetPenaltyTabToDefault(event) {
 
 // --- Main DOMContentLoaded ---
 document.addEventListener("DOMContentLoaded", async () => {
+    const penaltiesPageMarker = document.getElementById('penaltiesSystemTabList');
+    if (!penaltiesPageMarker) {
+        // console.log("Not on the penalties page. penalties.js will not execute its main logic."); // Optional: for debugging
+        return; // Silently abort if not on the penalties page
+    }
     const penaltiesTabContent = document.getElementById("penaltiesTabContent");
-    if (!penaltiesTabContent) return; // Not on penalties page
+    const systemTabListEl = document.getElementById('penaltiesSystemTabList');
+    const customTabListEl = document.getElementById('penaltiesCustomTabList');
+
+    if (!penaltiesTabContent || !systemTabListEl || !customTabListEl) {
+        console.error("Essential penalty tab container elements missing. Aborting penalties.js initialization.");
+        return;
+    }
 
     console.log("Initializing Penalties page (penalties.js)...");
     const isLoggedIn = window.isLoggedIn === true;
     const csrfToken = window.csrfToken;
 
-    const loadingPlaceholder = document.getElementById('loadingPenaltyTabsPlaceholder'); // Ensure this ID exists
-    const tabListElement = document.getElementById('penaltiesTab'); // Ensure this ID exists
-    const addTabButtonElement = document.getElementById("addPenaltyTabBtn"); // Ensure this ID exists
-    const addTabBtnLi = addTabButtonElement?.closest('li.nav-item');
-    const customTabsSeparator = document.getElementById('customPenaltyTabsSeparator'); // Ensure this ID exists
-    const systemTabsLabel = document.getElementById('systemPenaltyTabsLabel'); // Ensure this ID exists
-    const customTabsLabel = document.getElementById('customPenaltyTabsLabel'); // Ensure this ID exists
-    const duplicateBtn = document.getElementById('duplicatePenaltyTabBtn'); // Ensure this ID exists
+    const loadingSystemPlaceholder = document.getElementById('loadingSystemPenaltyTabsPlaceholder');
+    const loadingCustomPlaceholder = document.getElementById('loadingCustomPenaltyTabsPlaceholder');
+    const duplicateBtn = document.getElementById('duplicatePenaltyTabBtn');
 
-    if (loadingPlaceholder) loadingPlaceholder.style.display = 'block';
-    if (tabListElement) { /* Clear dynamic tabs */ }
-    if (penaltiesTabContent) penaltiesTabContent.innerHTML = '';
-    if (customTabsSeparator) customTabsSeparator.style.display = 'none';
-    if (systemTabsLabel) systemTabsLabel.style.display = 'none';
-    if (customTabsLabel) customTabsLabel.style.display = 'none';
+    if (loadingSystemPlaceholder) loadingSystemPlaceholder.style.display = 'list-item';
+    if (loadingCustomPlaceholder) loadingCustomPlaceholder.style.display = 'list-item';
+
+    systemTabListEl.querySelectorAll('li.nav-item:not(.system-default-group-label):not(#loadingSystemPenaltyTabsPlaceholder)').forEach(li => li.remove());
+    customTabListEl.querySelectorAll('li.nav-item:not(.custom-group-label):not(#loadingCustomPenaltyTabsPlaceholder):not(#addPenaltyTabBtnContainer)').forEach(li => li.remove());
+    penaltiesTabContent.innerHTML = '';
+
+    updatePenaltyTabGroupVisibility();
 
     try {
         const systemDefaultsApiResponse = await apiFetch(SYSTEM_PENALTY_DEFINITIONS_URL);
@@ -141,101 +143,183 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (typeof userSavedTabsFromApi !== 'object' || userSavedTabsFromApi === null) userSavedTabsFromApi = {};
             } catch (e) { userSavedTabsFromApi = {}; showFlash("Could not load saved penalty tabs.", "warning");}
             
-            window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Use 'entries' key
+            window.userPenaltyTabsData = { tabs: {}, entries: {} }; 
 
             for (const defKey in window.SYSTEM_DEFAULT_PENALTY_TABS) {
                 const sysDef = window.SYSTEM_DEFAULT_PENALTY_TABS[defKey];
                 const clientTabId = sysDef.client_tab_id;
-                if (!userSavedTabsFromApi[clientTabId]) {
-                    // Penalties definitions use 'penalties' key for entries
+                if (!userSavedTabsFromApi[clientTabId]) { 
                     const savePayload = { tabId: clientTabId, tabName: sysDef.name, penalties: sysDef.penalties || [] };
                     try {
                         const resp = await apiFetch(USER_PENALTY_TABS_SAVE_URL, { method: 'POST', body: savePayload }, csrfToken);
                         if (resp.status === 'ok' && resp.saved_tab) {
                             window.userPenaltyTabsData.tabs[clientTabId] = { name: resp.saved_tab.tab_name };
-                            window.userPenaltyTabsData.entries[clientTabId] = resp.saved_tab.penalties || []; // Use 'penalties' from response
-                        } else throw new Error(resp.error);
-                    } catch (e) {
-                        showFlash(`Could not init default penalty tab: ${sysDef.name}.`, "warning");
+                            window.userPenaltyTabsData.entries[clientTabId] = resp.saved_tab.penalties || [];
+                        } else throw new Error(resp.error || `Failed to save default penalty tab ${sysDef.name}`);
+                    } catch (e) { 
+                        showFlash(`Could not initialize default penalty tab: ${sysDef.name}. Using read-only version.`, "warning");
                         window.userPenaltyTabsData.tabs[clientTabId] = { name: sysDef.name };
-                        window.userPenaltyTabsData.entries[clientTabId] = sysDef.penalties || []; // Fallback
+                        window.userPenaltyTabsData.entries[clientTabId] = sysDef.penalties || []; 
                     }
-                } else {
+                } else { 
                     window.userPenaltyTabsData.tabs[clientTabId] = { name: userSavedTabsFromApi[clientTabId].tab_name };
-                    window.userPenaltyTabsData.entries[clientTabId] = userSavedTabsFromApi[clientTabId].penalties || []; // Use 'penalties'
+                    window.userPenaltyTabsData.entries[clientTabId] = userSavedTabsFromApi[clientTabId].penalties || [];
                 }
             }
             for (const tabId in userSavedTabsFromApi) {
-                if (!window.userPenaltyTabsData.tabs[tabId]) {
+                if (!window.userPenaltyTabsData.tabs[tabId]) { 
                     window.userPenaltyTabsData.tabs[tabId] = { name: userSavedTabsFromApi[tabId].tab_name };
-                    window.userPenaltyTabsData.entries[tabId] = userSavedTabsFromApi[tabId].penalties || []; // Use 'penalties'
+                    window.userPenaltyTabsData.entries[tabId] = userSavedTabsFromApi[tabId].penalties || [];
                 }
             }
-        } else {
-            let localTabs = getLocalOnlyPenaltyTabs(); let localEntries = getLocalOnlyPenaltyEntries(); let updated = false;
+        } else { 
+            let localTabs = getLocalOnlyPenaltyTabs(); 
+            let localEntries = getLocalOnlyPenaltyEntries(); 
+            let updatedLocal = false;
             for (const defKey in window.SYSTEM_DEFAULT_PENALTY_TABS) {
-                const sysDef = window.SYSTEM_DEFAULT_PENALTY_TABS[defKey]; const clientTabId = sysDef.client_tab_id;
+                const sysDef = window.SYSTEM_DEFAULT_PENALTY_TABS[defKey]; 
+                const clientTabId = sysDef.client_tab_id;
                 if (!localTabs[clientTabId]) {
                     localTabs[clientTabId] = { name: sysDef.name };
-                    localEntries[clientTabId] = sysDef.penalties || []; // Use 'penalties'
-                    updated = true;
+                    localEntries[clientTabId] = sysDef.penalties || []; 
+                    updatedLocal = true;
                 }
             }
-            if (updated) { setLocalOnlyPenaltyTabs(localTabs); setLocalOnlyPenaltyEntries(localEntries); }
+            if (updatedLocal) { 
+                setLocalOnlyPenaltyTabs(localTabs); 
+                setLocalOnlyPenaltyEntries(localEntries); 
+            }
         }
 
         const tabsToRenderData = isLoggedIn ? window.userPenaltyTabsData.tabs : getLocalOnlyPenaltyTabs();
-        const systemDefaultIds = window.SYSTEM_DEFAULT_PENALTY_TABS ? Object.values(window.SYSTEM_DEFAULT_PENALTY_TABS).map(def => def.client_tab_id) : [];
-        const systemTabs = [], customTabs = [];
-        for (const tabId in tabsToRenderData) { (systemDefaultIds.includes(tabId) ? systemTabs : customTabs).push({ id: tabId, name: tabsToRenderData[tabId].name }); }
-        systemTabs.sort((a,b) => (a.id === PRIMARY_PENALTY_DEFAULT_ID ? -1 : b.id === PRIMARY_PENALTY_DEFAULT_ID ? 1 : a.name.localeCompare(b.name)));
-        customTabs.sort((a,b) => a.name.localeCompare(b.name));
+        const systemDefaultClientTabIds = Object.values(window.SYSTEM_DEFAULT_PENALTY_TABS).map(def => def.client_tab_id);
+        
+        const systemTabsToDisplay = [];
+        const customTabsToDisplay = [];
 
-        systemTabs.forEach(t => { createPenaltyTabUI(t.id, t.name, customTabsSeparator || addTabBtnLi); renderPenaltiesForTab(t.id); });
-        customTabs.forEach(t => { createPenaltyTabUI(t.id, t.name, addTabBtnLi); renderPenaltiesForTab(t.id); });
+        for (const tabId in tabsToRenderData) {
+            const isSystem = systemDefaultClientTabIds.includes(tabId);
+            (isSystem ? systemTabsToDisplay : customTabsToDisplay).push({ 
+                id: tabId, 
+                name: tabsToRenderData[tabId].name,
+                isSystemDefault: isSystem 
+            });
+        }
+
+        systemTabsToDisplay.sort((a,b) => (a.id === PRIMARY_PENALTY_DEFAULT_ID ? -1 : b.id === PRIMARY_PENALTY_DEFAULT_ID ? 1 : a.name.localeCompare(b.name)));
+        customTabsToDisplay.sort((a,b) => a.name.localeCompare(b.name));
+
+        if (loadingSystemPlaceholder) loadingSystemPlaceholder.style.display = 'none';
+        systemTabsToDisplay.forEach(t => { createPenaltyTabUI(t.id, t.name, t.isSystemDefault); renderPenaltiesForTab(t.id); });
+        
+        if (loadingCustomPlaceholder) loadingCustomPlaceholder.style.display = 'none';
+        customTabsToDisplay.forEach(t => { createPenaltyTabUI(t.id, t.name, t.isSystemDefault); renderPenaltiesForTab(t.id); });
         
         updatePenaltyTabGroupVisibility();
 
-        if (tabListElement && addTabBtnLi) tabListElement.appendChild(addTabBtnLi);
-        if (tabListElement && loadingPlaceholder) tabListElement.appendChild(loadingPlaceholder);
-
         let tabToActivateId = PRIMARY_PENALTY_DEFAULT_ID;
-        if (!tabsToRenderData[PRIMARY_PENALTY_DEFAULT_ID] && systemTabs.length > 0) tabToActivateId = systemTabs[0].id;
-        else if (!tabsToRenderData[PRIMARY_PENALTY_DEFAULT_ID] && customTabs.length > 0) tabToActivateId = customTabs[0].id;
-        let firstTabLink = document.querySelector(`#penaltiesTab .nav-link[href="#${tabToActivateId}"]`);
-        if (!firstTabLink && (systemTabs.length || customTabs.length)) firstTabLink = tabListElement.querySelector('.nav-item:not(.system-default-group-label):not(.custom-group-label):not(.tabs-spacer) .nav-link');
-        if (firstTabLink) $(firstTabLink).tab('show');
-        else if (penaltiesTabContent && !systemTabs.length && !customTabs.length) penaltiesTabContent.innerHTML = '<p class="text-center text-secondary p-5">No penalty tabs.</p>';
+        const primaryDefaultDataExists = Object.prototype.hasOwnProperty.call(tabsToRenderData, PRIMARY_PENALTY_DEFAULT_ID);
+
+        if (!primaryDefaultDataExists && systemTabsToDisplay.length > 0) {
+            tabToActivateId = systemTabsToDisplay[0].id;
+        } else if (!primaryDefaultDataExists && customTabsToDisplay.length > 0) { 
+            tabToActivateId = customTabsToDisplay[0].id;
+        } else if (!primaryDefaultDataExists && systemTabsToDisplay.length === 0 && customTabsToDisplay.length === 0) {
+            tabToActivateId = null; 
+        }
+        
+        let firstTabLink = null;
+        if (tabToActivateId) { 
+            const escapedTabId = CSS.escape(tabToActivateId);
+            firstTabLink = document.querySelector(`#penaltiesSystemTabList .nav-link[href="#${escapedTabId}"], #penaltiesCustomTabList .nav-link[href="#${escapedTabId}"]`);
+        }
+        
+        if (!firstTabLink && (systemTabsToDisplay.length > 0 || customTabsToDisplay.length > 0)) {
+            firstTabLink = systemTabListEl.querySelector('.nav-item:not(.system-default-group-label):not(#loadingSystemPenaltyTabsPlaceholder) .nav-link') || 
+                           customTabListEl.querySelector('.nav-item:not(.custom-group-label):not(#loadingCustomPenaltyTabsPlaceholder):not(#addPenaltyTabBtnContainer) .nav-link');
+        }
+
+        if (firstTabLink && typeof $ !== 'undefined' && $.fn.tab) {
+            // **FIX for querySelector Error & Multiple Active Tabs**: Deactivate all before activating one.
+            document.querySelectorAll('#penaltiesSystemTabList .nav-link, #penaltiesCustomTabList .nav-link').forEach(link => {
+                link.classList.remove('active');
+                link.setAttribute('aria-selected', 'false');
+                const paneId = link.getAttribute('href');
+                // **CRITICAL FIX**: Ensure paneId is a valid selector (not just "#")
+                if (paneId && paneId.startsWith('#') && paneId.length > 1) { 
+                    const pane = document.querySelector(paneId);
+                    if (pane) pane.classList.remove('show', 'active');
+                }
+            });
+            $(firstTabLink).tab('show'); 
+            console.log(`Activated penalty tab: ${firstTabLink.getAttribute('href').substring(1)}`);
+        } else if (penaltiesTabContent && systemTabsToDisplay.length === 0 && customTabsToDisplay.length === 0) {
+            penaltiesTabContent.innerHTML = '<p class="text-center text-secondary p-5">No penalty tabs available.</p>';
+        }
 
     } catch (error) {
         console.error("Error during Penalties page initialization:", error);
         showFlash(`Initialization Error: ${error.message}`, "danger");
-        if (penaltiesTabContent) penaltiesTabContent.innerHTML = `<div class="alert alert-danger p-5 text-center">Page failed to load.</div>`;
+        if (penaltiesTabContent) penaltiesTabContent.innerHTML = `<div class="alert alert-danger p-5 text-center">Page failed to load: ${error.message}</div>`;
     } finally {
-        if (loadingPlaceholder) loadingPlaceholder.style.display = 'none';
+        if (loadingSystemPlaceholder) loadingSystemPlaceholder.style.display = 'none';
+        if (loadingCustomPlaceholder) loadingCustomPlaceholder.style.display = 'none';
     }
 
-    // Attach Event Listeners
-    if (addTabButtonElement) addTabButtonElement.addEventListener("click", (e) => { e.preventDefault(); createNewPenaltyTab(); });
-    if (isLoggedIn && duplicateBtn) duplicateBtn.addEventListener('click', handleDuplicatePenaltyTab);
+    const addTabButton = document.getElementById("addPenaltyTabBtn");
+    if (addTabButton) {
+        addTabButton.addEventListener("click", (e) => { e.preventDefault(); createNewPenaltyTab(); updatePenaltyTabGroupVisibility(); });
+    }
+    if (isLoggedIn && duplicateBtn) {
+        duplicateBtn.addEventListener('click', ()=>{ handleDuplicatePenaltyTab(); updatePenaltyTabGroupVisibility(); });
+    } else if (duplicateBtn && !isLoggedIn) {
+        duplicateBtn.style.display = 'none';
+    }
     
-    if (penaltiesTabContent) {
-        penaltiesTabContent.addEventListener("click", (e) => {
-            if (e.target?.classList.contains("insertPenaltyBtn")) {
-                window.currentPenaltyTargetTab = e.target.getAttribute("data-tab");
-                document.getElementById("newPenaltyAlert")?.replaceChildren();
-                document.getElementById("newPenaltyForm")?.reset(); // Ensure this form ID exists
-                $('#newPenaltyModal').modal('show'); // Ensure this modal ID exists
-            } else if (e.target?.classList.contains("reset-penalty-tab-to-default-btn") || e.target.closest('.reset-penalty-tab-to-default-btn')) {
-                handleResetPenaltyTabToDefault(e);
+    penaltiesTabContent.addEventListener("click", (e) => {
+        if (e.target?.classList.contains("insertPenaltyBtn")) {
+            window.currentPenaltyTargetTab = e.target.getAttribute("data-tab");
+            document.getElementById("newPenaltyAlert")?.replaceChildren();
+            document.getElementById("newPenaltyForm")?.reset();
+            $('#newPenaltyModal').modal('show');
+        } else if (e.target?.classList.contains("reset-penalty-tab-to-default-btn") || e.target.closest('.reset-penalty-tab-to-default-btn')) {
+            handleResetPenaltyTabToDefault(e);
+        }
+    });
+
+    document.getElementById("saveNewPenaltyBtn")?.addEventListener("click", handleSaveNewPenalty);
+    document.getElementById("updatePenaltyBtn")?.addEventListener("click", handleUpdatePenalty);
+    
+    attachPenaltyTabRenameHandler(); 
+    if (isLoggedIn) attachDeletePenaltyTabHandler(); 
+
+    // Event listener for Bootstrap's tab shown event to ensure single active tab
+    // Ensure this targets only penalty page tabs if you have other tabs on the site
+    $('.config-page-container a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        const newlyActiveTabHref = $(e.target).attr('href');
+    
+        $('#penaltiesSystemTabList .nav-link, #penaltiesCustomTabList .nav-link').each(function() {
+            const $thisLink = $(this);
+            const currentHref = $thisLink.attr('href');
+
+            if (currentHref !== newlyActiveTabHref) {
+                if ($thisLink.hasClass('active')) {
+                    $thisLink.removeClass('active').attr('aria-selected', 'false');
+                }
+                // Also ensure the corresponding pane is deactivated
+                if (currentHref && currentHref.length > 1 && $(currentHref).hasClass('show')) {
+                    $(currentHref).removeClass('show active');
+                }
+            } else {
+                // Ensure the one shown by Bootstrap is correctly marked (it should be)
+                if (!$thisLink.hasClass('active')) {
+                    $thisLink.addClass('active').attr('aria-selected', 'true');
+                }
+                if (currentHref && currentHref.length > 1 && (!$(currentHref).hasClass('show') || !$(currentHref).hasClass('active'))) {
+                    $(currentHref).addClass('show active');
+                }
             }
         });
-    }
-    // Listener for edit modal save is usually on the modal's save button
-    document.getElementById("saveNewPenaltyBtn")?.addEventListener("click", handleSaveNewPenalty); // Ensure this ID exists
-    document.getElementById("updatePenaltyBtn")?.addEventListener("click", handleUpdatePenalty); // Ensure this ID exists
-    
-    attachPenaltyTabRenameHandler();
-    if (isLoggedIn) attachDeletePenaltyTabHandler();
+    });
     console.log("Penalties page initialization finished.");
 });

@@ -100,59 +100,118 @@ export function triggerAutosavePenalties(tabId) {
 
 // --- Tab Rename Handler for Penalties ---
 export function attachPenaltyTabRenameHandler() {
-    const container = document.getElementById("penaltiesTab");
-    if (!container) return;
-    let activeLink = null, activeId = null;
+    // Attach to a static parent element that exists on page load.
+    // '.config-page-container' is a good candidate if it wraps the tabs.
+    const tabAreaContainer = document.querySelector(".config-page-container"); 
+    
+    if (!tabAreaContainer) {
+        console.error("Could not find '.config-page-container' to attach penalty tab rename listener.");
+        return;
+    }
 
-    container.addEventListener("dblclick", (e) => {
-        const link = e.target.closest(".nav-link");
-        if (!link || link.classList.contains('system-default-tab-link') || link.id === 'addPenaltyTabBtn') {
-            if (link && link.classList.contains('system-default-tab-link')) {
-                showFlash("System default penalty tabs cannot be renamed.", "info");
-            }
+    let activeRenameLink = null; // Stores the link being renamed
+    let activeRenameId = null;   // Stores the ID of the tab being renamed
+
+    // Use event delegation for dynamically added tabs
+    tabAreaContainer.addEventListener("dblclick", (e) => {
+        // Find the closest nav-link that was double-clicked
+        const link = e.target.closest("#penaltiesSystemTabList .nav-link, #penaltiesCustomTabList .nav-link");
+
+        if (!link) return; // Double-click was not on a tab link
+
+        // Prevent renaming system default tabs (assuming they have a specific class or ID pattern)
+        // System default tabs created by createTabFromLocalData have 'system-default-tab-link' class.
+        if (link.classList.contains('system-default-tab-link')) {
+            showFlash("System default penalty tabs cannot be renamed.", "info");
             return;
         }
-        activeLink = link;
-        activeId = link.dataset.tab || link.getAttribute("href")?.substring(1);
+        // Also, don't try to rename the "Add Tab" button if it's styled as a nav-link
+        if (link.id === 'addPenaltyTabBtn') { // Check against the ID of the add button's <a> tag
+            return;
+        }
+
+        activeRenameLink = link;
+        // Prefer data-tab attribute for the ID, fallback to href
+        activeRenameId = link.dataset.tab || link.getAttribute("href")?.substring(1); 
+
+        if (!activeRenameId) {
+            console.error("Could not determine tab ID for renaming.");
+            activeRenameLink = null;
+            return;
+        }
+
         const currentName = link.textContent.trim();
-        const renameInput = document.getElementById("renamePenaltyTabInput"); // Ensure this ID exists in penalty modals
-        if (!renameInput) { console.error("Rename penalty tab input not found!"); return; }
+        const renameInput = document.getElementById("renamePenaltyTabInput"); // Input in the modal
+
+        if (!renameInput) { 
+            console.error("Rename penalty tab input field (renamePenaltyTabInput) not found in the modal!"); 
+            activeRenameLink = null; activeRenameId = null;
+            return; 
+        }
+        
         renameInput.value = currentName;
-        if (typeof $ !== 'undefined' && $.fn.modal) $('#renamePenaltyTabModal').modal('show'); // Ensure this modal ID exists
+
+        // Ensure the modal for renaming penalties is correctly targeted
+        // The rename_tab_modal macro generates IDs like 'rename-penalty-modal-label', 'renamePenaltyTabModal'
+        const renameModalElement = document.getElementById('renamePenaltyTabModal');
+        if (renameModalElement && typeof $ !== 'undefined' && $.fn.modal) {
+            $('#renamePenaltyTabModal').modal('show');
+        } else {
+            console.error("Rename penalty tab modal (renamePenaltyTabModal) not found or jQuery/Bootstrap modal not available.");
+            activeRenameLink = null; activeRenameId = null;
+        }
     });
 
-    const renameForm = document.getElementById("renamePenaltyTabForm"); // Ensure this ID exists
-    if (!renameForm) return;
+    const renameForm = document.getElementById("renamePenaltyTabForm"); // Form in the modal
+    if (!renameForm) {
+        console.error("Rename penalty tab form (renamePenaltyTabForm) not found!");
+        return;
+    }
+
     renameForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const renameInput = document.getElementById("renamePenaltyTabInput");
         const newName = renameInput?.value.trim();
-        const currentName = activeLink?.textContent.trim();
-        if (!activeLink || !activeId || !newName || newName === currentName) {
+        const currentNameFromLink = activeRenameLink?.textContent.trim(); // Get current name again in case
+
+        if (!activeRenameLink || !activeRenameId || !newName || newName === currentNameFromLink) {
             if (typeof $ !== 'undefined' && $.fn.modal) $('#renamePenaltyTabModal').modal('hide');
-            activeLink = null; activeId = null; return;
+            activeRenameLink = null; activeRenameId = null; 
+            return;
         }
+        
         if (typeof $ !== 'undefined' && $.fn.modal) $('#renamePenaltyTabModal').modal('hide');
+
         try {
             if (window.isLoggedIn) {
-                if (!window.userPenaltyTabsData?.tabs?.[activeId]) throw new Error("Penalty tab data not found.");
-                window.userPenaltyTabsData.tabs[activeId].name = newName;
-                activeLink.textContent = newName;
-                triggerAutosavePenalties(activeId);
+                if (!window.userPenaltyTabsData?.tabs?.[activeRenameId]) {
+                    throw new Error("Penalty tab data not found for logged-in user.");
+                }
+                window.userPenaltyTabsData.tabs[activeRenameId].name = newName;
+                activeRenameLink.textContent = newName;
+                triggerAutosavePenalties(activeRenameId); // Make sure this function is available
                 showFlash("Penalty tab renamed. Saving...", "info", 2000);
-            } else {
+            } else { // Anonymous user
                 const localTabs = getLocalOnlyPenaltyTabs();
-                if (!localTabs[activeId]) throw new Error("Local penalty tab not found.");
-                localTabs[activeId].name = newName;
+                if (!localTabs[activeRenameId]) {
+                    throw new Error("Local penalty tab not found for anonymous user.");
+                }
+                localTabs[activeRenameId].name = newName;
                 setLocalOnlyPenaltyTabs(localTabs);
-                activeLink.textContent = newName;
+                activeRenameLink.textContent = newName;
                 showFlash("Local penalty tab renamed.", "success");
             }
         } catch (err) {
             console.error("Penalty tab rename failed:", err);
             showFlash(`Failed to rename penalty tab: ${err.message}`, "danger");
-            if (activeLink && currentName) activeLink.textContent = currentName;
-        } finally { activeLink = null; activeId = null; }
+            // Revert text content if rename failed
+            if (activeRenameLink && currentNameFromLink) {
+                activeRenameLink.textContent = currentNameFromLink;
+            }
+        } finally { 
+            activeRenameLink = null; 
+            activeRenameId = null; 
+        }
     });
 }
 
