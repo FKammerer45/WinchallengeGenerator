@@ -60,16 +60,18 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
-    DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:'
-    WTF_CSRF_ENABLED = False
-    RECAPTCHA_ENABLED = False
-    MAIL_SUPPRESS_SEND = True
-    SECURITY_PASSWORD_SALT = 'testing-salt'
-    SECURITY_PASSWORD_RESET_SALT = 'testing-pw-reset-salt'
-    SECURITY_EMAIL_CHANGE_SALT = 'testing-email-change-salt'
-    # Disable rate limiting during tests unless specifically testing it
-    RATELIMIT_ENABLED = False
+    DEBUG = True # Keep True for easier debugging of the test instance
+    #SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:' # Old line
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or \
+        'mysql+pymysql://myappuser:YOUR_DB_PASSWORD@localhost/myappdb_test?charset=utf8mb4' # New line
+    WTF_CSRF_ENABLED = False # Usually False for testing
+    RECAPTCHA_ENABLED = False # Keep False for testing
+    MAIL_SUPPRESS_SEND = True # Keep True for testing
+    SECURITY_PASSWORD_SALT = 'testing-salt' # Keep as is or use an env var
+    SECURITY_PASSWORD_RESET_SALT = 'testing-pw-reset-salt' # Keep as is or use an env var
+    SECURITY_EMAIL_CHANGE_SALT = 'testing-email-change-salt' # Keep as is or use an env var
+    RATELIMIT_ENABLED = False # Usually disable rate limiting for testing environment
+
 
 class ProductionConfig(Config):
     DEBUG = False
