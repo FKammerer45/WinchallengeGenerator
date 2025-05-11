@@ -214,7 +214,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         if (loadingCustomPlaceholder) loadingCustomPlaceholder.style.display = 'none';
         customTabsToDisplay.forEach(t => { createPenaltyTabUI(t.id, t.name, t.isSystemDefault); renderPenaltiesForTab(t.id); });
-        
+       
+        if (customPenaltyTabsLabel) {
+            customPenaltyTabsLabel.style.display = 'list-item'; // Always show it
+            console.log("[Penalties Init] Set 'Your Custom Penalty Sets' label to visible.");
+        }
+
+    
+        let hasSystemPenaltyTabs = false;
+        if (systemPenaltyTabsLabel) {
+            const systemPenaltyTabListEl = document.getElementById('penaltiesSystemTabList');
+            if (systemPenaltyTabListEl && systemPenaltyTabListEl.querySelector('li.nav-item:not(.system-default-group-label):not(#loadingSystemPenaltyTabsPlaceholder) .nav-link')) {
+                hasSystemPenaltyTabs = true;
+            }
+            systemPenaltyTabsLabel.style.display = hasSystemPenaltyTabs ? 'list-item' : 'none';
+        }
         updatePenaltyTabGroupVisibility();
 
         let tabToActivateId = PRIMARY_PENALTY_DEFAULT_ID;
@@ -270,7 +284,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (addTabButton) {
         addTabButton.addEventListener("click", (e) => { e.preventDefault(); createNewPenaltyTab(); updatePenaltyTabGroupVisibility(); });
     }
-    if (isLoggedIn && duplicateBtn) {
+    if (duplicateBtn) {
         duplicateBtn.addEventListener('click', ()=>{ handleDuplicatePenaltyTab(); updatePenaltyTabGroupVisibility(); });
     } else if (duplicateBtn && !isLoggedIn) {
         duplicateBtn.style.display = 'none';
@@ -291,7 +305,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("updatePenaltyBtn")?.addEventListener("click", handleUpdatePenalty);
     
     attachPenaltyTabRenameHandler(); 
-    if (isLoggedIn) attachDeletePenaltyTabHandler(); 
+    attachDeletePenaltyTabHandler(); 
 
     // Event listener for Bootstrap's tab shown event to ensure single active tab
     // Ensure this targets only penalty page tabs if you have other tabs on the site

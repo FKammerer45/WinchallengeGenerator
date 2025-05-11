@@ -236,8 +236,20 @@ export async function createNewTab() { // For Penalties
     }
 
     const newTabLinkElement = document.querySelector(`#penaltiesCustomTabList .nav-link[href="#${newTabId}"]`);
-    if (newTabLinkElement && typeof $ !== 'undefined' && $.fn.tab) {
-      $(newTabLinkElement).tab('show');
+        if (newTabLinkElement && typeof $ !== 'undefined' && $.fn.tab) {
+        // Before showing the new tab, deactivate all other tabs in both lists
+        document.querySelectorAll('#penaltiesSystemTabList .nav-link, #penaltiesCustomTabList .nav-link').forEach(link => {
+            if (link !== newTabLinkElement) { // Don't deactivate the one we're about to activate
+                $(link).removeClass('active').attr('aria-selected', 'false');
+                 const paneId = link.getAttribute('href');
+                 if (paneId && paneId.startsWith('#') && paneId.length > 1) {
+                    const pane = document.querySelector(paneId);
+                    if (pane) $(pane).removeClass('show active');
+                }
+            }
+        });
+        // Now, show the new tab. Bootstrap should handle marking it active and showing its pane.
+        $(newTabLinkElement).tab('show');
     }
     
     const { renderPenaltiesForTab } = await import('./penaltyEntryManagement.js');

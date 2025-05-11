@@ -312,7 +312,33 @@ document.addEventListener("DOMContentLoaded", async () => {
             createTabFromLocalData(tab.id, tab.name, addTabBtnLi); // Modified createTabFromLocalData needed
             renderGamesForTab(tab.id);
         });
+        const customTabsLabelForGames = document.getElementById('customTabsLabel');
+        if (customTabsLabelForGames) {
+            customTabsLabelForGames.style.display = 'list-item'; // Always show it
+            console.log("[Games Init] Set 'Your Custom Sets' label to visible.");
+        }
 
+        // Optionally, manage system label and separator visibility here as well if not handled elsewhere
+        const systemTabsLabelForGames = document.getElementById('systemTabsLabel');
+        let hasSystemTabs = false;
+        if (systemTabsLabelForGames && tabListElement) {
+            if (tabListElement.querySelector('li.nav-item .nav-link.system-default-tab-link')) {
+                 hasSystemTabs = true;
+            }
+            systemTabsLabelForGames.style.display = hasSystemTabs ? 'list-item' : 'none';
+        }
+
+        let hasCustomSection = false; // True if custom tabs exist or can be added
+        if (customTabsLabelForGames && customTabsLabelForGames.style.display === 'list-item') {
+            // Check if there are actual custom tabs or if the add button is present
+             if (tabListElement && (tabListElement.querySelector('li.nav-item .nav-link:not(.system-default-tab-link):not(#addTabBtn)') || addTabBtnLi) ) {
+                hasCustomSection = true;
+            }
+        }
+        
+        if (customTabsSeparator) {
+            customTabsSeparator.style.display = (hasSystemTabs && hasCustomSection) ? 'list-item' : 'none';
+        }
         // Ensure Add Tab button and Loading placeholder are at the very end of the tabListElement
         if (tabListElement && addTabBtnLi) tabListElement.appendChild(addTabBtnLi);
         if (tabListElement && loadingPlaceholder) tabListElement.appendChild(loadingPlaceholder);
@@ -359,11 +385,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    if (duplicateBtn && isLoggedIn) {
+    if (duplicateBtn ) {
         duplicateBtn.addEventListener('click', handleDuplicateTab);
-    } else if (duplicateBtn && !isLoggedIn) {
-        duplicateBtn.style.display = 'none';
-    }
+    } 
 
     gamesTabContent.addEventListener("click", (e) => {
         if (e.target?.classList.contains("insertGameBtn")) {
@@ -507,9 +531,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("Attaching game extension handlers...");
     try {
         attachTabRenameHandler();
-        if (isLoggedIn) {
-            attachDeleteTabHandler();
-        }
+        attachDeleteTabHandler();
+        
     } catch (extError) {
         console.error("Error attaching game extension handlers:", extError);
     }

@@ -29,7 +29,7 @@
     window.SYSTEM_DEFAULT_GAME_TABS = {}; 
   </script>
 
-  {% if current_user.is_authenticated %}
+ 
   <div class="d-flex justify-content-between align-items-center mb-3 action-button-row">
       <div class="btn-group" role="group" aria-label="Tab Actions">
           <button id="duplicateTabBtn" class="btn btn-outline-info btn-sm" title="Create a copy of the current tab">
@@ -41,7 +41,6 @@
       </div>
       <small class="text-secondary">Max 5 custom tabs allowed (excluding system defaults).</small>
   </div>
-  {% endif %}
 
   {# --- Tabs Navigation --- #}
   <div class="nav-tabs-wrapper"> {# ADDED WRAPPER DIV #}

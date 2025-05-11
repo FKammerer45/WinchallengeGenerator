@@ -1,10 +1,10 @@
 // app/static/js/games/tabManagement.js
 
 import {
-    getLocalOnlyTabs, // Used by createNewTab for anonymous users
-    setLocalOnlyTabs,   // Used by createNewTab for anonymous users
-    getLocalOnlyEntries, // Used by createNewTab for anonymous users
-    setLocalOnlyEntries  // Used by createNewTab for anonymous users
+  getLocalOnlyTabs, // Used by createNewTab for anonymous users
+  setLocalOnlyTabs,   // Used by createNewTab for anonymous users
+  getLocalOnlyEntries, // Used by createNewTab for anonymous users
+  setLocalOnlyEntries  // Used by createNewTab for anonymous users
 } from "./localStorageUtils.js";
 import { apiFetch } from "../utils/api.js";
 import { showFlash } from "../utils/helpers.js";
@@ -20,28 +20,28 @@ let currentMaxTabIdNum = 0;
  * the next available number for new *custom* tabs.
  */
 function initializeMaxTabIdNum() {
-    let highestNumFound = 0;
-    try {
-        const isLoggedIn = window.isLoggedIn === true;
-        const existingTabs = isLoggedIn && window.userTabsData?.tabs
-            ? window.userTabsData.tabs
-            : getLocalOnlyTabs();
+  let highestNumFound = 0;
+  try {
+    const isLoggedIn = window.isLoggedIn === true;
+    const existingTabs = isLoggedIn && window.userTabsData?.tabs
+      ? window.userTabsData.tabs
+      : getLocalOnlyTabs();
 
-        if (existingTabs) {
-            Object.keys(existingTabs).forEach(tabId => {
-                if (tabId.startsWith("tabPane-")) {
-                    const numPart = tabId.substring("tabPane-".length);
-                    const num = parseInt(numPart, 10);
-                    if (!isNaN(num) && num > highestNumFound) {
-                        highestNumFound = num;
-                    }
-                }
-            });
+    if (existingTabs) {
+      Object.keys(existingTabs).forEach(tabId => {
+        if (tabId.startsWith("tabPane-")) {
+          const numPart = tabId.substring("tabPane-".length);
+          const num = parseInt(numPart, 10);
+          if (!isNaN(num) && num > highestNumFound) {
+            highestNumFound = num;
+          }
         }
-        currentMaxTabIdNum = highestNumFound;
-    } catch (e) {
-        console.error("Error initializing/updating games custom tab ID counter:", e);
+      });
     }
+    currentMaxTabIdNum = highestNumFound;
+  } catch (e) {
+    console.error("Error initializing/updating games custom tab ID counter:", e);
+  }
 }
 
 export function getNextTabIdNumber() {
@@ -109,9 +109,9 @@ export function createTabFromLocalData(tabId, tabName, referenceNodeForInsertion
   } else if (tabList) { // Fallback if referenceNode is somehow null, append before the last item (usually add button)
     const lastItem = tabList.querySelector('li.nav-item:last-child');
     if (lastItem && lastItem.id !== 'loadingTabsPlaceholder') { // Avoid inserting before loading placeholder if it's last
-        tabList.insertBefore(newTabItem, lastItem);
+      tabList.insertBefore(newTabItem, lastItem);
     } else {
-        tabList.appendChild(newTabItem); // Absolute fallback
+      tabList.appendChild(newTabItem); // Absolute fallback
     }
   } else {
     console.error("Could not find gamesTab list or a reference node for inserting new tab link.");
@@ -182,7 +182,7 @@ export async function createNewTab() {
   const currentTabsData = isLoggedIn ? (window.userTabsData?.tabs || {}) : getLocalOnlyTabs();
   const MAX_CUSTOM_TABS = 5;
 
- 
+
   let customTabCount = 0;
   // Get the list of client_tab_ids from the system default definitions
   const systemDefaultClientTabIds = window.SYSTEM_DEFAULT_GAME_TABS
@@ -195,7 +195,7 @@ export async function createNewTab() {
       customTabCount++;
     }
   }
-  
+
 
   console.log(`[createNewTab] Current custom tab count: ${customTabCount}`);
 
@@ -253,7 +253,7 @@ export async function createNewTab() {
   try {
     if (isLoggedIn) {
       if (!window.userTabsData) {
-          window.userTabsData = { tabs: {}, entries: {} };
+        window.userTabsData = { tabs: {}, entries: {} };
       }
       window.userTabsData.tabs[newTabId] = { name: newTabName };
       window.userTabsData.entries[newTabId] = [];
@@ -269,8 +269,8 @@ export async function createNewTab() {
 
       // Check response from API, even if frontend check passed, backend is source of truth
       if (response.status !== 'ok') {
-          // If API returns error (e.g. limit reached due to race condition or backend logic)
-          throw new Error(response.error || "Failed to save new tab to server.");
+        // If API returns error (e.g. limit reached due to race condition or backend logic)
+        throw new Error(response.error || "Failed to save new tab to server.");
       }
       console.log(`[New Custom Tab] API save successful for ${newTabId}`);
       showFlash(`Tab "${newTabName}" created.`, "success");

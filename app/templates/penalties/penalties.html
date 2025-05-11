@@ -35,7 +35,7 @@
     window.SYSTEM_DEFAULT_PENALTY_TABS = {}; // For penalties
   </script>
 
-  {% if current_user.is_authenticated %}
+
   <div class="d-flex justify-content-between align-items-center mb-3 action-button-row">
       <div class="btn-group" role="group" aria-label="Penalty Tab Actions">
           <button id="duplicatePenaltyTabBtn" class="btn btn-outline-info btn-sm" title="Create a copy of the current penalty tab">
@@ -47,7 +47,7 @@
       </div>
       <small class="text-secondary">Max 5 custom tabs allowed (excluding system defaults).</small>
   </div>
-  {% endif %}
+
 
   {# --- Tabs Navigation Area --- #}
   {# Row 1: System Default Penalty Tabs #}
