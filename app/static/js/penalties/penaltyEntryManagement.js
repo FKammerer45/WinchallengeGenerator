@@ -285,3 +285,44 @@ export async function handleDeleteSinglePenalty(tabId, penaltyId, penaltyName) {
         showFlash(`Failed to delete penalty "${escapeHtml(penaltyName || 'Entry')}".`, "danger");
     }
 }
+export async function handleDeleteSinglePenaltyFromModal() {
+    const form = document.getElementById("editPenaltyForm");
+    const penaltyId = form.elements.editPenaltyId.value;
+    const penaltyName = form.elements.editPenaltyName.value.trim() || "this penalty"; // For confirm message
+    const currentTab = window.currentPenaltyTargetTab; // Should be set when modal opens
+
+    if (!penaltyId || !currentTab) {
+        showEditPenaltyAlert("Cannot delete: Penalty ID or current tab context is missing.", "danger");
+        return;
+    }
+
+    const ok = await confirmModal(
+        `Are you sure you want to delete the penalty "${escapeHtml(penaltyName)}"? This action cannot be undone.`,
+        "Confirm Penalty Deletion"
+    );
+
+    if (!ok) return;
+
+    const deleteButton = document.getElementById('deleteSinglePenaltyBtn');
+    if (deleteButton) deleteButton.disabled = true; // Disable button
+
+    try {
+        if (removePenaltyEntryData(currentTab, penaltyId)) {
+            renderPenaltiesForTab(currentTab); // Refresh the main table for the current tab
+            showFlash(`Penalty "${escapeHtml(penaltyName)}" deleted successfully.`, "success");
+            if (window.isLoggedIn) {
+                triggerAutosavePenalties(currentTab); // Trigger autosave if logged in
+            }
+            if (typeof $ !== 'undefined' && $.fn.modal) {
+                $('#editPenaltyModal').modal('hide'); // Close the modal
+            }
+        } else {
+            throw new Error("Failed to remove penalty data. It might have already been removed.");
+        }
+    } catch (error) {
+        console.error(`Error deleting penalty ${penaltyId} from modal:`, error);
+        showEditPenaltyAlert(`Failed to delete penalty: ${error.message}`, "danger");
+    } finally {
+        if (deleteButton) deleteButton.disabled = false; // Re-enable button
+    }
+}

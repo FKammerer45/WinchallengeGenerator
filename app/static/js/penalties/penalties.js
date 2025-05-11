@@ -15,6 +15,7 @@ import {
     renderPenaltiesForTab,
     handleSaveNewPenalty,
     handleUpdatePenalty,
+    handleDeleteSinglePenaltyFromModal 
 } from "./penaltyEntryManagement.js";
 import {
     attachPenaltyTabRenameHandler,
@@ -304,6 +305,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("saveNewPenaltyBtn")?.addEventListener("click", handleSaveNewPenalty);
     document.getElementById("updatePenaltyBtn")?.addEventListener("click", handleUpdatePenalty);
     
+    const deletePenaltyBtnFromModal = document.getElementById("deleteSinglePenaltyBtn");
+    if (deletePenaltyBtnFromModal) {
+        deletePenaltyBtnFromModal.addEventListener("click", handleDeleteSinglePenaltyFromModal);
+    }
     attachPenaltyTabRenameHandler(); 
     attachDeletePenaltyTabHandler(); 
 
