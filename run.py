@@ -26,8 +26,6 @@ from app.models import (
 )
 
 # Create the Flask app instance using the factory function
-# Determine config name (e.g., from FLASK_ENV or default to 'production' for run.py)
-# Using 'development' as default here assuming run.py is mostly for local dev
 config_name = os.getenv('FLASK_ENV') or 'development'
 app = create_app(config_name)
 register_commands(app) # Register CLI commands
@@ -52,11 +50,7 @@ def make_shell_context():
 
 # Main execution block when script is run directly (for local development)
 if __name__ == '__main__':
-    # Get debug mode from the application configuration
-    # This ensures the reloader works correctly based on FLASK_ENV
     debug_mode = app.config.get('DEBUG', False)
-
-    # Get host and port from environment variables or use defaults
     host = os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
     try:
         port = int(os.environ.get('FLASK_RUN_PORT', '5000'))
@@ -68,12 +62,7 @@ if __name__ == '__main__':
     print(f"--- Debug Mode: {debug_mode} ---")
     print(f"--- Running on http://{host}:{port} ---")
 
-    # Use Flask-SocketIO's run method which integrates with eventlet
-    # use_reloader=debug_mode ensures the reloader only runs in debug mode
-    # debug=debug_mode passes the debug flag to Flask internally
-    socketio.run(app, host=host, port=port, debug=debug_mode, use_reloader=debug_mode)
-    # Do not call app.run() here, socketio.run() handles it.
+   
+    socketio.run(app, host=host, port=port, debug=debug_mode, use_reloader=False)
+    # --- END MODIFICATION ---
 
-# Note: When running with Gunicorn, Gunicorn imports 'app' from this file.
-# The patching at the top ensures eventlet is set up before Gunicorn loads the app.
-# The `if __name__ == '__main__':` block is ignored by Gunicorn.

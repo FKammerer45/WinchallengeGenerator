@@ -1,16 +1,22 @@
 # app/sockets.py
 import logging
 from flask import request, session # Import request for sid
+from flask_login import current_user
 from flask_socketio import emit, join_room, leave_room, disconnect
 from sqlalchemy.orm import joinedload, selectinload
 
 # Import necessary components from your app
 from app import socketio, db
 from app.models import User, SharedChallenge, ChallengeGroup
-from app.utils.auth_helpers import is_user_authorized
+from app.utils.auth_helpers import is_user_authorized # Assuming this helper exists and works
 
 logger = logging.getLogger(__name__)
-
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
 
 
 
@@ -72,7 +78,7 @@ def calculate_progress(challenge_data, progress_data):
     logger.debug(f"Calculated Progress: {completed}/{total} ({percentage}%)")
     return {"completed": completed, "total": total, "percentage": percentage}
 
-# ... (get_challenge_state_for_overlay function remains the same) ...
+
 def get_challenge_state_for_overlay(challenge, user_id):
     """Fetches and formats the initial state needed by the overlay."""
     if not challenge: return None
@@ -82,10 +88,8 @@ def get_challenge_state_for_overlay(challenge, user_id):
     challenge_data_struct = challenge.challenge_data or {}
 
     # Find the user's group and calculate progress for others
-    # Ensure groups are loaded
     groups = challenge.groups or []
     for group in groups:
-        # Ensure members are loaded or handle potential error
         try:
              is_member = any(member.id == user_id for member in group.members) if group.members else False
         except Exception as e:
@@ -104,121 +108,94 @@ def get_challenge_state_for_overlay(challenge, user_id):
                 "active_penalty_text": group.active_penalty_text or ""
             }
         else:
-            # Only include percentage for other groups
             other_groups_progress.append({
                 "id": group.id,
                 "name": group.group_name,
                 "percentage": progress_stats['percentage']
             })
 
+  
+    current_timer_val = challenge.get_current_timer_value() # Use helper method
+
     return {
         "challenge_id": challenge.public_id,
         "challenge_name": challenge.name,
         "challenge_structure": challenge_data_struct,
-        "penalty_info": challenge.penalty_info, # Needed for penalty wheel setup
-        "user_group": user_group_data, # Details for the streamer's group
-        "other_groups_progress": other_groups_progress # Percentages for others
-        # Add timer state here if managed server-side
+        "penalty_info": challenge.penalty_info,
+        "user_group": user_group_data,
+        "other_groups_progress": other_groups_progress,
+        
+        "timer_state": {
+            "current_value_seconds": current_timer_val, # Send the calculated current value
+            "is_running": challenge.timer_is_running,
+            "last_started_at_utc": challenge.timer_last_started_at_utc.isoformat() if challenge.timer_is_running and challenge.timer_last_started_at_utc else None
+        }
+      
     }
 
 # ... (handle_connect and handle_disconnect remain the same) ...
 @socketio.on('connect')
 def handle_connect():
-    """Handles new WebSocket connections from overlays."""
     sid = request.sid
-    logger.info(f"Overlay client attempting connection: {sid}")
-
-    # Get parameters sent by the client during connection
     api_key = request.args.get('apiKey')
-    challenge_public_id = request.args.get('challengeId')
+    challenge_public_id_from_query = request.args.get('challengeId')
+    logger.info(f"[Socket Connect] Client attempting connection: SID={sid}, APIKeyProvided={bool(api_key)}, ChallengeIdInQuery={challenge_public_id_from_query}")
 
-    logger.debug(f"Connect attempt details: sid={sid}, apiKey={'Present' if api_key else 'Missing'}, challengeId={challenge_public_id}")
-
-    if not api_key or not challenge_public_id:
-        logger.warning(f"Connection rejected (sid={sid}): Missing apiKey or challengeId in query.")
-        disconnect(sid)
-        return False # Reject connection
-
-    # --- Authentication & Authorization within App Context ---
-    try:
-        # Find user by API Key
-        user = db.session.query(User).filter_by(overlay_api_key=api_key).first()
-        if not user:
-            logger.warning(f"Connection rejected (sid={sid}): Invalid API Key provided.")
+    if api_key and challenge_public_id_from_query:
+        logger.info(f"[Socket Connect] SID={sid} identified as OVERLAY client. Proceeding with API key auth.")
+        try:
+            user = db.session.query(User).filter_by(overlay_api_key=api_key).first()
+            if not user:
+                logger.warning(f"[Socket Connect] OVERLAY SID={sid} REJECTED: Invalid API Key.")
+                emit('auth_error', {'message': 'Invalid API Key.'}, room=sid)
+                disconnect(sid)
+                return False
+            challenge = db.session.query(SharedChallenge).options(
+                selectinload(SharedChallenge.authorized_users),
+                selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
+            ).filter_by(public_id=challenge_public_id_from_query).first()
+            if not challenge:
+                logger.warning(f"[Socket Connect] OVERLAY SID={sid} REJECTED: Challenge '{challenge_public_id_from_query}' not found.")
+                emit('auth_error', {'message': 'Challenge not found.'}, room=sid)
+                disconnect(sid)
+                return False
+            if not is_user_authorized(challenge, user):
+                logger.warning(f"[Socket Connect] OVERLAY SID={sid} REJECTED: User {user.username} not authorized for challenge {challenge_public_id_from_query}.")
+                emit('auth_error', {'message': 'Not authorized for this challenge.'}, room=sid)
+                disconnect(sid)
+                return False
+            logger.info(f"[Socket Connect] OVERLAY SID={sid} AUTHENTICATED for user {user.username}, challenge {challenge.public_id}")
+            connected_overlays[sid] = {'user_id': user.id, 'challenge_id': challenge.id, 'public_challenge_id': challenge.public_id }
+            join_room(challenge.public_id)
+            logger.info(f"@@@ [Socket Connect] OVERLAY SID={sid} successfully joined room '{challenge.public_id}' immediately on connect.") # Explicit log
+            initial_state = get_challenge_state_for_overlay(challenge, user.id)
+            if initial_state:
+                emit('initial_state', initial_state, room=sid)
+                logger.debug(f"[Socket Connect] Sent initial_state to OVERLAY SID={sid}")
+            emit('connection_ack', {'sid': sid, 'message': 'Overlay connected and authenticated.'}, room=sid)
+        except Exception as e:
+            logger.error(f"[Socket Connect] OVERLAY SID={sid} CRITICAL ERROR during connect/auth: {e}", exc_info=True)
             disconnect(sid)
             return False
-
-        # Find challenge and eager load relationships needed for auth and state
-        challenge = db.session.query(SharedChallenge).options(
-            selectinload(SharedChallenge.authorized_users),
-            selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members) # Load groups and their members
-        ).filter_by(public_id=challenge_public_id).first()
-
-        if not challenge:
-            logger.warning(f"Connection rejected (sid={sid}): Challenge '{challenge_public_id}' not found.")
-            disconnect(sid)
-            return False
-
-        # Check if the user associated with the API key is authorized for this challenge
-        # Pass the user object directly to the helper
-        if not is_user_authorized(challenge, user):
-            logger.warning(f"Connection rejected (sid={sid}): User {user.username} not authorized for challenge {challenge_public_id}.")
-            disconnect(sid)
-            return False
-
-        # --- Connection Accepted ---
-        logger.info(f"Overlay authenticated: sid={sid}, user={user.username}, challenge={challenge_public_id}")
-
-        # Store connection info (Use internal challenge ID for consistency)
-        connected_overlays[sid] = {'user_id': user.id, 'challenge_id': challenge.id}
-
-        # Join a room specific to the challenge's *public* ID for easy targeting
-        join_room(challenge.public_id)
-        logger.debug(f"Socket {sid} joined room '{challenge.public_id}'")
-
-        # Send initial state to the newly connected overlay
-        initial_state = get_challenge_state_for_overlay(challenge, user.id)
-        if initial_state:
-            emit('initial_state', initial_state, to=sid)
-            logger.debug(f"Sent initial_state to {sid} for challenge {challenge.public_id}")
+    else:
+        logger.info(f"[Socket Connect] SID={sid} identified as PAGE VIEWER. Connection allowed. Client should send 'join_challenge_room'.")
+        if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated: # Check if current_user is not None
+            logger.info(f"[Socket Connect] PAGE VIEWER SID={sid} is authenticated as user: {current_user.username} (ID: {current_user.id})")
         else:
-             logger.error(f"Failed to generate initial state for sid={sid}, challenge={challenge_public_id}")
-             emit('connect_error', {'message': 'Failed to load initial challenge state.'}, to=sid)
-             disconnect(sid)
-             return False
+            logger.info(f"[Socket Connect] PAGE VIEWER SID={sid} is ANONYMOUS or user object not available in this context.")
+        emit('connection_ack', {'sid': sid, 'message': 'Page viewer connected. Please join a room.'}, room=sid)
 
-    except Exception as e:
-        logger.exception(f"Error during overlay connect/auth (sid={sid}): {e}")
-        # Don't emit here as connection might not be fully established
-        disconnect(sid)
-        return False
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    """Handles overlay disconnections."""
     sid = request.sid
     if sid in connected_overlays:
-        challenge_info = connected_overlays.pop(sid)
-        challenge_id = challenge_info.get('challenge_id')
-        user_id = challenge_info.get('user_id')
-        logger.info(f"Overlay disconnected: sid={sid}. User: {user_id}, Challenge ID: {challenge_id}")
-
-        # Leave the room associated with the challenge's public ID
-        if challenge_id:
-            try:
-                 challenge = db.session.get(SharedChallenge, challenge_id)
-                 if challenge:
-                     leave_room(challenge.public_id)
-                     logger.debug(f"Socket {sid} left room '{challenge.public_id}'.")
-                 else:
-                     logger.warning(f"Challenge {challenge_id} not found when trying to leave room for disconnected socket {sid}.")
-            except Exception as e:
-                 logger.exception(f"Error leaving room for disconnected socket {sid}: {e}")
-        else:
-             logger.warning(f"No challenge_id found for disconnected sid {sid}")
-
+        overlay_info = connected_overlays.pop(sid)
+        logger.info(f"[Socket Disconnect] OVERLAY client disconnected: SID={sid}, UserID={overlay_info.get('user_id')}, ChallengePublicID={overlay_info.get('public_challenge_id')}")
+        # Overlay was already in its room, Flask-SocketIO handles leaving room on disconnect.
     else:
-        logger.info(f"Unknown or already removed socket disconnected: {sid}")
+        logger.info(f"[Socket Disconnect] PAGE VIEWER or unknown client disconnected: SID={sid}")
+    # General cleanup or logging for any client disconnecting
 
 
 # ... (emit_progress_update, emit_active_penalty_update, emit_penalty_spin_result remain the same) ...
@@ -298,3 +275,103 @@ def emit_penalty_spin_result(challenge_public_id: str, group_id: int, penalty_re
     socketio.emit('penalty_result', payload, room=challenge_public_id)
     logger.info(f"Emitted 'penalty_result' to room '{challenge_public_id}' for group {group_id}")
 
+# In app/sockets.py
+# ... (other imports and logger setup) ...
+# from app import socketio # Ensure socketio instance is imported
+
+def emit_timer_update_to_room(challenge_public_id: str, event_name: str, data: dict):
+    try:
+        logger.info(f"Emitting '{event_name}' to room '{challenge_public_id}' with data: {data}")
+        socketio.emit(event_name, data, room=challenge_public_id) # Use your socketio instance
+    except Exception as e:
+        logger.error(f"Error emitting '{event_name}' to room '{challenge_public_id}': {e}", exc_info=True)
+
+
+@socketio.on('join_challenge_room')
+def handle_join_challenge_room(data):
+    sid = request.sid
+    challenge_public_id = data.get('challenge_id')
+    logger.info(f"@@@@@ [Join Room Attempt] SID {sid} trying to join room for challenge_id: {challenge_public_id}. Data: {data}")
+
+    if not challenge_public_id:
+        logger.warning(f"[Join Room] SID {sid} FAILED PRE-CHECK: 'challenge_id' not provided.")
+        emit('room_join_error', {'error': "'challenge_id' is required."}, room=sid)
+        return
+
+    is_overlay_client = sid in connected_overlays and connected_overlays[sid].get('public_challenge_id') == challenge_public_id
+    user_for_log = "Overlay" if is_overlay_client else (current_user.username if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated else "AnonymousPageViewer")
+
+    try:
+        if not is_overlay_client: 
+            if not (hasattr(current_user, 'is_authenticated') and current_user.is_authenticated):
+                logger.warning(f"[Join Room] PAGE VIEWER SID={sid} DENIED for challenge '{challenge_public_id}': User not authenticated for room join.")
+                emit('room_join_error', {'error': 'Authentication required to join this challenge room.'}, room=sid)
+                return 
+            logger.info(f"[Join Room] PAGE VIEWER SID={sid} (User: {user_for_log}) proceeding to join challenge '{challenge_public_id}'.")
+        
+        # --- Explicitly log before and after join_room ---
+        logger.info(f"@@@@@ [Join Room] SID {sid} (User: {user_for_log}) CALLING join_room('{challenge_public_id}').")
+        join_room(challenge_public_id)
+        logger.info(f"@@@@@ [Join Room] SID {sid} (User: {user_for_log}) SUCCESSFULLY EXECUTED join_room for: '{challenge_public_id}'.")
+        
+        emit('room_joined', {'room': challenge_public_id, 'message': f'Successfully joined room {challenge_public_id}. SID: {sid}'}, room=sid)
+        logger.info(f"@@@@@ [Join Room] SID {sid} (User: {user_for_log}) EMITTED 'room_joined' event for room: {challenge_public_id}")
+
+
+        if not is_overlay_client and hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+            challenge = db.session.query(SharedChallenge).filter_by(public_id=challenge_public_id).first()
+            if challenge:
+                initial_state_data = get_challenge_state_for_overlay(challenge, current_user.id)
+                if initial_state_data:
+                    emit('initial_state', initial_state_data, room=sid)
+                    logger.debug(f"[Join Room] Sent initial_state to PAGE VIEWER SID={sid} for challenge {challenge.public_id}")
+            else:
+                logger.warning(f"[Join Room] Challenge {challenge_public_id} not found when trying to send initial_state to page viewer SID={sid}")
+
+    except Exception as e:
+        logger.error(f"[Join Room] SID {sid} (User: {user_for_log}) CRITICAL ERROR joining room '{challenge_public_id}': {e}", exc_info=True)
+        emit('room_join_error', {'error': f'Server error: {str(e)}'}, room=sid)
+
+
+@socketio.on('leave_challenge_room')
+def handle_leave_challenge_room(data):
+    # ... (same as your provided sockets.py) ...
+    sid = request.sid
+    challenge_public_id = data.get('challenge_id')
+    if challenge_public_id:
+        leave_room(challenge_public_id)
+        logger.info(f"[Leave Room] SID {sid} left room: {challenge_public_id}")
+        emit('room_left', {'room': challenge_public_id}, room=sid)
+    else:
+        logger.warning(f"[Leave Room] SID {sid} 'challenge_id' not provided.")
+
+def emit_group_created(challenge_public_id: str, group_data: dict):
+    """Emits an event when a new group is created for a challenge."""
+    payload = {
+        'challenge_id': challenge_public_id,
+        'new_group': group_data  # Contains id, name, member_count, player_names, etc.
+    }
+    socketio.emit('group_created', payload, room=challenge_public_id)
+    logger.info(f"Emitted 'group_created' to room '{challenge_public_id}' for group ID {group_data.get('id')}")
+
+def emit_group_membership_update(challenge_public_id: str, group_id: int, member_count: int, player_names: list, is_full: bool):
+    """Emits when a user joins or leaves a group, updating member count and player names."""
+    payload = {
+        'challenge_id': challenge_public_id,
+        'group_id': group_id,
+        'member_count': member_count,
+        'player_names': player_names, # List of player slot objects
+        'is_full': is_full
+    }
+    socketio.emit('group_membership_update', payload, room=challenge_public_id)
+    logger.info(f"Emitted 'group_membership_update' to room '{challenge_public_id}' for group {group_id}. Members: {member_count}")
+
+def emit_player_names_updated(challenge_public_id: str, group_id: int, player_names: list):
+    """Emits when player display names within a group are updated."""
+    payload = {
+        'challenge_id': challenge_public_id,
+        'group_id': group_id,
+        'player_names': player_names # Updated list of player slot objects
+    }
+    socketio.emit('player_names_updated', payload, room=challenge_public_id)
+    logger.info(f"Emitted 'player_names_updated' to room '{challenge_public_id}' for group {group_id}")

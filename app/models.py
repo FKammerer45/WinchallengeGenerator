@@ -175,7 +175,9 @@ class SharedChallenge(db.Model):
     max_groups = Column(Integer, default=10, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc), nullable=False)
     num_players_per_group = Column(Integer, nullable=False, default=1, server_default='1') # Default players needed to start a group
-
+    timer_current_value_seconds = Column(Integer, nullable=False, default=0, server_default='0')
+    timer_is_running = Column(Boolean, nullable=False, default=False, server_default='0')
+    timer_last_started_at_utc = Column(DateTime(timezone=True), nullable=True)
     # Relationships using db.relationship
     groups = db.relationship("ChallengeGroup", back_populates="shared_challenge", cascade="all, delete-orphan", lazy="select")
     creator = db.relationship("User", back_populates="created_challenges")
@@ -194,7 +196,37 @@ class SharedChallenge(db.Model):
         if isinstance(self.penalty_info, dict):
             return self.penalty_info.get('tab_id')
         return None
+    def get_current_timer_value(self) -> int:
+        """Returns the current effective value of the timer in seconds."""
+        if self.timer_is_running and self.timer_last_started_at_utc:
+            # Ensure self.timer_last_started_at_utc is offset-aware (UTC)
+            last_started_utc = self.timer_last_started_at_utc
+            
+            # Check if last_started_utc is naive (has no timezone info)
+            if last_started_utc.tzinfo is None or last_started_utc.tzinfo.utcoffset(last_started_utc) is None:
+                # If naive, assume it's UTC and make it offset-aware
+                try:
+                    last_started_utc = last_started_utc.replace(tzinfo=datetime.timezone.utc)
+                except Exception as e:
+                    logger.error(f"Error making naive datetime offset-aware for timer_last_started_at_utc: {e}. Value: {self.timer_last_started_at_utc}")
+                    # Fallback or re-raise, depending on desired behavior. Here, we'll fallback to not adding elapsed time.
+                    return self.timer_current_value_seconds
 
+
+            # Now both datetime objects should be offset-aware (UTC)
+            try:
+                current_utc_time = datetime.datetime.now(datetime.timezone.utc)
+                elapsed_since_start = (current_utc_time - last_started_utc).total_seconds()
+                return self.timer_current_value_seconds + int(elapsed_since_start)
+            except TypeError as te: # Catch TypeError specifically if subtraction still fails
+                logger.error(f"TypeError during timer calculation: {te}. current_utc_time: {current_utc_time.isoformat() if current_utc_time else 'None'}, last_started_utc: {last_started_utc.isoformat() if last_started_utc else 'None'}")
+                return self.timer_current_value_seconds # Fallback
+            except Exception as e_calc:
+                logger.error(f"Unexpected error during timer elapsed calculation: {e_calc}")
+                return self.timer_current_value_seconds # Fallback
+
+        return self.timer_current_value_seconds
+    
 # Inherit from db.Model instead of Base
 class ChallengeGroup(db.Model):
     __tablename__ = 'challenge_groups'

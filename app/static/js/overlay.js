@@ -39,6 +39,60 @@ let scrollDirection = 1;
 let isPausedAtEdge = false;
 let isHoveringScroll = false;
 
+let overlayTimerDisplayInterval = null;
+let overlayServerTimerData = {
+    currentValueSeconds: 0,
+    isRunning: false,
+    lastStartedAtUTC: null,
+};
+
+/** Formats seconds into HH:MM:SS for overlay */
+function formatOverlayTime(totalSeconds) {
+    totalSeconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+}
+
+/** Updates the overlay's timer display element */
+function updateOverlayTimerDisplay() {
+    if (!timerDisplayEl) return; // timerDisplayEl is the DOM element for the overlay
+
+    let displaySeconds = overlayServerTimerData.currentValueSeconds;
+    if (overlayServerTimerData.isRunning && overlayServerTimerData.lastStartedAtUTC) {
+        try {
+            const startTimeMillis = new Date(overlayServerTimerData.lastStartedAtUTC).getTime();
+            if (!isNaN(startTimeMillis)) {
+                const elapsedMillisSinceStart = Date.now() - startTimeMillis;
+                displaySeconds = overlayServerTimerData.currentValueSeconds + Math.floor(elapsedMillisSinceStart / 1000);
+            } else { // Should not happen if server sends valid ISO string
+                 timerDisplayEl.textContent = formatOverlayTime(overlayServerTimerData.currentValueSeconds); // Fallback
+                return;
+            }
+        } catch (e) {
+            console.error("Overlay Timer: Error parsing lastStartedAtUTC:", e);
+            timerDisplayEl.textContent = formatOverlayTime(overlayServerTimerData.currentValueSeconds); // Fallback
+            return;
+        }
+    }
+    timerDisplayEl.textContent = formatOverlayTime(displaySeconds);
+}
+function manageOverlayDisplayInterval() {
+    if (overlayTimerDisplayInterval) {
+        clearInterval(overlayTimerDisplayInterval);
+        overlayTimerDisplayInterval = null;
+    }
+    if (overlayServerTimerData.isRunning) {
+        updateOverlayTimerDisplay(); // Update immediately
+        overlayTimerDisplayInterval = setInterval(updateOverlayTimerDisplay, 1000);
+    } else {
+        updateOverlayTimerDisplay(); // Ensure display shows the final stopped value
+    }
+}
 // --- Helper Functions ---
 function updateStatus(message, type = 'error') {
     console.log(`Overlay Status (${type}): ${message}`);
@@ -602,7 +656,36 @@ function connectWebSocket() {
         socket.on('auth_error', (data) => { updateStatus(`Auth Error: ${data.message}`, 'error'); console.error('WebSocket authentication error:', data.message); socket.disconnect(); stopAutoScroll(); });
         socket.on('room_joined', (data) => { console.log(`[WebSocket Overlay] Successfully joined room: ${data.room}`); });
         socket.on('room_join_error', (data) => { console.error(`[WebSocket Overlay] Error joining room: ${data.error}`); });
+        // Listen for timer updates from the server
+        socket.on('timer_started', (data) => {
+            if (data.challenge_id === challengeId) { // Ensure event is for this challenge
+                console.log('[Overlay] Received timer_started event:', data);
+                overlayServerTimerData.currentValueSeconds = data.current_value_seconds || 0;
+                overlayServerTimerData.isRunning = true; // Event implies it's running
+                overlayServerTimerData.lastStartedAtUTC = data.last_started_at_utc; // Server sends this
+                manageOverlayDisplayInterval();
+            }
+        });
 
+        socket.on('timer_stopped', (data) => {
+            if (data.challenge_id === challengeId) {
+                console.log('[Overlay] Received timer_stopped event:', data);
+                overlayServerTimerData.currentValueSeconds = data.current_value_seconds || 0;
+                overlayServerTimerData.isRunning = false;
+                overlayServerTimerData.lastStartedAtUTC = null;
+                manageOverlayDisplayInterval();
+            }
+        });
+
+        socket.on('timer_reset', (data) => {
+            if (data.challenge_id === challengeId) {
+                console.log('[Overlay] Received timer_reset event:', data);
+                overlayServerTimerData.currentValueSeconds = 0; // Reset value should be 0
+                overlayServerTimerData.isRunning = false;
+                overlayServerTimerData.lastStartedAtUTC = null;
+                manageOverlayDisplayInterval();
+            }
+        });
 
         // Custom Event Handlers
         socket.on('initial_state', (data) => {

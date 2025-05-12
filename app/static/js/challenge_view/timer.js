@@ -1,106 +1,226 @@
-// static/js/challenge/challenge_timer.js
-// Handles the functionality of the timer widget on the challenge view page.
+// app/static/js/challenge_view/timer.js
 
-// --- Module State ---
-let timerInterval = null; // Holds the interval ID
-let timerStartTime = 0;   // Timestamp when timer started
-let timerElapsedTime = 0; // Time elapsed *before* the current start (for pause/resume)
-let isTimerRunning = false;
+let displayInterval = null;
+let serverData = { currentValueSeconds: 0, isRunning: false, lastStartedAtUTC: null };
+let isUserAuthorized = false;
+let timerIdSuffix = 'main';
 
-// --- DOM Element References (scoped within the module) ---
 let timerDisplayEl = null;
 let startButtonEl = null;
 let stopButtonEl = null;
 let resetButtonEl = null;
 
-// --- Timer Functions ---
+let lastActionDispatchedTime = 0;
+const MIN_INTERVAL_BETWEEN_ACTIONS_MS = 1000; // Cooldown
 
-/** Formats milliseconds into HH:MM:SS */
-function formatTime(ms) {
-    const totalSeconds = Math.floor(ms / 1000);
+function formatTime(totalSeconds) {
+    totalSeconds = Math.max(0, Math.floor(totalSeconds));
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    // Pad with leading zeros
-    const hh = String(hours).padStart(2, '0');
-    const mm = String(minutes).padStart(2, '0');
-    const ss = String(seconds).padStart(2, '0');
-    return `${hh}:${mm}:${ss}`;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-/** Updates the timer display element */
 function updateTimerDisplay() {
-    if (!timerDisplayEl) return;
-    const currentTime = Date.now();
-    // Calculate total elapsed time: time already elapsed + time since current start
-    const totalElapsed = timerElapsedTime + (isTimerRunning ? (currentTime - timerStartTime) : 0);
-    timerDisplayEl.textContent = formatTime(totalElapsed);
-}
+    const currentTimerDisplayEl = document.getElementById(`timerDisplay-${timerIdSuffix}`); // Query fresh
 
-/** Starts the timer */
-function startTimer() {
-    if (isTimerRunning) return; // Don't start if already running
-    isTimerRunning = true;
-    timerStartTime = Date.now(); // Record start time of this interval
-    // Update immediately, then set interval
-    updateTimerDisplay();
-    // Clear any existing interval just in case
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(updateTimerDisplay, 1000); // Update every second
-
-    // Update button states
-    if(startButtonEl) startButtonEl.disabled = true;
-    if(stopButtonEl) stopButtonEl.disabled = false;
-}
-
-/** Stops (pauses) the timer */
-function stopTimer() {
-    if (!isTimerRunning) return; // Don't stop if not running
-    clearInterval(timerInterval); // Stop the interval
-    timerInterval = null;
-    // Add the time elapsed during this interval to the total elapsed time
-    timerElapsedTime += Date.now() - timerStartTime;
-    isTimerRunning = false;
-
-    // Update button states
-     if(startButtonEl) startButtonEl.disabled = false;
-     if(stopButtonEl) stopButtonEl.disabled = true;
-}
-
-/** Resets the timer */
-function resetTimer() {
-    stopTimer(); // Stop first if running
-    timerElapsedTime = 0; // Reset elapsed time
-    updateTimerDisplay(); // Update display to 00:00:00
-
-    // Reset button states (enable start, disable stop)
-     if(startButtonEl) startButtonEl.disabled = false;
-     if(stopButtonEl) stopButtonEl.disabled = true; // Stop should be disabled when reset
-}
-
-/**
- * Initializes the timer functionality for a given timer ID.
- * Finds elements and attaches listeners.
- * @param {string} timerId - The unique identifier used in the HTML element IDs (e.g., 'main').
- */
-export function initializeTimer(timerId) {
-    // Find elements using the provided ID
-    timerDisplayEl = document.getElementById(`timerDisplay-${timerId}`);
-    startButtonEl = document.getElementById(`btnStart-${timerId}`);
-    stopButtonEl = document.getElementById(`btnStop-${timerId}`);
-    resetButtonEl = document.getElementById(`btnReset-${timerId}`);
-
-    if (timerDisplayEl && startButtonEl && stopButtonEl && resetButtonEl) {
-        // Attach event listeners
-        startButtonEl.addEventListener('click', startTimer);
-        stopButtonEl.addEventListener('click', stopTimer);
-        resetButtonEl.addEventListener('click', resetTimer);
-
-        // Set initial state
-        stopButtonEl.disabled = true; // Stop is initially disabled
-        updateTimerDisplay(); // Set initial display to 00:00:00
-        console.log(`Timer UI initialized for ID: ${timerId}`);
-    } else {
-        console.warn(`Timer elements not found for ID: ${timerId}. Timer functionality disabled.`);
+    if (!currentTimerDisplayEl) {
+        // This log will now correctly indicate if the element is missing AT THE TIME OF THE TICK
+        console.warn(`[TimerJS TICK - ${timerIdSuffix}] updateTimerDisplay: DOM element #timerDisplay-${timerIdSuffix} not found! Cannot update display.`);
+        return;
     }
+
+    let displaySeconds = serverData.currentValueSeconds;
+    if (serverData.isRunning && serverData.lastStartedAtUTC) {
+        try {
+            const startTimeMillis = new Date(serverData.lastStartedAtUTC).getTime();
+            if (!isNaN(startTimeMillis)) {
+                const elapsedSinceStart = Math.floor((Date.now() - startTimeMillis) / 1000);
+                displaySeconds = serverData.currentValueSeconds + elapsedSinceStart;
+            } else {
+                console.warn(`[TimerJS - ${timerIdSuffix}] Invalid lastStartedAtUTC for display: ${serverData.lastStartedAtUTC}`);
+            }
+        } catch (e) {
+            console.error(`[TimerJS - ${timerIdSuffix}] Error parsing lastStartedAtUTC during display update:`, e);
+        }
+    }
+    const formattedTime = formatTime(displaySeconds);
+    currentTimerDisplayEl.textContent = formattedTime; // Use the fresh reference
+
+    // console.log(`[TimerJS TICK - ${timerIdSuffix}] isRunning: ${serverData.isRunning}, lastStarted: ${serverData.lastStartedAtUTC}, baseSec: ${serverData.currentValueSeconds}, calculatedDisplaySec: ${displaySeconds}, formatted: ${formattedTime}, targetEl ID: ${currentTimerDisplayEl.id}`);
+}
+
+function manageDisplayInterval() {
+    console.log(`[TimerJS - ${timerIdSuffix}] manageDisplayInterval called. serverData.isRunning: ${serverData.isRunning}`); // New log
+
+    if (displayInterval) clearInterval(displayInterval);
+    displayInterval = null;
+    if (serverData.isRunning) {
+        updateTimerDisplay();
+        displayInterval = setInterval(updateTimerDisplay, 1000);
+        console.log(`[TimerJS - ${timerIdSuffix}] Started display interval. isRunning: ${serverData.isRunning}, lastStarted: ${serverData.lastStartedAtUTC}`);
+    } else {
+        updateTimerDisplay();
+        console.log(`[TimerJS - ${timerIdSuffix}] Timer not running. Interval stopped. Value: ${serverData.currentValueSeconds}`);
+    }
+}
+
+function updateButtonStates() {
+    if (!startButtonEl || !stopButtonEl || !resetButtonEl) return;
+    if (isUserAuthorized) {
+        startButtonEl.disabled = serverData.isRunning;
+        stopButtonEl.disabled = !serverData.isRunning;
+        resetButtonEl.disabled = false; // Reset is usually always enabled if authorized
+        console.log(`[VISUAL DEBUG] startButtonEl.id: ${startButtonEl.id}, startButtonEl.disabled: ${startButtonEl.disabled}`);
+
+    } else {
+        [startButtonEl, stopButtonEl, resetButtonEl].forEach(btn => btn.disabled = true);
+    }
+}
+
+export function initializeTimer(idSuffix, initialTimerState, authorized) {
+    timerIdSuffix = idSuffix;
+    isUserAuthorized = authorized;
+
+    timerDisplayEl = document.getElementById(`timerDisplay-${timerIdSuffix}`);
+    startButtonEl = document.getElementById(`btnStart-${timerIdSuffix}`);
+    stopButtonEl = document.getElementById(`btnStop-${timerIdSuffix}`);
+    resetButtonEl = document.getElementById(`btnReset-${timerIdSuffix}`);
+
+    if (startButtonEl && resetButtonEl && startButtonEl === resetButtonEl) {
+        console.error(`[TimerJS - ${timerIdSuffix}] CRITICAL: Start and Reset buttons are SAME DOM ELEMENT!`);
+    }
+
+    if (initialTimerState) {
+        serverData.currentValueSeconds = parseInt(initialTimerState.current_value_seconds, 10) || 0;
+        serverData.isRunning = initialTimerState.is_running === true || String(initialTimerState.is_running).toLowerCase() === 'true';
+        serverData.lastStartedAtUTC = initialTimerState.last_started_at_utc || null;
+    } else {
+        serverData = { currentValueSeconds: 0, isRunning: false, lastStartedAtUTC: null };
+    }
+    console.log(`[TimerJS - ${timerIdSuffix}] Initialized. Authorized: ${isUserAuthorized}, State:`, JSON.parse(JSON.stringify(serverData)));
+    updateButtonStates();
+    manageDisplayInterval();
+
+    if (isUserAuthorized) {
+        if (startButtonEl) {
+            startButtonEl.addEventListener('click', (event) => {
+                if (event.currentTarget !== startButtonEl || startButtonEl.disabled) return; // Check if already disabled
+                const now = Date.now();
+                if (now - lastActionDispatchedTime < MIN_INTERVAL_BETWEEN_ACTIONS_MS) {
+                    console.warn(`[TimerJS - ${timerIdSuffix}] Start click IGNORED (cooldown).`);
+                    return;
+                }
+                if (!serverData.isRunning) { // Condition to start
+                    lastActionDispatchedTime = now;
+
+                    // --- OPTIMISTIC UI UPDATE ---
+                    serverData.isRunning = true; // Assume it will start
+                    updateButtonStates(); // Immediately disable Start, enable Stop
+                    // We don't set serverData.lastStartedAtUTC here, server will provide it
+                    // --- END OPTIMISTIC UI UPDATE ---
+                    if (startButtonEl.disabled && document.activeElement === startButtonEl) {
+                        startButtonEl.blur(); // Force the button to lose focus
+                        console.log("[TimerJS Test] Blurred startButtonEl after disabling");
+                    }
+                    console.log(`[TimerJS - ${timerIdSuffix}] Dispatching requestTimerStart.`);
+                    document.dispatchEvent(new CustomEvent('requestTimerStart', { detail: { timerId: timerIdSuffix } }));
+                }
+            });
+        }
+
+        if (stopButtonEl) {
+            stopButtonEl.addEventListener('click', (event) => {
+                if (event.currentTarget !== stopButtonEl || stopButtonEl.disabled) return;
+                const now = Date.now();
+                if (now - lastActionDispatchedTime < MIN_INTERVAL_BETWEEN_ACTIONS_MS) {
+                    console.warn(`[TimerJS - ${timerIdSuffix}] Stop click IGNORED (cooldown).`);
+                    return;
+                }
+                if (serverData.isRunning) { // Condition to stop
+                    lastActionDispatchedTime = now;
+
+                    // --- OPTIMISTIC UI UPDATE ---
+                    serverData.isRunning = false; // Assume it will stop
+                    // Simulate the accumulation locally for immediate display if desired,
+                    // but server will send the authoritative current_value_seconds.
+                    // For button state, isRunning = false is enough.
+                    updateButtonStates(); // Immediately disable Stop, enable Start
+                    // --- END OPTIMISTIC UI UPDATE ---
+
+                    console.log(`[TimerJS - ${timerIdSuffix}] Dispatching requestTimerStop.`);
+                    document.dispatchEvent(new CustomEvent('requestTimerStop', { detail: { timerId: timerIdSuffix } }));
+                }
+            });
+        }
+
+        if (resetButtonEl) {
+            resetButtonEl.addEventListener('click', (event) => {
+                if (event.currentTarget !== resetButtonEl || resetButtonEl.disabled) return; // Though reset is rarely disabled if authorized
+                const now = Date.now();
+                if (now - lastActionDispatchedTime < MIN_INTERVAL_BETWEEN_ACTIONS_MS) {
+                    console.warn(`[TimerJS - ${timerIdSuffix}] Reset click IGNORED (cooldown).`);
+                    return;
+                }
+                lastActionDispatchedTime = now;
+
+                // --- OPTIMISTIC UI UPDATE ---
+                serverData.isRunning = false;
+                serverData.currentValueSeconds = 0;
+                serverData.lastStartedAtUTC = null;
+                updateButtonStates(); // Update buttons immediately
+                manageDisplayInterval(); // Update display immediately to 00:00:00
+                // --- END OPTIMISTIC UI UPDATE ---
+
+                console.log(`[TimerJS - ${timerIdSuffix}] Dispatching requestTimerReset.`);
+                document.dispatchEvent(new CustomEvent('requestTimerReset', { detail: { timerId: timerIdSuffix } }));
+            });
+        }
+    }
+}
+export function handleServerTimerStarted(data) {
+    if (!data) { console.error("[TimerJS] handleServerTimerStarted: no data."); return; }
+    console.log(`[TimerJS - ${timerIdSuffix}] Received timer_started from server:`, data);
+    serverData.currentValueSeconds = parseInt(data.current_value_seconds, 10) || 0; // Use 0 as fallback
+    serverData.isRunning = true;
+    serverData.lastStartedAtUTC = data.last_started_at_utc;
+    if (!serverData.lastStartedAtUTC) console.warn(`[TimerJS] timer_started event missing last_started_at_utc.`);
+    updateButtonStates(); // Confirm button states
+    manageDisplayInterval();
+}
+
+export function handleServerTimerStopped(data) {
+    if (!data) { console.error("[TimerJS] handleServerTimerStopped: no data."); return; }
+    console.log(`[TimerJS - ${timerIdSuffix}] Received timer_stopped from server:`, data);
+    serverData.currentValueSeconds = parseInt(data.current_value_seconds, 10) || 0;
+    serverData.isRunning = false;
+    serverData.lastStartedAtUTC = null;
+    updateButtonStates(); // Confirm button states
+    manageDisplayInterval();
+}
+
+export function handleServerTimerReset(data) { // data might just confirm the action or send the new state
+    if (!data) { console.error("[TimerJS] handleServerTimerReset: no data."); return; }
+    console.log(`[TimerJS - ${timerIdSuffix}] Received timer_reset from server:`, data);
+    serverData.currentValueSeconds = 0; // Server confirms it's 0
+    serverData.isRunning = false;
+    serverData.lastStartedAtUTC = null;
+    updateButtonStates(); // Confirm button states
+    manageDisplayInterval();
+}
+
+export function updateTimerStateFromServer(newState) {
+    if (!newState) {
+        console.warn(`[TimerJS - ${timerIdSuffix}] updateTimerStateFromServer called with no state.`);
+        return;
+    }
+    console.log(`[TimerJS - ${timerIdSuffix}] Updating timer state from full server push:`, newState);
+
+    serverData.currentValueSeconds = parseInt(newState.current_value_seconds || newState.base_value_seconds, 10) || 0; // Use base_value_seconds if available from corrected initial_state
+    const isRunningString = String(newState.is_running).toLowerCase();
+    serverData.isRunning = newState.is_running === true || isRunningString === 'true';
+    serverData.lastStartedAtUTC = newState.last_started_at_utc || null;
+
+    updateButtonStates();
+    manageDisplayInterval(); // This is key to restart/stop the interval
 }

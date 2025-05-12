@@ -12,11 +12,10 @@ Challenge Not Found
 {% endblock %}
 
 {% block head %}
+
 {{ super() }}
 {# Base style.css is linked in base.html #}
 {% endblock %}
-
-
 {% block content %}
 {# Add page-specific class and mode class #}
 {% set body_class = 'single-group-mode' if not is_multigroup else 'multi-group-mode' %}
@@ -41,8 +40,14 @@ Challenge Not Found
     data-authorize-user-url="{{ url_for('challenge_api.add_authorized_user', public_id=challenge_id) if not is_local else '' }}"
     data-remove-user-url-base="{{ url_for('challenge_api.remove_authorized_user', public_id=challenge_id, user_id=0) | replace('/0', '') if not is_local else '' }}"
     data-is-creator="{{ is_creator | lower }}" data-is-authorized="{{ is_authorized | lower }}"
-    data-profile-url="{{ url_for('profile.profile_view') }}">
-  </div>
+    data-profile-url="{{ url_for('profile.profile_view') }}" {% if shared_challenge %}
+    data-timer-current-value="{{ shared_challenge.get_current_timer_value() }}" data-timer-last-started-utc="{{ shared_challenge.timer_last_started_at_utc.isoformat() if
+    shared_challenge.timer_is_running and shared_challenge.timer_last_started_at_utc else '' }}" {# API endpoints for
+    timer control #}
+    data-timer-start-url="{{ url_for('challenge_api.timer_start', public_id=challenge_id) if not is_local else '' }}"
+    data-timer-stop-url="{{ url_for('challenge_api.timer_stop', public_id=challenge_id) if not is_local else '' }}"
+    data-timer-reset-url="{{ url_for('challenge_api.timer_reset', public_id=challenge_id) if not is_local else '' }}" {%
+    endif %}></div>
   {% endif %}
   {# --- End Data Div --- #}
 
@@ -275,13 +280,10 @@ Challenge Not Found
 
     {# --- Add Profile URL to the #challengeData div --- #}
     {# Find your existing #challengeData div and add the data-profile-url attribute #}
-    <div id="challengeData" style="display: none;" aria-hidden="true"
-    data-challenge-id="{{ challenge_id }}"
-    data-is-local="{{ is_local | lower }}"
-    {# ... other data attributes ... #}
-    data-profile-url="{{ url_for('profile.profile_view') }}"
-    data-is-authorized="{{ is_authorized | lower }}">
-</div>
+    <div id="challengeData" style="display: none;" aria-hidden="true" data-challenge-id="{{ challenge_id }}"
+      data-is-local="{{ is_local | lower }}" {# ... other data attributes ... #}
+      data-profile-url="{{ url_for('profile.profile_view') }}" data-is-authorized="{{ is_authorized | lower }}">
+    </div>
     {# Column for the Rules Card - spans full width #}
     <div class="row mb-4">
       <div class="col-12">
@@ -540,7 +542,7 @@ Challenge Not Found
 <script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
 <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
-
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 
 {# --- Core Challenge View Modules --- #}
 <script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>

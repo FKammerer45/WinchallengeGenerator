@@ -4,7 +4,7 @@
 
 // Import necessary modules (assuming these exist and are correct)
 import { apiFetch } from '../utils/api.js';
-import { setLoading, showError,showSuccess, escapeHtml, showFlash } from '../utils/helpers.js';
+import { setLoading, showError, showSuccess, escapeHtml, showFlash } from '../utils/helpers.js';
 import {
     updateGroupCountDisplay, renderProgressItems, addGroupToDOM,
     updateUIAfterMembershipChange, // Use the imported version directly
@@ -13,8 +13,14 @@ import {
 } from './ui.js';
 import { getLocalChallengeById, updateLocalChallengeProgress } from '../utils/local_storage.js';
 import { updatePenaltyConfig } from './penalty.js';
-import { initializeTimer } from './timer.js';
-
+import {
+    initializeTimer,
+    handleServerTimerStarted,
+    handleServerTimerStopped,
+    handleServerTimerReset,
+    updateTimerStateFromServer
+} from './timer.js';
+import { initializeChallengeSockets } from './socket_handler.js';
 // --- Module-level State ---
 let challengeConfig = {
     id: null, isLocal: false, isMultigroup: false, maxGroups: 1, initialGroupCount: 0,
@@ -27,11 +33,19 @@ let challengeConfig = {
         setPenaltyUrlBase: null,
         savePlayersBase: null,
         authorizeUser: null,
-        removeUserBase: null
+        removeUserBase: null,
+        timerStart: null,
+        timerStop: null,
+        timerReset: null
     },
     isLoggedIn: false,
     isCreator: false,
-    isAuthorized: false
+    isAuthorized: false,
+    initialTimerState: {
+        current_value_seconds: 0,
+        is_running: false,
+        last_started_at_utc: null
+    }
 };
 
 const requestControllers = { join: null, leave: null, create: null, savePlayers: null, authorize: null, removeAuth: null };
@@ -46,7 +60,6 @@ let pageContainer = null; // Added for event delegation
 const JOINED_GROUP_COL_CLASSES = ['col-md-8', 'col-lg-6', 'mx-auto', 'mb-4'];
 const OTHER_GROUP_COL_CLASSES = ['col-lg-4', 'col-md-6', 'mb-4'];
 const TIMER_ID = 'main';
-
 // --- Helper Functions ---
 
 function makeNewProgress(oldProgress, key, isComplete) {
@@ -63,30 +76,18 @@ function nextSignal(key) {
     return ctrl.signal;
 }
 
-function lockButton(btn, label) {
+function lockButton(btn, label = "Processing...") {
     if (!btn) return;
-    btn.disabled = true;
-    const spinner = btn.querySelector('.spinner-border-sm');
-    if (spinner) spinner.style.display = 'inline-block';
-    // Store original text using firstChild assuming structure is <spinner><span>Text</span>
-    const textSpan = btn.querySelector('span:not(.spinner-border-sm)');
-    if (textSpan) {
-        btn.dataset.prevText = textSpan.textContent;
-        textSpan.textContent = label;
-    }
+    // Use the imported setLoading function for consistent behavior
+    setLoading(btn, true, label);
+    // console.log(`[MainJS lockButton] Button ${btn.id} locked.`);
 }
 
 function restoreButton(btn) {
     if (!btn) return;
-    const spinner = btn.querySelector('.spinner-border-sm');
-    if (spinner) spinner.style.display = 'none';
-    // Restore original text
-    const textSpan = btn.querySelector('span:not(.spinner-border-sm)');
-    if (textSpan && typeof btn.dataset.prevText === 'string') {
-        textSpan.textContent = btn.dataset.prevText;
-        delete btn.dataset.prevText; // Clean up
-    }
-    btn.disabled = false;
+    // Use the imported setLoading function
+    setLoading(btn, false); // setLoading(false) should restore original text
+    // console.log(`[MainJS restoreButton] Button ${btn.id} restored.`);
 }
 
 async function handleShowOverlayLink() {
@@ -213,6 +214,88 @@ async function autoJoinGroup(groupId) {
     }
 }
 
+
+function handleSocketGroupCreated(newGroupData) {
+    console.log("[MainJS] Handling socketGroupCreated:", newGroupData);
+    if (!challengeConfig || !challengeConfig.initialGroups) {
+        console.error("[MainJS] challengeConfig not ready for group_created event.");
+        return;
+    }
+
+    // Avoid adding if it already exists (e.g., if the creator client already added it)
+    if (challengeConfig.initialGroups.some(g => g.id === newGroupData.id)) {
+        console.log(`[MainJS] Group ${newGroupData.id} already in local state. Ignoring duplicate create.`);
+        return;
+    }
+
+    challengeConfig.initialGroups.push(newGroupData);
+    challengeConfig.initialGroupCount = (challengeConfig.initialGroupCount || 0) + 1;
+
+    // Add to DOM (will go to 'other' groups initially unless userJoinedGroupId matches)
+    addGroupToDOM(newGroupData, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+    updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+
+    // UpdateUIAfterMembershipChange will correctly place and style it,
+    // especially if the creator of the group was auto-joined.
+    updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+    // Optional: show a subtle flash for other users
+    // if (newGroupData.creator_id !== current_user_id_from_config) { // Need a way to know current user ID
+    //     showFlash(`New group "${escapeHtml(newGroupData.name)}" created.`, 'info');
+    // }
+}
+function handleSocketGroupMembershipUpdate(updateData) {
+    console.log("[MainJS] Handling socketGroupMembershipUpdate:", updateData);
+    if (!challengeConfig || !challengeConfig.initialGroups) {
+        console.error("[MainJS] challengeConfig not ready for group_membership_update event.");
+        return;
+    }
+
+    const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === updateData.group_id);
+    if (groupIndex !== -1) {
+        challengeConfig.initialGroups[groupIndex].member_count = updateData.member_count;
+        challengeConfig.initialGroups[groupIndex].player_names = updateData.player_names || []; // Ensure it's an array
+
+        // If this client is the one who joined/left, their userJoinedGroupId might need update
+        // This is typically handled by the API response directly for the acting user.
+        // For other users, this event primarily updates display.
+
+        // updateUIAfterMembershipChange will refresh the specific card's button and player list
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+    } else {
+        console.warn(`[MainJS] Group ${updateData.group_id} not found in local state for membership update.`);
+    }
+}
+
+function handleSocketPlayerNamesUpdated(updateData) {
+    console.log("[MainJS] Handling socketPlayerNamesUpdated:", updateData);
+    if (!challengeConfig || !challengeConfig.initialGroups) {
+        console.error("[MainJS] challengeConfig not ready for player_names_updated event.");
+        return;
+    }
+
+    const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === updateData.group_id);
+    if (groupIndex !== -1) {
+        challengeConfig.initialGroups[groupIndex].player_names = updateData.player_names || [];
+
+        // Re-render the player names section for the specific card,
+        // or let updateUIAfterMembershipChange handle it.
+        // updateUIAfterMembershipChange should be sufficient if it calls renderPlayerNameInputs.
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+
+        // If only player names changed and not membership, a more targeted UI update might be:
+        // const cardWrapper = document.querySelector(`.group-card-wrapper[data-group-id="${updateData.group_id}"]`);
+        // const playerNamesSectionWrapper = cardWrapper?.querySelector('.player-names-section-wrapper');
+        // if (playerNamesSectionWrapper) {
+        //     const canInteract = challengeConfig.isLoggedIn && challengeConfig.isAuthorized && (challengeConfig.userJoinedGroupId === updateData.group_id);
+        //     if (canInteract) { // Or just always re-render if it's just display names
+        //         renderPlayerNameInputs(playerNamesSectionWrapper, updateData.group_id, updateData.player_names, challengeConfig.numPlayersPerGroup);
+        //     }
+        // }
+    } else {
+        console.warn(`[MainJS] Group ${updateData.group_id} not found in local state for player names update.`);
+    }
+}
+
 /**
  * Reads configuration data from the hidden #challengeData div in the HTML
  * and populates the challengeConfig object.
@@ -220,17 +303,14 @@ async function autoJoinGroup(groupId) {
  */
 function initializeConfigFromDOM() {
     const dataEl = document.getElementById('challengeData');
-    statusDiv = document.getElementById('pageStatusDisplay'); // Ensure statusDiv is accessible
+    statusDiv = document.getElementById('pageStatusDisplay');
 
-    // 1. Check if the essential data element exists
-    if (!dataEl?.dataset) { // Using optional chaining for safety
+    if (!dataEl?.dataset) {
         console.error("CRITICAL: #challengeData element or its dataset is missing!");
         showError(statusDiv || document.body, "Initialization Error: Cannot read page data.", "danger");
-        return false; // Stop initialization
+        return false;
     }
-
     try {
-        // 2. Read all data attributes - store raw values first for debugging
         const rawData = {
             challengeId: dataEl.dataset.challengeId,
             isLocal: dataEl.dataset.isLocal,
@@ -241,11 +321,9 @@ function initializeConfigFromDOM() {
             csrfToken: dataEl.dataset.csrfToken,
             numPlayersPerGroup: dataEl.dataset.numPlayersPerGroup,
             initialGroups: dataEl.dataset.initialGroups,
-            // --- Flags ---
             isLoggedIn: dataEl.dataset.isLoggedIn,
             isCreator: dataEl.dataset.isCreator,
-            isAuthorized: dataEl.dataset.isAuthorized, // Read the raw value
-            // --- URLs ---
+            isAuthorized: dataEl.dataset.isAuthorized,
             addGroupUrl: dataEl.dataset.addGroupUrl,
             updateProgressUrlBase: dataEl.dataset.updateProgressUrlBase,
             joinLeaveUrlBase: dataEl.dataset.joinLeaveUrlBase,
@@ -253,10 +331,15 @@ function initializeConfigFromDOM() {
             savePlayersUrlBase: dataEl.dataset.savePlayersUrlBase,
             authorizeUserUrl: dataEl.dataset.authorizeUserUrl,
             removeUserUrlBase: dataEl.dataset.removeUserUrlBase,
-            profileUrl: dataEl.dataset.profileUrl
+            profileUrl: dataEl.dataset.profileUrl,
+            timerCurrentValue: dataEl.dataset.timerCurrentValue,
+            timerIsRunning: dataEl.dataset.timerIsRunning,
+            timerLastStartedUtc: dataEl.dataset.timerLastStartedUtc,
+            timerStartUrl: dataEl.dataset.timerStartUrl,
+            timerStopUrl: dataEl.dataset.timerStopUrl,
+            timerResetUrl: dataEl.dataset.timerResetUrl
         };
 
-        // 4. Process and parse data into the challengeConfig object
         const joinedId = JSON.parse(rawData.userJoinedGroupId || 'null');
         const coreStructure = rawData.challengeJson && rawData.challengeJson !== 'null' ? JSON.parse(rawData.challengeJson) : null;
         const parsedMaxGroups = parseInt(rawData.maxGroups, 10);
@@ -264,14 +347,14 @@ function initializeConfigFromDOM() {
         const initialGroupsData = rawData.initialGroups && rawData.initialGroups !== 'null' ? JSON.parse(rawData.initialGroups) : [];
 
         challengeConfig = {
-            id: rawData.challengeId,
+            id: rawData.challengeId, // This is the public_id
             isLocal: rawData.isLocal === 'true',
             isMultigroup: rawData.isMultigroup === 'true',
             maxGroups: (!isNaN(parsedMaxGroups) && parsedMaxGroups >= 1) ? parsedMaxGroups : 1,
             initialGroupCount: Array.isArray(initialGroupsData) ? initialGroupsData.length : 0,
             userJoinedGroupId: typeof joinedId === 'number' ? joinedId : null,
             coreChallengeStructure: coreStructure,
-            progressData: {}, // Initialize progress data for local challenges if needed
+            progressData: {}, // Only for local challenges
             csrfToken: rawData.csrfToken,
             numPlayersPerGroup: (!isNaN(parsedNumPlayers) && parsedNumPlayers >= 1) ? parsedNumPlayers : 1,
             initialGroups: Array.isArray(initialGroupsData) ? initialGroupsData : [],
@@ -283,29 +366,79 @@ function initializeConfigFromDOM() {
                 savePlayersBase: rawData.savePlayersUrlBase,
                 authorizeUser: rawData.authorizeUserUrl,
                 removeUserBase: rawData.removeUserUrlBase,
-                profile: rawData.profileUrl
+                profile: rawData.profileUrl,
+                timerStart: rawData.timerStartUrl,
+                timerStop: rawData.timerStopUrl,
+                timerReset: rawData.timerResetUrl
             },
-            // --- Assign booleans using strict comparison ---
             isLoggedIn: rawData.isLoggedIn === 'true',
             isCreator: rawData.isCreator === 'true',
-            isAuthorized: rawData.isAuthorized === 'true' // Correct assignment
+            isAuthorized: rawData.isAuthorized === 'true',
+            initialTimerState: {
+                current_value_seconds: parseInt(rawData.timerCurrentValue, 10) || 0,
+                is_running: rawData.timerIsRunning === 'true',
+                last_started_at_utc: rawData.timerLastStartedUtc || null
+            }
         };
 
-        // 6. Basic validation of essential config after processing
         if (!challengeConfig.id) {
-            throw new Error("Essential config 'challengeId' missing or invalid.");
+            throw new Error("Essential config 'challengeId' (public_id) missing or invalid.");
         }
-        // Add other critical validations if needed
-
-        return true; // Indicate success
+        console.log("[MainJS] Initial Challenge Config:", JSON.parse(JSON.stringify(challengeConfig)));
+        return true;
 
     } catch (e) {
         console.error("challenge_view.js: Failed to parse or process initial data:", e);
         showError(statusDiv || document.body, `Initialization Error: ${e.message}`, 'danger');
-        return false; // Indicate failure
+        return false;
     }
 }
 
+async function handleRequestTimerStart() {
+    if (challengeConfig.isLocal || !challengeConfig.urls.timerStart || !challengeConfig.isAuthorized) return;
+    const btn = document.getElementById(`btnStart-${TIMER_ID}`);
+    if (!btn) { console.error(`Start button not found.`); return; }
+    lockButton(btn, 'Starting...');
+    try {
+        await apiFetch(challengeConfig.urls.timerStart, { method: 'POST', signal: nextSignal('timer') }, challengeConfig.csrfToken);
+        console.log("[MainJS] Timer start request successful. Waiting for WebSocket event.");
+    } catch (error) {
+        console.error("Failed to start timer API:", error);
+        showError(statusDiv, `Error starting timer: ${error.message}`, 'danger');
+    } finally {
+        if (btn) restoreButton(btn);
+    }
+}
+async function handleRequestTimerStop() {
+    if (challengeConfig.isLocal || !challengeConfig.urls.timerStop || !challengeConfig.isAuthorized) return;
+    const btn = document.getElementById(`btnStop-${TIMER_ID}`);
+    if (!btn) { console.error(`Stop button not found.`); return; }
+    lockButton(btn, 'Stopping...');
+    try {
+        await apiFetch(challengeConfig.urls.timerStop, { method: 'POST', signal: nextSignal('timer') }, challengeConfig.csrfToken);
+        console.log("[MainJS] Timer stop request successful. Waiting for WebSocket event.");
+    } catch (error) {
+        console.error("Failed to stop timer API:", error);
+        showError(statusDiv, `Error stopping timer: ${error.message}`, 'danger');
+    } finally {
+        if (btn) restoreButton(btn);
+    }
+}
+async function handleRequestTimerReset() {
+    if (challengeConfig.isLocal || !challengeConfig.urls.timerReset || !challengeConfig.isAuthorized) return;
+    const btn = document.getElementById(`btnReset-${TIMER_ID}`);
+    if (!btn) { console.error(`Reset button not found.`); return; }
+    lockButton(btn, 'Resetting...');
+    try {
+        await apiFetch(challengeConfig.urls.timerReset, { method: 'POST', signal: nextSignal('timer') }, challengeConfig.csrfToken);
+        console.log("[MainJS] Timer reset request successful. Waiting for WebSocket event.");
+    } catch (error) {
+        console.error("Failed to reset timer API:", error);
+        showError(statusDiv, `Error resetting timer: ${error.message}`, 'danger');
+    } finally {
+        if (btn) restoreButton(btn);
+    }
+}
 /**
  * Updates the userJoinedGroupId in the module state and the hidden DOM element.
  * Also triggers update to penalty module config.
@@ -465,9 +598,9 @@ async function handleJoinGroupClick(_, joinBtn) {
             updateUserJoinedGroupState(groupId);
 
         } else if (data && data.status === 'success' && data.message.includes("already in this group")) {
-             // If user was already in the group, still update the joined state just in case
-             updateUserJoinedGroupState(groupId);
-             console.log("[Join] User already in group, ensuring state is correct.");
+            // If user was already in the group, still update the joined state just in case
+            updateUserJoinedGroupState(groupId);
+            console.log("[Join] User already in group, ensuring state is correct.");
         } else {
             // Handle cases where API call succeeded but didn't return expected data
             throw new Error(data?.message || data?.error || 'Join request completed but response was unclear.');
@@ -593,7 +726,7 @@ async function handleProgressChange(event) {
 
             // Validate the read value (should be >= 1 as set by ui.js)
             if (isNaN(segmentIndex_1based) || segmentIndex_1based < 1) {
-                 throw new Error(`Invalid segment_index (${itemData.segmentIndex}) read from data attribute for b2b item.`);
+                throw new Error(`Invalid segment_index (${itemData.segmentIndex}) read from data attribute for b2b item.`);
             }
 
             // Use the 1-based index for the payload sent to the backend
@@ -644,7 +777,7 @@ async function handleProgressChange(event) {
         } else {
             // API Update (sends payload with 1-based segment_index)
             if (!challengeConfig.urls.updateProgressBase) {
-                 throw new Error("API URL for progress update is not configured.");
+                throw new Error("API URL for progress update is not configured.");
             }
             const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
             console.log("Sending API request to:", url, "with payload:", JSON.stringify(payload)); // Log payload
@@ -730,8 +863,8 @@ async function handleSavePlayersClick(_, saveBtn) {
 
     // Optional: Add validation for name length if desired
     if (displayNames.some(name => name.length > 50)) {
-         showError(errBox, `Display names cannot exceed 50 characters.`);
-         return;
+        showError(errBox, `Display names cannot exceed 50 characters.`);
+        return;
     }
 
     lockButton(saveBtn, 'Saving…');
@@ -745,7 +878,7 @@ async function handleSavePlayersClick(_, saveBtn) {
         const data = await apiFetch(url, { method: 'POST', body: payload, signal: nextSignal('savePlayers') }, challengeConfig.csrfToken);
 
         if (data.status !== 'success' && data.status !== 'ok') { // Check for 'ok' too if no changes
-             throw new Error(data.error || 'Unknown error saving names');
+            throw new Error(data.error || 'Unknown error saving names');
         }
 
         showSuccess(errBox, data.message || 'Names saved!');
@@ -758,15 +891,15 @@ async function handleSavePlayersClick(_, saveBtn) {
             let slots = challengeConfig.initialGroups[groupIndex].player_names;
             if (!Array.isArray(slots) || slots.length !== displayNames.length || !slots.every(s => typeof s === 'object')) {
                 // If format is wrong, re-initialize based on current members (less ideal but fallback)
-                 console.warn("Re-initializing player_names structure in local state during save.");
-                 slots = Array.from({ length: displayNames.length }, () => ({ display_name: "", account_name: null }));
-                 // Ideally, fetch fresh group data here instead of guessing
+                console.warn("Re-initializing player_names structure in local state during save.");
+                slots = Array.from({ length: displayNames.length }, () => ({ display_name: "", account_name: null }));
+                // Ideally, fetch fresh group data here instead of guessing
             }
             // Update display names in the local state
             for (let i = 0; i < displayNames.length; i++) {
-                 if (slots[i]) { // Check if slot object exists
+                if (slots[i]) { // Check if slot object exists
                     slots[i].display_name = displayNames[i];
-                 }
+                }
             }
             challengeConfig.initialGroups[groupIndex].player_names = slots; // Assign back
             updatePenaltyConfig(challengeConfig); // Notify penalty module if needed
@@ -824,7 +957,7 @@ async function handleClearPenaltyClick(_, clearBtn) {
 }
 
 
-// --- NEW: Handler for Authorizing a User ---
+
 async function handleAuthorizeUserClick(authorizeBtn) {
     if (authorizeBtn.disabled) return;
 
@@ -962,220 +1095,170 @@ async function handleRemoveUserClick(removeBtn) {
 
 // --- Page Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-
-    pageContainer = document.getElementById('challengeViewContainer'); // Assign pageContainer
+    pageContainer = document.getElementById('challengeViewContainer');
     if (!pageContainer) { console.error("CRITICAL: #challengeViewContainer missing!"); return; }
 
-    if (!initializeConfigFromDOM()) { return; } // Read config, exit if failed
+    if (!initializeConfigFromDOM()) { return; } // Read config, assigns to module-scoped statusDiv
 
-    // Initialize Timer
-    try { initializeTimer(TIMER_ID); } //
-    catch (timerError) { console.error("Failed to initialize timer:", timerError); showError(statusDiv, "Timer could not be initialized.", "warning"); }
+    // Initialize Timer (common for local and shared)
+    if (!challengeConfig.isLocal) {
+        // For shared challenges, initialize with server state and authorization
+        document.addEventListener('socketInitialStateReceived', (event) => {
+            const freshInitialState = event.detail; // This is where your log is
+            console.log('[MainJS] Handling socketInitialStateReceived:', freshInitialState); // THIS ISN'T FIRING
+            if (freshInitialState && freshInitialState.timer_state) {
+                console.log("[AAAAAAAAAAAAAAAAAA] L12g1g14g1g1r display."); // THIS ISN'T FIRING
+                updateTimerStateFromServer(freshInitialState.timer_state);
+            }
+        });
+        // Listen for custom events dispatched by timer.js to trigger API calls
+        document.addEventListener('requestTimerStart', handleRequestTimerStart);
+        document.addEventListener('requestTimerStop', handleRequestTimerStop);
+        document.addEventListener('requestTimerReset', handleRequestTimerReset);
+        document.addEventListener('socketGroupCreated', (event) => handleSocketGroupCreated(event.detail));
+        document.addEventListener('socketGroupMembershipUpdate', (event) => handleSocketGroupMembershipUpdate(event.detail));
+        document.addEventListener('socketPlayerNamesUpdated', (event) => handleSocketPlayerNamesUpdated(event.detail));
+
+        console.log("[MainJS] Server-synced timer initialized and event listeners for requests attached.");
+    } else {
+        // For local challenges
+        const localChallengeData = typeof getLocalChallengeById === 'function' ? getLocalChallengeById(challengeConfig.id) : null;
+        const localTimerState = localChallengeData?.timerState || challengeConfig.initialTimerState;
+        initializeTimer(TIMER_ID, localTimerState, true); // Local user always authorized
+        console.log("[MainJS] Local timer initialized for display.");
+        // Add local-specific listeners if timer actions should modify local storage
+    }
 
     // --- Branch Logic: Local vs. Database Challenge ---
     if (challengeConfig.isLocal) {
-        // --- LOCAL CHALLENGE ---
-        const localData = getLocalChallengeById(challengeConfig.id); // [cite: 1]
-
+        // --- LOCAL CHALLENGE SETUP ---
+        const localData = typeof getLocalChallengeById === 'function' ? getLocalChallengeById(challengeConfig.id) : null;
         if (localData) {
             challengeConfig.coreChallengeStructure = localData.challengeData || {};
             challengeConfig.progressData = localData.progressData || {};
-            challengeConfig.penaltyInfo = localData.penalty_info || null; // Store penalty info
+            challengeConfig.penaltyInfo = localData.penalty_info || null;
 
-            // --- Target new placeholder elements ---
             const titleEl = document.getElementById('local-challenge-title');
             const rulesContainer = document.getElementById('local-rules-content');
-            const progressBarContainer = document.getElementById('local-group-card')?.querySelector('.progress-bar-container'); // Find within card
-            const progressItemsContainer = document.getElementById('local-group-card')?.querySelector('.group-progress-container'); // Find within card
+            const progressBarContainer = document.getElementById('local-group-card')?.querySelector('.progress-bar-container');
+            const progressItemsContainer = document.getElementById('local-group-card')?.querySelector('.group-progress-container');
             const penaltySectionContainer = document.getElementById('local-penalty-section-container');
             const penaltyBody = document.getElementById('local-penalty-body');
             const penaltyButton = penaltyBody?.querySelector('.lostGameBtn-local');
             const activePenaltyDisplay = document.getElementById('local-group-card')?.querySelector('.active-penalty-display');
 
-            // Populate Title
-            if (titleEl) {
-                titleEl.textContent = localData.name || 'Local Challenge';
-            }
+            if (titleEl) titleEl.textContent = localData.name || 'Local Challenge';
+            if (rulesContainer && challengeConfig.coreChallengeStructure) renderStaticChallengeDetailsJS(rulesContainer, challengeConfig.coreChallengeStructure);
+            else if (rulesContainer) rulesContainer.innerHTML = '<p class="text-muted small">Rules not available.</p>';
+            if (progressBarContainer && challengeConfig.coreChallengeStructure) renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData);
+            else if (progressBarContainer) progressBarContainer.innerHTML = '<p class="text-muted small">Progress bar unavailable.</p>';
 
-            // Populate Rules
-            if (rulesContainer && challengeConfig.coreChallengeStructure) {
-                renderStaticChallengeDetailsJS(rulesContainer, challengeConfig.coreChallengeStructure); // [cite: 1]
-            } else if (rulesContainer) {
-                rulesContainer.innerHTML = '<p class="text-muted small">Rules not available.</p>';
-            }
-
-
-            // Populate Progress Bar
-            if (progressBarContainer && challengeConfig.coreChallengeStructure) {
-                renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, challengeConfig.progressData); // [cite: 1]
-            } else if (progressBarContainer) {
-                progressBarContainer.innerHTML = '<p class="text-muted small">Progress bar unavailable.</p>';
-            }
-
-            // Populate Progress Items (ensure container is found)
             if (progressItemsContainer && challengeConfig.coreChallengeStructure) {
-                renderProgressItems(progressItemsContainer, challengeConfig.coreChallengeStructure, challengeConfig.id, challengeConfig.progressData, true); // [cite: 1]
-                // Attach change listener to the specific card or a parent container
+                renderProgressItems(progressItemsContainer, challengeConfig.coreChallengeStructure, challengeConfig.id, challengeConfig.progressData, true);
                 const localCard = document.getElementById('local-group-card');
-                if (localCard) {
-                    localCard.addEventListener('change', handleProgressChange);
-                } else {
-                    console.error("Cannot attach progress listener: local card not found.");
-                }
+                if (localCard) localCard.addEventListener('change', handleProgressChange);
+                else console.error("Cannot attach progress listener: local card not found.");
             } else if (progressItemsContainer) {
                 progressItemsContainer.innerHTML = '<p class="text-muted small">Progress items unavailable.</p>';
-                console.error("Could not render local progress items. Container or structure missing.");
-            } else {
-                console.error("Progress items container '.group-progress-container' not found within '#local-group-card'.");
             }
 
-            // Populate/Show Penalty Section (if applicable)
             if (penaltySectionContainer && penaltyBody && penaltyButton && challengeConfig.penaltyInfo) {
                 const tabId = challengeConfig.penaltyInfo.tab_id;
                 if (tabId) {
                     penaltyButton.dataset.penaltyTabId = tabId;
-                    penaltySectionContainer.style.display = 'block'; // Show the section
-                    // Maybe clear placeholder text
-                    // penaltyBody.querySelector('p.text-secondary')?.remove();
-                    // Penalty JS should initialize based on presence of elements
-                } else {
-                    console.warn("Local challenge has penalty info but no tab_id");
-                }
+                    penaltySectionContainer.style.display = 'block';
+                } else console.warn("Local challenge has penalty info but no tab_id");
             }
-
-            // Populate Active Penalty Display (if needed)
-            if (activePenaltyDisplay && localData.active_penalty_text) { // Check if local storage stores this
-                updatePenaltyDisplay(challengeConfig.id, localData.active_penalty_text); // [cite: 1]
-            }
-
-
-            // Initialize Timer (using placeholder)
-            initializeTimer('main'); // [cite: 1] Assuming the timer in the placeholder uses 'main' ID
-
-
-            // Initialize penalty module config if needed
+            if (activePenaltyDisplay && localData.active_penalty_text) updatePenaltyDisplay(challengeConfig.id, localData.active_penalty_text);
+            // initializeTimer('main') was already called above for local challenges.
             if (challengeConfig.penaltyInfo && typeof updatePenaltyConfig === 'function') {
-                updatePenaltyConfig({ // [cite: 1]
-                    userJoinedGroupId: challengeConfig.id,
-                    numPlayersPerGroup: 1,
-                    isMultigroup: false,
-                    initialGroups: [{ id: challengeConfig.id, player_names: ['You'] }]
+                updatePenaltyConfig({
+                    userJoinedGroupId: challengeConfig.id, numPlayersPerGroup: 1,
+                    isMultigroup: false, initialGroups: [{ id: challengeConfig.id, player_names: ['You'] }]
                 });
             }
-
         } else {
-            const errorMsg = `Error: Could not load local challenge data (ID: ${escapeHtml(challengeConfig.id)}). It might have been deleted.`;
-            // Try to display error in a general status area if local structure failed
-            const statusDisplay = document.getElementById('pageStatusDisplay');
-            showError(statusDisplay || document.body, errorMsg, 'danger');
+            const errorMsg = `Error: Could not load local challenge data (ID: ${escapeHtml(challengeConfig.id)}).`;
+            showError(statusDiv || document.body, errorMsg, 'danger');
         }
     } else {
-        // --- DATABASE CHALLENGE ---
-        myGroupContainerEl = document.getElementById('myGroupContainer');
-        otherGroupsContainerEl = document.getElementById('otherGroupsContainer');
+        // --- DATABASE CHALLENGE (SHARED) SETUP ---
+        myGroupContainerEl = document.getElementById('myGroupContainer'); // Assign here
+        otherGroupsContainerEl = document.getElementById('otherGroupsContainer'); // Assign here
+
         if (!myGroupContainerEl || !otherGroupsContainerEl) {
             console.error("Essential DB challenge elements missing (#myGroupContainer or #otherGroupsContainer)!");
             showError(statusDiv || document.body, "Initialization Error: Page structure for shared challenge is incomplete.", "danger");
-            return;
+            return; // Stop further DB challenge setup if containers are missing
         }
 
         const addGroupForm = document.getElementById('addGroupForm');
-
-        // Initial UI setup for DB challenge
         try {
-            // Render initial group cards and their states
             updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-
-
-            const theOnlyGroup = challengeConfig.initialGroups?.[0]; // Get the first (only) group's data if it exists
-
-            if (
-                !challengeConfig.isMultigroup &&                     // It IS a single-group challenge
-                theOnlyGroup &&                                      // The group data actually exists
-                challengeConfig.isLoggedIn &&                        // The VIEWING user is logged in
-                challengeConfig.isAuthorized &&                      // The VIEWING user is authorized for THIS challenge
-                challengeConfig.userJoinedGroupId === null &&      // The VIEWING user is NOT currently joined
-                theOnlyGroup.member_count < challengeConfig.numPlayersPerGroup // The group is not full
+            const theOnlyGroup = challengeConfig.initialGroups?.[0];
+            if (!challengeConfig.isMultigroup && theOnlyGroup && challengeConfig.isLoggedIn &&
+                challengeConfig.isAuthorized && challengeConfig.userJoinedGroupId === null &&
+                theOnlyGroup.member_count < challengeConfig.numPlayersPerGroup
             ) {
-                console.log(`Auto-joining authorized user to single group ${theOnlyGroup.id}...`); // Optional log
-                // Visually move the card immediately for better UX (if it exists in 'other' container)
+                console.log(`Auto-joining authorized user to single group ${theOnlyGroup.id}...`);
                 const card = otherGroupsContainerEl?.querySelector(`.group-card-wrapper[data-group-id="${theOnlyGroup.id}"]`);
                 if (card) {
-                    console.log("Moving card to 'Your Group' section visually.");
-                    myGroupContainerEl.innerHTML = ''; // Clear any previous placeholder/content
+                    myGroupContainerEl.innerHTML = '';
                     const h = document.createElement('h4');
                     h.className = 'text-primary-accent mb-3 text-center';
                     h.textContent = 'Your Group';
                     myGroupContainerEl.appendChild(h);
-                    // Move the card - ensure classes are correct for the joined view
                     card.classList.remove(...OTHER_GROUP_COL_CLASSES);
                     card.classList.add(...JOINED_GROUP_COL_CLASSES);
                     myGroupContainerEl.appendChild(card);
-                } else {
-                    console.warn("Could not find card visually for single group auto-join move.");
-                }
-                // Attempt the API join in the background
+                } else console.warn("Could not find card visually for single group auto-join move.");
                 autoJoinGroup(theOnlyGroup.id);
             }
-            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups); //
-            // Update penalty module config initially
-            if (typeof updatePenaltyConfig === 'function') {
-                updatePenaltyConfig(challengeConfig); //
-            }
-
+            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+            if (typeof updatePenaltyConfig === 'function') updatePenaltyConfig(challengeConfig);
         } catch (uiError) {
-            console.error("Error during initial UI update:", uiError);
-            showError(statusDiv, "Error initializing UI state.", "danger");
+            console.error("Error during initial UI update for DB challenge:", uiError);
+            showError(statusDiv, "Error initializing UI state for shared challenge.", "danger");
         }
 
-
-        // Attach Create Group Form Listener (only if creator)
         if (addGroupForm && challengeConfig.isCreator) {
             addGroupForm.addEventListener('submit', handleCreateGroupSubmit);
         } else if (addGroupForm) {
-            addGroupForm.style.display = 'none'; // Hide form if not creator
+            addGroupForm.style.display = 'none';
         }
-
-        // --- Attach Delegated Event Listeners to the Main Container ---
-        pageContainer.addEventListener('click', (evt) => {
-            const btn = evt.target.closest('button'); // Target buttons specifically
-            if (!btn || btn.disabled) return;
-
-            // User Management Buttons (inside challenge view)
-            const authorizeBtn = btn.closest('#authorizeUserBtn');
-            const removeBtn = btn.closest('.remove-auth-user-btn');
-            // Group Interaction Buttons
-            const joinBtn = btn.closest('.join-group-btn');
-            const leaveBtn = btn.closest('.leave-group-btn');
-            // Player Name Save Button
-            const savePlayersBtn = btn.closest('.save-player-names-btn');
-            // Penalty Clear Button
-            const clearPenaltyBtn = btn.closest('.clear-penalty-btn');
-            const showOverlayBtn = document.getElementById('showOverlayLinkBtn');
-            if (showOverlayBtn) {
-                showOverlayBtn.addEventListener('click', handleShowOverlayLink);
-                console.log("Attached listener for showOverlayLinkBtn");
-            } else {
-                // Only log warning if it's NOT a local challenge page
-                const dataEl = document.getElementById('challengeData');
-                const isLocal = dataEl?.dataset?.isLocal === 'true';
-                if (!isLocal) { // Only warn if it's expected (shared challenge)
-                    console.warn("showOverlayLinkBtn not found (expected on shared challenge view).");
-                }
-            }
-            if (authorizeBtn) { handleAuthorizeUserClick(authorizeBtn); return; }
-            if (removeBtn) { handleRemoveUserClick(removeBtn); return; }
-            if (joinBtn) { handleJoinGroupClick(evt, joinBtn); return; }
-            if (leaveBtn) { handleLeaveGroupClick(evt, leaveBtn); return; }
-            if (savePlayersBtn) { handleSavePlayersClick(evt, savePlayersBtn); return; }
-            if (clearPenaltyBtn) { handleClearPenaltyClick(evt, clearPenaltyBtn); return; }
-
-
-
-        });
-
-        // Attach change listener for progress checkboxes (delegated)
-        pageContainer.addEventListener('change', handleProgressChange);
     }
+
+    // Attach listener for "Show/Copy Overlay Link" button ONCE
+    const showOverlayBtn = document.getElementById('showOverlayLinkBtn');
+    if (showOverlayBtn) {
+        showOverlayBtn.addEventListener('click', handleShowOverlayLink);
+        // console.log("Attached listener for showOverlayLinkBtn (once)."); // Can be removed if confirmed
+    } else {
+        if (!challengeConfig.isLocal) { // Only warn if it's expected
+            console.warn("showOverlayLinkBtn not found (expected on shared challenge view).");
+        }
+    }
+
+    // Delegated event listeners for actions within pageContainer
+    pageContainer.addEventListener('click', (evt) => {
+        const btn = evt.target.closest('button');
+        if (!btn || btn.disabled) return;
+
+        // Check button type by ID or class, and call appropriate handler
+        // Note: showOverlayLinkBtn is handled above, not here.
+        if (btn.id === 'authorizeUserBtn') { handleAuthorizeUserClick(btn); return; }
+        if (btn.classList.contains('remove-auth-user-btn')) { handleRemoveUserClick(btn); return; }
+        if (btn.classList.contains('join-group-btn')) { handleJoinGroupClick(evt, btn); return; }
+        if (btn.classList.contains('leave-group-btn')) { handleLeaveGroupClick(evt, btn); return; }
+        if (btn.classList.contains('save-player-names-btn')) { handleSavePlayersClick(evt, btn); return; }
+        if (btn.classList.contains('clear-penalty-btn')) { handleClearPenaltyClick(evt, btn); return; }
+    });
+
+    // Delegated change listener for progress checkboxes
+    pageContainer.addEventListener('change', handleProgressChange);
+
+    // Initialize Socket.IO connection and listeners (moved to socket_handler.js)
+    // Pass the module-scoped challengeConfig and statusDiv
+    initializeChallengeSockets(challengeConfig, statusDiv);
 
 }); // End DOMContentLoaded

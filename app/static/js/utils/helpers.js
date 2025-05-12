@@ -10,31 +10,35 @@
 export function setLoading(buttonElement, isLoading, loadingText = 'Processing...') {
     if (!buttonElement) return;
     const originalTextSpan = buttonElement.querySelector('span:not(.spinner-border-sm)');
-    const spinner = buttonElement.querySelector('.spinner-border-sm');
+    // const spinner = buttonElement.querySelector('.spinner-border-sm'); // spinner variable not strictly needed if CSS handles display
 
     if (isLoading) {
-        // Store original text only if it's not already stored (prevents overwriting during rapid clicks)
+        // Store original text only if it's not already stored
         if (!buttonElement.dataset.originalText && originalTextSpan) {
             buttonElement.dataset.originalText = originalTextSpan.textContent.trim();
         }
-        buttonElement.disabled = true;
-        buttonElement.classList.add('loading'); // Class used by CSS to show spinner
+        buttonElement.disabled = true; // Disable button when loading starts
+        buttonElement.classList.add('loading'); // Add 'loading' class for CSS to show spinner
         if (originalTextSpan) originalTextSpan.textContent = loadingText;
-        // Spinner display is handled by CSS '.loading .spinner-border-sm { display: inline-block; }'
+   
     } else {
-        buttonElement.disabled = false;
-        buttonElement.classList.remove('loading');
+        // When loading is finished:
+        buttonElement.classList.remove('loading'); // Remove 'loading' class to hide spinner via CSS
+
         // Restore original text if available
         if (originalTextSpan && typeof buttonElement.dataset.originalText === 'string') {
             originalTextSpan.textContent = buttonElement.dataset.originalText;
         } else if (originalTextSpan) {
-             // Fallback text determination if original wasn't stored or is missing
-             if (buttonElement.classList.contains('join-group-btn')) originalTextSpan.textContent = 'Join Group';
-             else if (buttonElement.classList.contains('leave-group-btn')) originalTextSpan.textContent = 'Leave Group';
-             else if (buttonElement.id === 'addGroupBtn') originalTextSpan.textContent = 'Create Group';
-             // else leave text as is
+
+            if (buttonElement.classList.contains('join-group-btn')) originalTextSpan.textContent = 'Join Group';
+            else if (buttonElement.classList.contains('leave-group-btn')) originalTextSpan.textContent = 'Leave Group';
+            else if (buttonElement.id === 'addGroupBtn') originalTextSpan.textContent = 'Create Group';
+            // Add more fallbacks if needed for other buttons that use setLoading
+            // else originalTextSpan.textContent = 'Submit'; // A generic fallback
         }
-        // Spinner display handled by CSS removing .loading class
+
+
+
         delete buttonElement.dataset.originalText; // Clean up stored text
     }
 }
