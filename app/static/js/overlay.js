@@ -39,6 +39,7 @@ let scrollInterval = null;
 let scrollDirection = 1; // 1 for down, -1 for up
 let isPausedAtEdge = false;
 let isHoveringScroll = false;
+let isSpinAnimationActive = false;
 
 let overlayTimerDisplayInterval = null;
 let overlayServerTimerData = {
@@ -305,9 +306,14 @@ function setupWheels() {
 
 function triggerPenaltySpinAnimation(data) {
     // console.debug("[Overlay Spin] Triggering penalty spin animation with data:", data);
+    if (typeof Winwheel === 'undefined') {
+        console.error("[Overlay Spin] Winwheel library not loaded. Cannot animate.");
+        penaltyWheelsContainer?.classList.add('hidden');
+        return;
+    }
     if (!playerWheel || !penaltyWheel) {
-        console.warn("[Overlay Spin] Wheels not initialized. Attempting setup.");
-        setupWheels(); // Attempt to set them up if not already
+        // console.warn("[Overlay Spin] Wheels not initialized. Attempting setup.");
+        setupWheels();
         if (!playerWheel || !penaltyWheel) {
             console.error("[Overlay Spin] Cannot trigger spin: Wheel instances still not available after setup.");
             penaltyWheelsContainer?.classList.add('hidden');
@@ -315,97 +321,142 @@ function triggerPenaltySpinAnimation(data) {
         }
     }
 
-    // Safely stop any ongoing animations
+    isSpinAnimationActive = true; // <<< SET FLAG: Spin sequence starts
+
+    // Stop any ongoing animations and reset rotation
     if (playerWheel.tween) playerWheel.stopAnimation(false);
     if (penaltyWheel.tween) penaltyWheel.stopAnimation(false);
-    
     playerWheel.rotationAngle = 0;
     penaltyWheel.rotationAngle = 0;
 
-    // Hide result display initially
-    const localPenaltyResultDisplay = document.getElementById('penalty-result-display'); // Re-query in case
-    if (localPenaltyResultDisplay) {
-        localPenaltyResultDisplay.textContent = '';
-        localPenaltyResultDisplay.style.display = 'none';
+    // Hide the final penalty text area (#active-penalty) during the spin
+    // The `updateActivePenalty` function handles showing/hiding activePenaltyEl.
+    // We can call it with an intermediate message or null.
+    if (activePenaltyEl && activePenaltyTextEl) {
+        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, "Spinning for penalty..."); // Or null to hide
     }
 
-
+    // Show wheel containers
     penaltyWheelsContainer?.classList.remove('hidden');
     playerWheelWrapper?.classList.remove('hidden');
-    penaltyWheelWrapper?.classList.add('hidden');
+    penaltyWheelWrapper?.classList.add('hidden'); // Penalty wheel hidden initially
 
-    const penaltyResult = data.result;
-    if (!penaltyResult) { console.error("[Overlay Spin] Invalid penalty_result data."); return; }
+    const penaltyResultFromServer = data.result; // Renamed for clarity
+    if (!penaltyResultFromServer) {
+        console.error("[Overlay Spin] Invalid penalty_result data received in 'triggerPenaltySpinAnimation'.");
+        penaltyWheelsContainer?.classList.add('hidden');
+        isSpinAnimationActive = false; // <<< CLEAR FLAG
+        return;
+    }
 
-    const allPlayers = penaltyResult.all_players || [];
-    const allPenalties = penaltyResult.all_penalties || [];
+    const allPlayers = penaltyResultFromServer.all_players || [];
+    const allPenalties = penaltyResultFromServer.all_penalties || [];
 
     const startPenaltyWheelSpin = () => {
         // console.debug("[Overlay Spin] Player wheel finished. Starting penalty wheel.");
-        setTimeout(() => {
+        setTimeout(() => { // Delay between player and penalty wheel
             playerWheelWrapper?.classList.add('hidden');
-            if (penaltyResult.name && penaltyResult.name !== "No Penalty" && penaltyResult.stopAngle !== undefined && allPenalties.length > 0) {
+
+            if (penaltyResultFromServer.name && penaltyResultFromServer.name.toLowerCase() !== "no penalty" && penaltyResultFromServer.stopAngle !== undefined && allPenalties.length > 0) {
                 penaltyWheelWrapper?.classList.remove('hidden');
                 try {
-                    const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'];
-                    const penaltyNames = allPenalties.map(p => p.name || '?');
-                    const penaltySegmentsData = createSegments(penaltyNames, penaltyColors);
+                    const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'].sort(() => 0.5 - Math.random());
+                    const penaltySegmentsData = createSegments(allPenalties.map(p => p.name || '?'), penaltyColors);
 
-                    penaltyWheel.clearCanvas(); // Clear before re-adding
-                    penaltyWheel.numSegments = 0; // Reset
-                    penaltyWheel.segments = [];   // Reset
+                    penaltyWheel.clearCanvas(); penaltyWheel.numSegments = 0; penaltyWheel.segments = [];
                     penaltySegmentsData.forEach(seg => penaltyWheel.addSegment(seg));
                     
                     if (penaltyWheel.numSegments === 0) throw new Error("Penalty wheel has no segments after configuration.");
 
-                    penaltyWheel.animation.stopAngle = penaltyResult.stopAngle;
+                    let winningSegmentIndex = -1;
+                    for (let i = 1; i <= penaltyWheel.numSegments; i++) {
+                        if (penaltyWheel.segments[i]?.text === penaltyResultFromServer.name) {
+                            winningSegmentIndex = i; break;
+                        }
+                    }
+                    
+                    penaltyWheel.animation.stopAngle = (winningSegmentIndex > 0) 
+                        ? penaltyWheel.getRandomForSegment(winningSegmentIndex) 
+                        : penaltyResultFromServer.stopAngle; // Fallback to server angle
+
                     penaltyWheel.animation.callbackFinished = () => {
-                        // console.debug("[Overlay Spin] Penalty animation finished. Landed on:", penaltyWheel.getIndicatedSegment()?.text);
+                        // console.debug("[Overlay Spin] Penalty animation finished.");
+                        const finalSelectedPlayer = penaltyResultFromServer.selected_player_name || "Player";
+                        const finalSelectedPenaltyName = penaltyResultFromServer.name || "a penalty";
+
+                        let displayText = "";
+                        if (finalSelectedPenaltyName && finalSelectedPenaltyName.toLowerCase() !== "no penalty") {
+                            displayText = `${escapeHtml(finalSelectedPlayer)} gets: ${escapeHtml(finalSelectedPenaltyName)}`;
+                        } else {
+                            displayText = `${escapeHtml(finalSelectedPlayer)} gets: No Penalty`;
+                        }
+
+                        // <<< DISPLAY FINAL PENALTY TEXT USING updateActivePenalty AFTER ANIMATION >>>
+                        if (activePenaltyEl && activePenaltyTextEl) {
+                            updateActivePenalty(activePenaltyEl, activePenaltyTextEl, displayText);
+                        }
+                        isSpinAnimationActive = false; // <<< CLEAR FLAG: Spin sequence fully complete
+
                         setTimeout(() => {
                             penaltyWheelsContainer?.classList.add('hidden');
-                            playerWheelWrapper?.classList.add('hidden');
-                            penaltyWheelWrapper?.classList.add('hidden');
                         }, WHEEL_HIDE_DELAY);
                     };
-                    penaltyWheel.draw(); // Draw with new segments
+                    penaltyWheel.draw();
                     penaltyWheel.startAnimation();
                 } catch (error) {
                     console.error("[Overlay Spin] Error configuring/starting penalty wheel:", error);
                     penaltyWheelsContainer?.classList.add('hidden');
+                    isSpinAnimationActive = false; // <<< CLEAR FLAG on error
                 }
-            } else {
-                // console.debug("[Overlay Spin] No penalty to spin for, or invalid data. Hiding wheels.");
-                penaltyWheelsContainer?.classList.add('hidden');
+            } else { // No penalty to spin for (e.g., "No Penalty" from server directly)
+                // console.debug("[Overlay Spin] No penalty to spin for (or 'No Penalty' outcome).");
+                const finalSelectedPlayer = penaltyResultFromServer.selected_player_name || "Player";
+                if (activePenaltyEl && activePenaltyTextEl) {
+                     updateActivePenalty(activePenaltyEl, activePenaltyTextEl, `${escapeHtml(finalSelectedPlayer)} gets: No Penalty`);
+                }
+                isSpinAnimationActive = false; // <<< CLEAR FLAG
+                setTimeout(() => {
+                    penaltyWheelsContainer?.classList.add('hidden');
+                }, WHEEL_HIDE_DELAY);
             }
-        }, 500); // Delay after player wheel stops
+        }, 750); // Delay after player wheel stops
     };
 
-    // Player Wheel Configuration
-    if (allPlayers.length > 0 && penaltyResult.playerStopAngle !== undefined) {
+    // Player Wheel Configuration and Start
+    if (allPlayers.length > 0 && penaltyResultFromServer.playerStopAngle !== undefined) {
         try {
-            const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
+            const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'].sort(() => 0.5 - Math.random());
             const playerSegmentsData = createSegments(allPlayers, playerColors);
 
-            playerWheel.clearCanvas();
-            playerWheel.numSegments = 0;
-            playerWheel.segments = [];
+            playerWheel.clearCanvas(); playerWheel.numSegments = 0; playerWheel.segments = [];
             playerSegmentsData.forEach(seg => playerWheel.addSegment(seg));
 
             if (playerWheel.numSegments === 0) throw new Error("Player wheel has no segments.");
+            
+            let winningPlayerSegmentIndex = -1;
+            for (let i = 1; i <= playerWheel.numSegments; i++) {
+                if (playerWheel.segments[i]?.text === penaltyResultFromServer.selected_player_name) {
+                    winningPlayerSegmentIndex = i; break;
+                }
+            }
+            playerWheel.animation.stopAngle = (winningPlayerSegmentIndex > 0)
+                ? playerWheel.getRandomForSegment(winningPlayerSegmentIndex)
+                : penaltyResultFromServer.playerStopAngle; // Fallback
 
-            playerWheel.animation.stopAngle = penaltyResult.playerStopAngle;
             playerWheel.animation.callbackFinished = startPenaltyWheelSpin;
             playerWheel.draw();
             playerWheel.startAnimation();
         } catch (playerWheelError) {
             console.error("[Overlay Spin] Error configuring/starting player wheel:", playerWheelError);
-            playerWheelWrapper?.classList.add('hidden'); // Hide if error
-            startPenaltyWheelSpin(); // Attempt to proceed to penalty wheel or hide all
+            playerWheelWrapper?.classList.add('hidden');
+            isSpinAnimationActive = false; // <<< CLEAR FLAG if player wheel fails
+            startPenaltyWheelSpin(); // Attempt to proceed or hide
         }
-    } else {
-        // console.debug("[Overlay Spin] No players for player wheel or missing stop angle, skipping player spin.");
+    } else { // No players to spin for player wheel
+        // console.debug("[Overlay Spin] No players for player wheel, skipping player spin.");
         playerWheelWrapper?.classList.add('hidden');
-        startPenaltyWheelSpin(); // Proceed directly to penalty or hide all
+        // Directly call startPenaltyWheelSpin which will then handle the penalty wheel or "No Penalty"
+        startPenaltyWheelSpin();
     }
 }
 
@@ -589,16 +640,36 @@ function connectWebSocket() {
         });
 
         socket.on('active_penalty_update', (data) => {
-            // console.debug('[OverlayWS] Received active_penalty_update:', data);
-            try {
-                if (!data || data.challenge_id !== challengeId || data.group_id === undefined) return;
-                if (data.group_id === streamerGroupId) {
+        // console.debug('[OverlayWS] Received active_penalty_update:', data);
+        try {
+            if (!data || data.challenge_id !== challengeId || data.group_id === undefined) return;
+
+            if (data.group_id === streamerGroupId) {
+                if (isSpinAnimationActive) {
+                    // If a spin animation is happening (triggered by 'penalty_result'),
+                    // we might want to show an intermediate message or nothing,
+                    // because the final result will be displayed by triggerPenaltySpinAnimation's callback.
+                    // For example, show "Spinning..." if the text indicates a choice is being made.
+                    if (data.penalty_text && data.penalty_text.toLowerCase().includes("choosing")) {
+                        if (activePenaltyEl && activePenaltyTextEl) {
+                            updateActivePenalty(activePenaltyEl, activePenaltyTextEl, data.penalty_text);
+                        }
+                    } else {
+                        // A spin is active, and this is likely the final result text.
+                        // Let triggerPenaltySpinAnimation handle displaying it after the spin.
+                        // console.debug("[OverlayWS] Spin animation active, deferring display of final penalty text from 'active_penalty_update'.");
+                    }
+                } else {
+                    // No spin animation active, so display the text from active_penalty_update directly.
+                    // This handles cases where penalty is set without a wheel spin, or to clear the penalty.
                     if (activePenaltyEl && activePenaltyTextEl) {
                         updateActivePenalty(activePenaltyEl, activePenaltyTextEl, data.penalty_text);
                     }
                 }
-            } catch (error) { console.error("[OverlayWS] Error processing active_penalty_update:", error); }
-        });
+            }
+        } catch (error) { console.error("[OverlayWS] Error processing active_penalty_update:", error); }
+    });
+
 
         socket.on('penalty_result', (data) => {
             // console.debug('[OverlayWS] Received penalty_result:', data);
