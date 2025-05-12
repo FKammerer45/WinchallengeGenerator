@@ -6,7 +6,8 @@ const SOCKET_PATH = '/socket.io'; // Default Socket.IO path
 const AUTO_SCROLL_DELAY = 45; // Milliseconds between scroll steps
 const AUTO_SCROLL_STEP = 1; // Pixels to scroll each step
 const AUTO_SCROLL_PAUSE = 3500; // Pause at top/bottom (ms)
-const WHEEL_HIDE_DELAY = 1500;
+const WHEEL_HIDE_DELAY = 1500; // Delay before hiding wheels after animation
+
 // --- DOM Element References ---
 const statusIndicator = document.getElementById('overlay-status');
 const statusIcon = document.getElementById('status-icon');
@@ -22,7 +23,7 @@ const activePenaltyTextEl = document.getElementById('active-penalty-text');
 const penaltyWheelsContainer = document.getElementById('penalty-wheels-container');
 const playerWheelCanvas = document.getElementById('playerWheelCanvas-overlay');
 const penaltyWheelCanvas = document.getElementById('penaltyWheelCanvas-overlay');
-const penaltyResultDisplay = document.getElementById('penalty-result-display');
+// const penaltyResultDisplay = document.getElementById('penalty-result-display'); // Not used in triggerPenaltySpinAnimation
 const playerWheelWrapper = document.getElementById('player-wheel-wrapper');
 const penaltyWheelWrapper = document.getElementById('penalty-wheel-wrapper');
 
@@ -33,9 +34,9 @@ let apiKey = null;
 let playerWheel = null;
 let penaltyWheel = null;
 let currentChallengeStructure = null;
-let streamerGroupId = null;
+let streamerGroupId = null; // ID of the group this overlay is primarily displaying
 let scrollInterval = null;
-let scrollDirection = 1;
+let scrollDirection = 1; // 1 for down, -1 for up
 let isPausedAtEdge = false;
 let isHoveringScroll = false;
 
@@ -46,7 +47,7 @@ let overlayServerTimerData = {
     lastStartedAtUTC: null,
 };
 
-/** Formats seconds into HH:MM:SS for overlay */
+// --- Timer Functions ---
 function formatOverlayTime(totalSeconds) {
     totalSeconds = Math.max(0, Math.floor(totalSeconds));
     const hours = Math.floor(totalSeconds / 3600);
@@ -58,9 +59,8 @@ function formatOverlayTime(totalSeconds) {
     return `${hh}:${mm}:${ss}`;
 }
 
-/** Updates the overlay's timer display element */
 function updateOverlayTimerDisplay() {
-    if (!timerDisplayEl) return; // timerDisplayEl is the DOM element for the overlay
+    if (!timerDisplayEl) return;
 
     let displaySeconds = overlayServerTimerData.currentValueSeconds;
     if (overlayServerTimerData.isRunning && overlayServerTimerData.lastStartedAtUTC) {
@@ -69,18 +69,20 @@ function updateOverlayTimerDisplay() {
             if (!isNaN(startTimeMillis)) {
                 const elapsedMillisSinceStart = Date.now() - startTimeMillis;
                 displaySeconds = overlayServerTimerData.currentValueSeconds + Math.floor(elapsedMillisSinceStart / 1000);
-            } else { // Should not happen if server sends valid ISO string
-                 timerDisplayEl.textContent = formatOverlayTime(overlayServerTimerData.currentValueSeconds); // Fallback
+            } else {
+                // console.warn("[OverlayTimer] Invalid lastStartedAtUTC for display:", overlayServerTimerData.lastStartedAtUTC);
+                timerDisplayEl.textContent = formatOverlayTime(overlayServerTimerData.currentValueSeconds); // Fallback
                 return;
             }
         } catch (e) {
-            console.error("Overlay Timer: Error parsing lastStartedAtUTC:", e);
+            console.error("[OverlayTimer] Error parsing lastStartedAtUTC:", e);
             timerDisplayEl.textContent = formatOverlayTime(overlayServerTimerData.currentValueSeconds); // Fallback
             return;
         }
     }
     timerDisplayEl.textContent = formatOverlayTime(displaySeconds);
 }
+
 function manageOverlayDisplayInterval() {
     if (overlayTimerDisplayInterval) {
         clearInterval(overlayTimerDisplayInterval);
@@ -89,125 +91,126 @@ function manageOverlayDisplayInterval() {
     if (overlayServerTimerData.isRunning) {
         updateOverlayTimerDisplay(); // Update immediately
         overlayTimerDisplayInterval = setInterval(updateOverlayTimerDisplay, 1000);
+        // console.debug("[OverlayTimer] Interval started.");
     } else {
         updateOverlayTimerDisplay(); // Ensure display shows the final stopped value
+        // console.debug("[OverlayTimer] Interval stopped.");
     }
 }
+
 // --- Helper Functions ---
 function updateStatus(message, type = 'error') {
-    console.log(`Overlay Status (${type}): ${message}`);
+    // console.debug(`Overlay Status (${type}): ${message}`); // Changed to debug
     if (!statusIndicator || !statusMessage || !statusIcon) return;
+
     statusMessage.textContent = message;
-    statusIndicator.classList.remove('hidden', 'connected', 'connecting', 'error');
-    if (type === 'error') { statusIcon.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger"></i>'; statusIndicator.classList.add('error'); }
-    else if (type === 'connecting') { statusIcon.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Loading...</span></div>'; statusIndicator.classList.add('connecting'); }
-    else if (type === 'connected') { statusIcon.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>'; statusIndicator.classList.add('connected'); setTimeout(() => { statusIndicator.classList.add('hidden'); }, 3000); }
-    else { statusIndicator.classList.add('hidden'); return; }
+    statusIndicator.className = 'overlay-status-indicator'; // Reset classes
+
+    switch (type) {
+        case 'error':
+            statusIcon.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger"></i>';
+            statusIndicator.classList.add('error');
+            break;
+        case 'connecting':
+            statusIcon.innerHTML = '<div class="spinner-border spinner-border-sm text-light" role="status"><span class="visually-hidden">Loading...</span></div>';
+            statusIndicator.classList.add('connecting');
+            break;
+        case 'connected':
+            statusIcon.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+            statusIndicator.classList.add('connected');
+            setTimeout(() => statusIndicator.classList.add('hidden'), 3000);
+            break;
+        default: // 'hidden' or unknown
+            statusIndicator.classList.add('hidden');
+            return;
+    }
     statusIndicator.classList.remove('hidden');
 }
 
 function escapeHtml(str) {
-    if (typeof str !== 'string') return String(str);
+    if (typeof str !== 'string') return String(str); // Handle non-string inputs gracefully
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
     return str.replace(/[&<>"']/g, m => map[m]);
 }
 
+function createSegments(items, colors) {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    const safeColors = Array.isArray(colors) && colors.length > 0 ? colors : ['#888888']; // Default color if none provided
+    return items.map((item, index) => ({
+        'fillStyle': safeColors[index % safeColors.length],
+        'text': String(item || '?').substring(0, 20), // Ensure text is string, fallback, and truncate
+    }));
+}
+
 // --- Rendering Functions ---
-function renderOverlayRules(container, challengeStructure, groupProgressData) {
-    if (!container) { console.error("Rules container not found"); return; }
+function renderOverlayRules(container, challengeStructure, groupProgressData = {}) {
+    if (!container) { console.error("Rules container element not found for rendering."); return; }
     if (!challengeStructure || (!challengeStructure.normal && !challengeStructure.b2b)) {
-        container.innerHTML = '<p class="loading-text small fst-italic text-white-50">No rules defined.</p>';
-        stopAutoScroll(); // Stop scroll if no rules
+        container.innerHTML = '<p class="loading-text small fst-italic text-white-50">No rules defined for this challenge.</p>';
+        stopAutoScroll();
         return;
     }
-    if (!groupProgressData) groupProgressData = {};
 
-    container.innerHTML = ''; // Clear loading/previous
+    container.innerHTML = ''; // Clear previous content
     let html = '';
-    const bi_icon_prefix = 'bi bi-';
+    const biIconPrefix = 'bi bi-'; // Use local const
 
-    // Helper to create list item HTML - NOW includes a wrapper for markers
-    const createRuleItemHtml = (key, count, completedCount, itemType, segmentIndex = null) => {
-        let itemHtml = `<div class="progress-category mb-2">`; // Container for one rule type
-        // Rule Text Label
-        itemHtml += `<div class="rule-label mb-1">`;
-        itemHtml += `<i class="${bi_icon_prefix}joystick me-2 opacity-75"></i>`; // Generic icon
-        itemHtml += `<span class="rule-text fw-semibold">${escapeHtml(key)}</span>`;
-        itemHtml += `<span class="badge bg-secondary rounded-pill fw-normal ms-2">${count} needed</span>`;
+    const createRuleItemHtml = (key, count, itemType, segmentIndex0Based = null) => {
+        let itemHtml = `<div class="progress-category mb-2">`;
+        itemHtml += `<div class="rule-label mb-1 d-flex align-items-center">`; // Added flex for alignment
+        itemHtml += `<i class="${biIconPrefix}joystick me-2 opacity-75" style="font-size: 0.9em;"></i>`; // Slightly smaller icon
+        itemHtml += `<span class="rule-text fw-semibold small">${escapeHtml(key)}</span>`; // Added 'small'
+        itemHtml += `<span class="badge bg-secondary rounded-pill fw-normal ms-2 small">${count} needed</span>`;
         itemHtml += `</div>`;
-
-        // Container for Checkboxes (Markers) - Apply flex wrap via CSS to this class
-        itemHtml += `<div class="overlay-progress-markers">`;
+        itemHtml += `<div class="overlay-progress-markers ms-1">`; // Added margin-start
         for (let i = 0; i < count; i++) {
-            // Construct progress key based on type and index
-            const progressKey = segmentIndex !== null
-                ? `${itemType}_${segmentIndex}_${key}_${i}`
+            const progressKey = segmentIndex0Based !== null
+                ? `${itemType}_${segmentIndex0Based}_${key}_${i}`
                 : `${itemType}_${key}_${i}`;
             const isChecked = groupProgressData[progressKey] === true;
-
-            // Individual checkbox item (no d-inline-block needed)
             itemHtml += `<div class="progress-item ${isChecked ? 'completed' : ''}" title="Win ${i + 1} for ${escapeHtml(key)}">`;
-            itemHtml += `<i class="${bi_icon_prefix}${isChecked ? 'check-square-fill' : 'square'}"></i>`;
-            itemHtml += `</div>`; // Close progress-item
+            itemHtml += `<i class="${biIconPrefix}${isChecked ? 'check-square-fill' : 'square'}"></i>`;
+            itemHtml += `</div>`;
         }
-        itemHtml += `</div>`; // Close overlay-progress-markers
-        itemHtml += `</div>`; // Close progress-category
+        itemHtml += `</div></div>`;
         return itemHtml;
     };
 
-    // --- Render Normal Wins ---
-    const normalItems = challengeStructure.normal || {};
+    const { normal: normalItems = {}, b2b: b2bItems = [] } = challengeStructure;
+
     if (Object.keys(normalItems).length > 0) {
         html += `<h6 class="section-title small text-info">Normal Wins:</h6>`;
-        Object.entries(normalItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, info]) => {
-            const count = info?.count || 0;
-            let completedCount = 0;
-            for (let i = 0; i < count; i++) {
-                if (groupProgressData[`normal_${key}_${i}`] === true) completedCount++;
-            }
-            // Pass 'normal' as itemType
-            html += createRuleItemHtml(key, count, completedCount, 'normal');
-        });
+        Object.entries(normalItems).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+            .forEach(([key, info]) => {
+                html += createRuleItemHtml(key, info?.count || 0, 'normal');
+            });
     }
 
-    // --- Render B2B Wins ---
-    const b2bItems = challengeStructure.b2b || [];
     if (b2bItems.length > 0) {
         if (html) html += '<hr class="my-2 opacity-25">';
         html += `<h6 class="section-title small text-warning">B2B Segments:</h6>`;
-        b2bItems.forEach((seg, segIndex) => {
-            const displaySegmentIdx = segIndex + 1;
-            const groupItems = seg?.group || {};
+        b2bItems.forEach((seg, segIndex0Based) => { // Use 0-based for consistency with keys
+            const displaySegmentIdx = segIndex0Based + 1;
+            const { group: groupItems = {}, length: segmentLength = 0 } = seg || {};
             if (Object.keys(groupItems).length > 0) {
-                html += `<div class="mb-3 ms-2"><strong class="small d-block text-white-50 mb-2">Segment ${displaySegmentIdx}:</strong>`; // Segment title
-                Object.entries(groupItems).sort((a, b) => String(a[0]).localeCompare(String(b[0]))).forEach(([key, count]) => {
-                    let completedCount = 0;
-                    for (let i = 0; i < count; i++) {
-                        // Use 0-based segIndex for key matching backend/main.js
-                        if (groupProgressData[`b2b_${segIndex}_${key}_${i}`] === true) completedCount++;
-                    }
-                    // Pass 'b2b' as itemType and segIndex
-                    html += createRuleItemHtml(key, count, completedCount, 'b2b', segIndex);
-                });
-                html += `</div>`; // Close segment container
+                html += `<div class="mb-3 ms-2"><strong class="small d-block text-white-50 mb-2">Segment ${displaySegmentIdx} (${segmentLength} wins):</strong>`;
+                Object.entries(groupItems).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+                    .forEach(([key, count]) => {
+                        html += createRuleItemHtml(key, count || 0, 'b2b', segIndex0Based);
+                    });
+                html += `</div>`;
             }
         });
     }
 
     if (!html) html = '<p class="loading-text small fst-italic text-white-50">No rules defined.</p>';
     container.innerHTML = html;
-
-    // Restart scrolling after content update
     startAutoScroll(container);
 }
 
-// ... (renderOverlayProgressBar, renderOtherGroups, updateActivePenalty remain the same) ...
-function renderOverlayProgressBar(barElement, labelElement, progressStats) {
-    if (!barElement || !labelElement || !progressStats) {
-        console.warn("Missing elements or data for progress bar render");
-        return;
-    }
-    const percentage = progressStats.percentage !== undefined ? progressStats.percentage : 0;
+function renderOverlayProgressBar(barElement, labelElement, progressStats = {}) {
+    if (!barElement || !labelElement) return;
+    const percentage = progressStats.percentage !== undefined ? Math.max(0, Math.min(100, progressStats.percentage)) : 0;
     const completed = progressStats.completed !== undefined ? progressStats.completed : 0;
     const total = progressStats.total !== undefined ? progressStats.total : 0;
 
@@ -216,72 +219,40 @@ function renderOverlayProgressBar(barElement, labelElement, progressStats) {
     labelElement.textContent = `${percentage}% (${completed}/${total})`;
 }
 
-function renderOtherGroups(container, otherGroupsData) {
-    console.log("Container:", container);
-    console.log("Data:", otherGroupsData);
-
-    if (!container) {
-        console.error("Container is null or undefined");
-        return;
-    }
-
+function renderOtherGroups(container, otherGroupsData = []) {
+    if (!container) return;
     const groups = Array.isArray(otherGroupsData) ? otherGroupsData : [];
-    console.log("Processed groups:", groups);
 
     if (groups.length === 0) {
-        console.log("No groups to display");
-        container.innerHTML = '<p>No groups to display</p>';
+        container.innerHTML = '<li class="small text-white-50 fst-italic">No other active groups.</li>'; // Use li for consistency if ul
         return;
     }
 
-    // Sort by percentage descending, then name ascending
-    groups.sort((a, b) => {
-        const percentA = a?.percentage ?? 0;
-        const percentB = b?.percentage ?? 0;
-        if (percentB !== percentA) {
-            return percentB - percentA;
-        }
-        return String(a?.name || '').localeCompare(String(b?.name || ''));
-    });
+    groups.sort((a, b) => (b?.percentage ?? 0) - (a?.percentage ?? 0) || String(a?.name || '').localeCompare(String(b?.name || '')));
 
-    let listHtml = '';
-    groups.forEach(group => {
-        const groupId = group?.id;
+    container.innerHTML = groups.map(group => {
         const groupName = escapeHtml(group?.name || 'Unnamed Group');
-        let percentage = parseInt(group?.percentage, 10);
-        if (isNaN(percentage) || percentage < 0) percentage = 0;
-        else if (percentage > 100) percentage = 100;
-
-        // --- Generate NEW list item HTML - Matching "Your Progress" Structure ---
-        listHtml += `
-  <li class="other-group-item small mb-2" data-group-id="${groupId || ''}">
-    <div class="d-flex justify-content-between align-items-center mb-1">
-      <span class="group-name text-truncate" title="${groupName}">${groupName}</span>
-      <span class="percentage fw-bold text-light">${percentage}%</span>
-    </div>
-    <div class="progress" style="height: 10px; width: 100%; max-width: 100%; overflow: hidden;">
-      <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" 
-           role="progressbar" 
-           style="width: ${percentage}%; overflow: hidden;" 
-           aria-valuenow="${percentage}" 
-           aria-valuemin="0" 
-           aria-valuemax="100">
-      </div>
-    </div>
-  </li>`;
-    });
-
-    container.innerHTML = listHtml;
-    console.log("Progress bars in DOM:", container.querySelectorAll('.progress-bar').length);
-    console.log("First progress bar:", container.querySelector('.progress-bar'));
+        const percentage = Math.max(0, Math.min(100, parseInt(group?.percentage, 10) || 0));
+        return `
+            <li class="other-group-item small mb-2" data-group-id="${group?.id || ''}">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="group-name text-truncate" title="${groupName}">${groupName}</span>
+                    <span class="percentage fw-bold text-light">${percentage}%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-info" role="progressbar" style="width: ${percentage}%;" 
+                         aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </li>`;
+    }).join('');
 }
 
 function updateActivePenalty(container, textEl, penaltyText) {
-    if (!container || !textEl) { console.error("Active penalty elements not found"); return; }
+    if (!container || !textEl) return;
     const textToShow = penaltyText?.trim();
     if (textToShow) {
         textEl.textContent = textToShow;
-        // Optionally add icon based on content?
         container.classList.remove('hidden');
     } else {
         textEl.textContent = '';
@@ -289,348 +260,207 @@ function updateActivePenalty(container, textEl, penaltyText) {
     }
 }
 
-// static/js/overlay.js
-
-// ... (imports, config, DOM refs, helpers like updateStatus, escapeHtml, createSegments remain the same) ...
-
-// --- Make sure setupWheels is defined correctly (it looked fine before) ---
 function setupWheels() {
-    if (!playerWheelCanvas || !penaltyWheelCanvas) {
-        console.error("Cannot setup wheels, missing canvases.");
+    if (!playerWheelCanvas || !penaltyWheelCanvas || typeof Winwheel === 'undefined') {
+        console.error("Cannot setup wheels: Missing canvases or Winwheel library.");
+        penaltyWheelsContainer?.classList.add('hidden');
         return;
     }
     const baseAnim = { type: 'spinToStop', easing: 'Power4.easeOut' };
-
-    // --- NEW: Define common text styles ---
     const commonTextStyles = {
-        textFontFamily: 'Inter, Arial, sans-serif', // Use Inter first, fallback to Arial
-        textFontSize: 12, // << INCREASED slightly more (Adjust 14-16 based on your wheel size/text length)
-        textFontWeight: '600', // Semi-bold is usually good
-        textFillStyle: '#FFFFFF', // White text for contrast
-        textStrokeStyle: 'rgba(0, 0, 0, 0.5)', // << CHANGED to semi-transparent BLACK stroke
-        textLineWidth: 0.2, // << REDUCED stroke width for subtlety
-        textMargin: 10, // << INCREASED margin slightly (adjust based on visual preference)
-        textAlignment: 'center',
-        textOrientation: 'horizontal'
+        textFontFamily: 'Inter, Arial, sans-serif', textFontSize: 11, // Slightly smaller for overlay
+        textFontWeight: '500', textFillStyle: '#FFFFFF',
+        textStrokeStyle: 'rgba(0,0,0,0.4)', textLineWidth: 0.5,
+        textMargin: 8, textAlignment: 'center', textOrientation: 'horizontal'
     };
-    // --- END NEW ---
 
     try {
-        // Player Wheel Instance (using common styles)
+        if (playerWheel) playerWheel.clearCanvas(); // Clear previous drawing if any
         playerWheel = new Winwheel({
-            canvasId: playerWheelCanvas.id,
-            numSegments: 1,
-        
-            outerRadius: 150, // Initial - Update based on canvas size later
-            innerRadius: 10,
-            
-            fillStyle: '#666', // Default segment fill if not specified
-            lineWidth: 1,
-            strokeStyle: '#444',
-            animation: { ...baseAnim },
-            pointerGuide: { display: true, strokeStyle: '#ffc107', lineWidth: 3 },
-            // --- Apply common text styles ---
+            canvasId: playerWheelCanvas.id, numSegments: 1,
+            outerRadius: playerWheelCanvas.width / 2 - 5, innerRadius: 10,
+            fillStyle: '#6c757d', lineWidth: 1, strokeStyle: '#343a40',
+            animation: { ...baseAnim, duration: 5, spins: 6 },
+            pointerGuide: { display: true, strokeStyle: '#ffc107', lineWidth: 2 },
             ...commonTextStyles
-            // --- END Apply ---
-        }, false);
+        }, false); // Draw later
 
-        // Penalty Wheel Instance (using common styles)
+        if (penaltyWheel) penaltyWheel.clearCanvas();
         penaltyWheel = new Winwheel({
-            canvasId: penaltyWheelCanvas.id,
-            numSegments: 1,
-           
-            outerRadius: 150, // Initial - Update based on canvas size later
-            innerRadius: 15,
-         
-            fillStyle: '#555',
-            lineWidth: 1,
-            strokeStyle: '#444',
-            animation: { ...baseAnim },
-            pointerGuide: { display: true, strokeStyle: '#ffc107', lineWidth: 3 },
-            pins: { number: 16, outerRadius: 3, fillStyle: '#cccccc', strokeStyle: '#666666' },
-            // --- Apply common text styles ---
+            canvasId: penaltyWheelCanvas.id, numSegments: 1,
+            outerRadius: penaltyWheelCanvas.width / 2 - 5, innerRadius: 15,
+            fillStyle: '#495057', lineWidth: 1, strokeStyle: '#343a40',
+            animation: { ...baseAnim, duration: 8, spins: 10 },
+            pointerGuide: { display: true, strokeStyle: '#ffc107', lineWidth: 2 },
+            pins: { number: 16, outerRadius: 3, fillStyle: '#adb5bd', strokeStyle: '#6c757d' },
             ...commonTextStyles
-            // --- END Apply ---
         }, false);
-
-        console.log("Fresh wheels initialized by setupWheels with updated text styles.");
-
+        // console.debug("Wheels re-initialized with base config.");
     } catch (e) {
-        console.error("Wheel setup failed:", e);
-        playerWheel = null;
-        penaltyWheel = null;
+        console.error("Winwheel setup failed:", e);
+        playerWheel = null; penaltyWheel = null;
         penaltyWheelsContainer?.classList.add('hidden');
     }
 }
 
-
-function triggerPenaltySpinAnimation(resultData) {
-    console.log("[Overlay Spin] Triggering penalty spin animation");
-
-    // --- FIX: Safely stop existing animations ---
-    // Check if the wheel instance exists AND if its internal tween likely exists
-    // (Winwheel library uses 'tween' property for the GSAP animation object)
-    if (playerWheel && playerWheel.tween) {
-        console.log("[Overlay Spin] Stopping existing player wheel animation.");
-        try {
-            playerWheel.stopAnimation(false); // Call stopAnimation only if tween exists
-        } catch (e) {
-            console.error("[Overlay Spin] Error calling playerWheel.stopAnimation:", e);
-            // Reset manually if stop fails
-            playerWheel.rotationAngle = playerWheel.animation?.stopAngle ?? 0; // Go to stop angle if possible
-            playerWheel.tween = null; // Clear tween reference
-            playerWheel.draw();
-        }
-    }
-    if (penaltyWheel && penaltyWheel.tween) {
-        console.log("[Overlay Spin] Stopping existing penalty wheel animation.");
-         try {
-            penaltyWheel.stopAnimation(false);
-        } catch (e) {
-            console.error("[Overlay Spin] Error calling penaltyWheel.stopAnimation:", e);
-            penaltyWheel.rotationAngle = penaltyWheel.animation?.stopAngle ?? 0;
-            penaltyWheel.tween = null;
-            penaltyWheel.draw();
-        }
-    }
-    // --- END FIX ---
-
-    // Ensure wheel instances exist, setup if needed
+function triggerPenaltySpinAnimation(data) {
+    // console.debug("[Overlay Spin] Triggering penalty spin animation with data:", data);
     if (!playerWheel || !penaltyWheel) {
-        console.log("[Overlay Spin] Wheels not initialized or cleared, setting up fresh...");
-        setupWheels();
+        console.warn("[Overlay Spin] Wheels not initialized. Attempting setup.");
+        setupWheels(); // Attempt to set them up if not already
         if (!playerWheel || !penaltyWheel) {
-            console.error("[Overlay Spin] Cannot trigger spin: Fresh wheel instances failed to initialize after setup.");
+            console.error("[Overlay Spin] Cannot trigger spin: Wheel instances still not available after setup.");
             penaltyWheelsContainer?.classList.add('hidden');
             return;
         }
-    } else {
-         // Reset rotation angle for existing wheels if they weren't recreated
-         console.log("[Overlay Spin] Resetting rotation angle for existing wheels.");
-         playerWheel.rotationAngle = 0;
-         penaltyWheel.rotationAngle = 0;
-         // Optionally redraw them in their base state immediately?
-         // playerWheel.draw();
-         // penaltyWheel.draw();
     }
 
+    // Safely stop any ongoing animations
+    if (playerWheel.tween) playerWheel.stopAnimation(false);
+    if (penaltyWheel.tween) penaltyWheel.stopAnimation(false);
+    
+    playerWheel.rotationAngle = 0;
+    penaltyWheel.rotationAngle = 0;
 
     // Hide result display initially
-    if (penaltyResultDisplay) {
-        penaltyResultDisplay.textContent = '';
-        penaltyResultDisplay.style.display = 'none';
+    const localPenaltyResultDisplay = document.getElementById('penalty-result-display'); // Re-query in case
+    if (localPenaltyResultDisplay) {
+        localPenaltyResultDisplay.textContent = '';
+        localPenaltyResultDisplay.style.display = 'none';
     }
 
-    // Show relevant containers
+
     penaltyWheelsContainer?.classList.remove('hidden');
     playerWheelWrapper?.classList.remove('hidden');
     penaltyWheelWrapper?.classList.add('hidden');
 
-    // Get data from payload
-    const penaltyResult = resultData.result;
+    const penaltyResult = data.result;
+    if (!penaltyResult) { console.error("[Overlay Spin] Invalid penalty_result data."); return; }
+
     const allPlayers = penaltyResult.all_players || [];
     const allPenalties = penaltyResult.all_penalties || [];
 
-    // --- Define Penalty Wheel Spin Logic ---
     const startPenaltyWheelSpin = () => {
-        console.log("[Overlay Spin] Player wheel finished. Starting penalty wheel phase.");
+        // console.debug("[Overlay Spin] Player wheel finished. Starting penalty wheel.");
         setTimeout(() => {
             playerWheelWrapper?.classList.add('hidden');
-            console.log("[Overlay Spin] Player wheel hidden.");
-
-            if (penaltyResult.name !== "No Penalty" && penaltyResult.stopAngle !== undefined) {
+            if (penaltyResult.name && penaltyResult.name !== "No Penalty" && penaltyResult.stopAngle !== undefined && allPenalties.length > 0) {
                 penaltyWheelWrapper?.classList.remove('hidden');
-
                 try {
-                    console.log("[Overlay Spin] Configuring Penalty Wheel...");
                     const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'];
                     const penaltyNames = allPenalties.map(p => p.name || '?');
                     const penaltySegmentsData = createSegments(penaltyNames, penaltyColors);
 
-                    if (penaltySegmentsData.length > 0) {
-                        penaltyWheel.numSegments = 0;
-                        penaltyWheel.segments = [];
-                        penaltyWheel.animation.callbackFinished = null;
+                    penaltyWheel.clearCanvas(); // Clear before re-adding
+                    penaltyWheel.numSegments = 0; // Reset
+                    penaltyWheel.segments = [];   // Reset
+                    penaltySegmentsData.forEach(seg => penaltyWheel.addSegment(seg));
+                    
+                    if (penaltyWheel.numSegments === 0) throw new Error("Penalty wheel has no segments after configuration.");
 
-                        penaltySegmentsData.forEach(segmentData => penaltyWheel.addSegment(segmentData));
-                        console.log(`[Overlay Spin] Penalty segments added. Final numSegments: ${penaltyWheel.numSegments}`);
-
-                        let actualWinningIndex = -1;
-                        for (let i = 1; i <= penaltyWheel.numSegments; i++) {
-                            if (penaltyWheel.segments[i]?.text === penaltyResult.name) {
-                                actualWinningIndex = i; break;
-                            }
-                        }
-
-                        if (actualWinningIndex > 0) {
-                            penaltyWheel.animation.callbackFinished = () => {
-                                console.log("[Overlay Spin] Penalty animation finished.");
-                                let indicatedSegment = penaltyWheel.getIndicatedSegment();
-                                console.log("[Overlay Spin] Penalty wheel landed on:", indicatedSegment);
-
-                                // Hide the entire wheels container after delay
-                                setTimeout(() => {
-                                    playerWheelWrapper?.classList.add('hidden');
-                                    penaltyWheelWrapper?.classList.add('hidden');
-                                    penaltyWheelsContainer?.classList.add('hidden');
-                                    console.log("[Overlay Spin] Penalty wheels container hidden after delay.");
-                                }, WHEEL_HIDE_DELAY);
-                            };
-
-                            penaltyWheel.animation.spins = 10;
-                            penaltyWheel.animation.duration = 8;
-                            penaltyWheel.animation.stopAngle = penaltyResult.stopAngle;
-
-                            penaltyWheel.draw();
-                            penaltyWheel.startAnimation();
-                            console.log(`[Overlay Spin] Penalty wheel spinning to: ${penaltyResult.stopAngle}`);
-
-                        } else { throw new Error("Winning penalty segment mismatch after configuration."); }
-                    } else { throw new Error("Cannot create penalty wheel segments."); }
+                    penaltyWheel.animation.stopAngle = penaltyResult.stopAngle;
+                    penaltyWheel.animation.callbackFinished = () => {
+                        // console.debug("[Overlay Spin] Penalty animation finished. Landed on:", penaltyWheel.getIndicatedSegment()?.text);
+                        setTimeout(() => {
+                            penaltyWheelsContainer?.classList.add('hidden');
+                            playerWheelWrapper?.classList.add('hidden');
+                            penaltyWheelWrapper?.classList.add('hidden');
+                        }, WHEEL_HIDE_DELAY);
+                    };
+                    penaltyWheel.draw(); // Draw with new segments
+                    penaltyWheel.startAnimation();
                 } catch (error) {
                     console.error("[Overlay Spin] Error configuring/starting penalty wheel:", error);
-                    playerWheelWrapper?.classList.add('hidden');
-                    penaltyWheelWrapper?.classList.add('hidden');
                     penaltyWheelsContainer?.classList.add('hidden');
                 }
             } else {
-                console.log("[Overlay Spin] No penalty to spin for. Hiding wheels container.");
-                playerWheelWrapper?.classList.add('hidden');
+                // console.debug("[Overlay Spin] No penalty to spin for, or invalid data. Hiding wheels.");
                 penaltyWheelsContainer?.classList.add('hidden');
-                penaltyWheelWrapper?.classList.add('hidden');
             }
-        }, 500);
+        }, 500); // Delay after player wheel stops
     };
-    // --- End Definition of startPenaltyWheelSpin ---
 
+    // Player Wheel Configuration
+    if (allPlayers.length > 0 && penaltyResult.playerStopAngle !== undefined) {
+        try {
+            const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
+            const playerSegmentsData = createSegments(allPlayers, playerColors);
 
-    // --- Player Wheel Configuration ---
-    try {
-        console.log("[Overlay Spin] Configuring Player Wheel...");
-        const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
-        const playerSegmentsData = createSegments(allPlayers, playerColors);
-
-        if (playerSegmentsData.length > 0) {
+            playerWheel.clearCanvas();
             playerWheel.numSegments = 0;
             playerWheel.segments = [];
-            playerWheel.animation.callbackFinished = null;
+            playerSegmentsData.forEach(seg => playerWheel.addSegment(seg));
 
-            playerSegmentsData.forEach(segmentData => playerWheel.addSegment(segmentData));
-             console.log(`[Overlay Spin] Player segments added. Final numSegments: ${playerWheel.numSegments}`);
+            if (playerWheel.numSegments === 0) throw new Error("Player wheel has no segments.");
 
-            playerWheel.animation.spins = 6;
-            playerWheel.animation.duration = 5;
             playerWheel.animation.stopAngle = penaltyResult.playerStopAngle;
-            playerWheel.animation.callbackFinished = startPenaltyWheelSpin; // Trigger next step
-
+            playerWheel.animation.callbackFinished = startPenaltyWheelSpin;
             playerWheel.draw();
             playerWheel.startAnimation();
-            console.log(`[Overlay Spin] Player wheel spinning to: ${penaltyResult.playerStopAngle}`);
-        } else {
-            console.warn("[Overlay Spin] No valid player segments, skipping player spin.");
-            playerWheelWrapper?.classList.add('hidden');
-            startPenaltyWheelSpin();
+        } catch (playerWheelError) {
+            console.error("[Overlay Spin] Error configuring/starting player wheel:", playerWheelError);
+            playerWheelWrapper?.classList.add('hidden'); // Hide if error
+            startPenaltyWheelSpin(); // Attempt to proceed to penalty wheel or hide all
         }
-    } catch (playerWheelError) {
-        console.error("[Overlay Spin] Error configuring/starting player wheel:", playerWheelError);
+    } else {
+        // console.debug("[Overlay Spin] No players for player wheel or missing stop angle, skipping player spin.");
         playerWheelWrapper?.classList.add('hidden');
-        penaltyWheelWrapper?.classList.add('hidden');
-        penaltyWheelsContainer?.classList.add('hidden');
+        startPenaltyWheelSpin(); // Proceed directly to penalty or hide all
     }
 }
 
-function createSegments(items, colors) {
-    if (!Array.isArray(items) || items.length === 0) return [];
-    const safeColors = Array.isArray(colors) && colors.length > 0 ? colors : ['#888888'];
-    return items.map((item, index) => ({
-        'fillStyle': safeColors[index % safeColors.length],
-        'text': String(item || '?'),
-        // --- Text Style Updates within Segment Data (Overrides defaults if needed) ---
-        // You could override specific segment text styles here,
-        // but setting defaults in setupWheels is usually sufficient.
-        // 'textFillStyle': '#FFFFFF', // Example: Force white text for this specific segment
-    }));
-}
-
-
-// --- Auto-Scrolling Function ---
+// --- Auto-Scrolling Functions ---
 function startAutoScroll(element) {
-    if (!element) {
-        console.error("[Scroll] startAutoScroll called without a valid element.");
-        return;
-    }
-    // --- ALWAYS clear previous interval first ---
-    stopAutoScroll();
-    // --- Reset state flags ---
+    if (!element) return;
+    stopAutoScroll(); // Clear existing interval first
     isPausedAtEdge = false;
-    // isHoveringScroll = false; // Don't reset hover flag here, mouse might still be over
 
-    // Check if content actually overflows AFTER rendering might have happened
-    // Use requestAnimationFrame to check after browser has painted
     requestAnimationFrame(() => {
-        const needsScroll = element.scrollHeight > element.clientHeight;
-        console.log(`[Scroll] Check for ${element.id}: scrollHeight=${element.scrollHeight}, clientHeight=${element.clientHeight}, needsScroll=${needsScroll}`);
-
-        if (needsScroll) {
-            // Reset scroll position and direction only when starting fresh
+        if (element.scrollHeight <= element.clientHeight) {
+            // console.debug(`[Scroll] Auto-scroll not needed for: ${element.id}`);
             element.scrollTop = 0;
-            scrollDirection = 1;
-            console.log(`[Scroll] Starting new auto-scroll interval for: ${element.id}`);
-
-            scrollInterval = setInterval(() => {
-                // Check pause flags *inside* the interval callback
-                if (isPausedAtEdge || isHoveringScroll) {
-                    // console.log("[Scroll] Interval running but paused (edge/hover)."); // Debug log if needed
-                    return;
-                }
-
-                const currentScroll = element.scrollTop;
-                const maxScroll = element.scrollHeight - element.clientHeight;
-
-                // Check edges with tolerance
-                if (scrollDirection === 1 && currentScroll >= maxScroll - AUTO_SCROLL_STEP) {
-                    element.scrollTop = maxScroll;
-                    console.log("[Scroll] Reached bottom, pausing.");
-                    scrollDirection = -1;
-                    isPausedAtEdge = true;
-                    setTimeout(() => { isPausedAtEdge = false; console.log("[Scroll] Resuming scroll upwards."); }, AUTO_SCROLL_PAUSE);
-                } else if (scrollDirection === -1 && currentScroll <= AUTO_SCROLL_STEP) {
-                    element.scrollTop = 0;
-                    console.log("[Scroll] Reached top, pausing.");
-                    scrollDirection = 1;
-                    isPausedAtEdge = true;
-                    setTimeout(() => { isPausedAtEdge = false; console.log("[Scroll] Resuming scroll downwards."); }, AUTO_SCROLL_PAUSE);
-                } else {
-                    element.scrollTop += scrollDirection * AUTO_SCROLL_STEP;
-                }
-            }, AUTO_SCROLL_DELAY);
-            console.log("[Scroll] New interval ID set:", scrollInterval); // Log the new ID
-        } else {
-            console.log("[Scroll] Auto-scroll not needed for:", element.id);
-            element.scrollTop = 0; // Ensure it's at the top
+            return;
         }
-    }); // End requestAnimationFrame
+        element.scrollTop = 0;
+        scrollDirection = 1;
+        // console.debug(`[Scroll] Starting auto-scroll for: ${element.id}`);
+        scrollInterval = setInterval(() => {
+            if (isPausedAtEdge || isHoveringScroll) return;
+            const { scrollTop, scrollHeight, clientHeight } = element;
+            const maxScroll = scrollHeight - clientHeight;
+            if (scrollDirection === 1 && scrollTop >= maxScroll - AUTO_SCROLL_STEP) {
+                element.scrollTop = maxScroll; scrollDirection = -1; isPausedAtEdge = true;
+                setTimeout(() => { isPausedAtEdge = false; }, AUTO_SCROLL_PAUSE);
+            } else if (scrollDirection === -1 && scrollTop <= AUTO_SCROLL_STEP) {
+                element.scrollTop = 0; scrollDirection = 1; isPausedAtEdge = true;
+                setTimeout(() => { isPausedAtEdge = false; }, AUTO_SCROLL_PAUSE);
+            } else {
+                element.scrollTop += scrollDirection * AUTO_SCROLL_STEP;
+            }
+        }, AUTO_SCROLL_DELAY);
+    });
 }
 
 function stopAutoScroll() {
-    // Check if interval ID exists before trying to clear
     if (scrollInterval !== null) {
         clearInterval(scrollInterval);
-        console.log("[Scroll] Cleared interval ID:", scrollInterval); // Log cleared ID
-        scrollInterval = null; // Explicitly set to null
-    } else {
-        // console.log("[Scroll] stopAutoScroll called, but no active interval found."); // Optional log
+        scrollInterval = null;
     }
 }
 
-
-// --- WebSocket Connection ---
+// --- WebSocket Connection & Event Handling ---
 function connectWebSocket() {
-    if (socket && socket.connected) { socket.disconnect(); }
-    if (!apiKey || !challengeId) { updateStatus('Missing API Key or Challenge ID.', 'error'); return; }
+    if (socket && socket.connected) {
+        // console.debug("[OverlayWS] Already connected. Disconnecting first for fresh setup.");
+        socket.disconnect();
+    }
+    if (!apiKey || !challengeId) {
+        updateStatus('Missing API Key or Challenge ID.', 'error');
+        return;
+    }
 
     updateStatus('Connecting...', 'connecting');
-    console.log(`Attempting WebSocket connection to server with key: ${apiKey ? 'Provided' : 'Missing'} and challenge: ${challengeId}`);
+    // console.debug(`[OverlayWS] Attempting connection. Key: ${apiKey ? 'Set' : 'Not Set'}, Challenge: ${challengeId}`);
 
     try {
         socket = io(window.location.origin, {
@@ -638,94 +468,113 @@ function connectWebSocket() {
             query: { apiKey: apiKey, challengeId: challengeId },
             reconnectionAttempts: 5,
             reconnectionDelay: RECONNECT_DELAY,
-            transports: ['websocket']
+            transports: ['websocket'] // Prefer websocket
         });
 
-        // Standard Event Handlers
         socket.on('connect', () => {
-             updateStatus('Connected', 'connected');
-             console.log('WebSocket connected. SID:', socket.id);
-             // Join room after connection established
-             if (challengeId) {
-                 socket.emit('join_challenge_room', { challenge_id: challengeId });
-                 console.log(`[WebSocket Overlay] Attempted to join room: ${challengeId}`);
-             }
+            updateStatus('Connected', 'connected');
+            console.info('[OverlayWS] Connected. SID:', socket.id);
+            if (challengeId) { // Ensure challengeId is available
+                socket.emit('join_challenge_room', { challenge_id: challengeId });
+            }
         });
-        socket.on('disconnect', (reason) => { updateStatus(`Disconnected: ${reason}`, 'error'); console.warn('WebSocket disconnected:', reason); stopAutoScroll(); });
-        socket.on('connect_error', (error) => { updateStatus(`Connection Error: ${error.message}`, 'error'); console.error('WebSocket connection error:', error); stopAutoScroll(); if (error.message === 'Invalid API Key.' || error.message === 'Not authorized for this challenge.') { socket.disconnect(); } });
-        socket.on('auth_error', (data) => { updateStatus(`Auth Error: ${data.message}`, 'error'); console.error('WebSocket authentication error:', data.message); socket.disconnect(); stopAutoScroll(); });
-        socket.on('room_joined', (data) => { console.log(`[WebSocket Overlay] Successfully joined room: ${data.room}`); });
-        socket.on('room_join_error', (data) => { console.error(`[WebSocket Overlay] Error joining room: ${data.error}`); });
-        // Listen for timer updates from the server
+
+        socket.on('disconnect', (reason) => {
+            updateStatus(`Disconnected: ${reason}`, 'error');
+            console.warn('[OverlayWS] Disconnected:', reason);
+            stopAutoScroll();
+        });
+
+        socket.on('connect_error', (error) => {
+            updateStatus(`Connection Error: ${error.message}`, 'error');
+            console.error('[OverlayWS] Connection error:', error);
+            stopAutoScroll();
+            if (error.message.includes('Invalid API Key') || error.message.includes('Not authorized')) {
+                socket.disconnect(); // Prevent further attempts if auth fails
+            }
+        });
+
+        socket.on('auth_error', (data) => {
+            updateStatus(`Auth Error: ${data.message}`, 'error');
+            console.error('[OverlayWS] Authentication error:', data.message);
+            socket.disconnect();
+            stopAutoScroll();
+        });
+        
+        socket.on('room_joined', (data) => { /* console.debug(`[OverlayWS] Joined room: ${data.room}`); */ });
+        socket.on('room_join_error', (data) => { console.error(`[OverlayWS] Error joining room: ${data.error}`); });
+
+        // Timer events
         socket.on('timer_started', (data) => {
-            if (data.challenge_id === challengeId) { // Ensure event is for this challenge
-                console.log('[Overlay] Received timer_started event:', data);
-                overlayServerTimerData.currentValueSeconds = data.current_value_seconds || 0;
-                overlayServerTimerData.isRunning = true; // Event implies it's running
-                overlayServerTimerData.lastStartedAtUTC = data.last_started_at_utc; // Server sends this
-                manageOverlayDisplayInterval();
-            }
+            if (data.challenge_id !== challengeId) return;
+            // console.debug('[OverlayWS] Timer Started:', data);
+            overlayServerTimerData = { ...overlayServerTimerData, ...data, isRunning: true };
+            manageOverlayDisplayInterval();
         });
-
         socket.on('timer_stopped', (data) => {
-            if (data.challenge_id === challengeId) {
-                console.log('[Overlay] Received timer_stopped event:', data);
-                overlayServerTimerData.currentValueSeconds = data.current_value_seconds || 0;
-                overlayServerTimerData.isRunning = false;
-                overlayServerTimerData.lastStartedAtUTC = null;
-                manageOverlayDisplayInterval();
-            }
+            if (data.challenge_id !== challengeId) return;
+            // console.debug('[OverlayWS] Timer Stopped:', data);
+            overlayServerTimerData = { ...overlayServerTimerData, ...data, isRunning: false, lastStartedAtUTC: null };
+            manageOverlayDisplayInterval();
         });
-
         socket.on('timer_reset', (data) => {
-            if (data.challenge_id === challengeId) {
-                console.log('[Overlay] Received timer_reset event:', data);
-                overlayServerTimerData.currentValueSeconds = 0; // Reset value should be 0
-                overlayServerTimerData.isRunning = false;
-                overlayServerTimerData.lastStartedAtUTC = null;
-                manageOverlayDisplayInterval();
-            }
+            if (data.challenge_id !== challengeId) return;
+            // console.debug('[OverlayWS] Timer Reset:', data);
+            overlayServerTimerData = { currentValueSeconds: 0, isRunning: false, lastStartedAtUTC: null };
+            manageOverlayDisplayInterval();
         });
 
-        // Custom Event Handlers
+        // Main state and updates
         socket.on('initial_state', (data) => {
-            console.log('Received initial_state:', data);
+            // console.debug('[OverlayWS] Received initial_state:', data);
             try {
-                if (!data || !data.challenge_structure) throw new Error("Invalid initial state data.");
+                if (!data || !data.challenge_structure || data.challenge_id !== challengeId) {
+                    console.warn("[OverlayWS] Invalid or mismatched initial_state data received.");
+                    return;
+                }
                 currentChallengeStructure = data.challenge_structure;
-                streamerGroupId = data.user_group?.id; // Store the streamer's group ID
+                streamerGroupId = data.user_group?.id;
 
                 if (challengeTitleEl) challengeTitleEl.textContent = data.challenge_name || 'Challenge Overlay';
+                
+                // Update timer state from initial_state
+                if (data.timer_state) {
+                    overlayServerTimerData = { // Ensure all fields are present
+                        currentValueSeconds: parseInt(data.timer_state.current_value_seconds, 10) || 0,
+                        isRunning: data.timer_state.is_running === true || String(data.timer_state.is_running).toLowerCase() === 'true',
+                        lastStartedAtUTC: data.timer_state.last_started_at_utc || null
+                    };
+                    manageOverlayDisplayInterval(); // Manage interval based on this state
+                }
+
 
                 const streamerGroup = data.user_group;
                 if (streamerGroup) {
-                    if (rulesListEl) renderOverlayRules(rulesListEl, currentChallengeStructure, streamerGroup.progress_data || {});
-                    if (streamerProgressBar && streamerProgressLabel) renderOverlayProgressBar(streamerProgressBar, streamerProgressLabel, streamerGroup.progress_stats || {});
-                    // --- Update penalty display on initial load ---
-                    if (activePenaltyEl && activePenaltyTextEl) {
-                        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, streamerGroup.active_penalty_text);
-                    }
+                    if (rulesListEl) renderOverlayRules(rulesListEl, currentChallengeStructure, streamerGroup.progress_data);
+                    if (streamerProgressBar && streamerProgressLabel) renderOverlayProgressBar(streamerProgressBar, streamerProgressLabel, streamerGroup.progress_stats);
+                    if (activePenaltyEl && activePenaltyTextEl) updateActivePenalty(activePenaltyEl, activePenaltyTextEl, streamerGroup.active_penalty_text);
                 } else {
                     if (rulesListEl) renderOverlayRules(rulesListEl, currentChallengeStructure, {});
                     if (streamerProgressBar && streamerProgressLabel) renderOverlayProgressBar(streamerProgressBar, streamerProgressLabel, { completed: 0, total: 0, percentage: 0 });
-                    // --- Clear penalty display if no group ---
-                    if (activePenaltyEl && activePenaltyTextEl) {
-                        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, null); // Clear it
-                    }
-                    console.warn("Initial state received, but user is not in a group.");
+                    if (activePenaltyEl && activePenaltyTextEl) updateActivePenalty(activePenaltyEl, activePenaltyTextEl, null);
+                    // console.warn("[OverlayWS] Initial state: User not in a group.");
                     stopAutoScroll();
                 }
-                if (otherGroupsListEl) renderOtherGroups(otherGroupsListEl, data.other_groups_progress || []);
-                if (data.penalty_info && playerWheelCanvas && penaltyWheelCanvas) { setupWheels(); }
+                if (otherGroupsListEl) renderOtherGroups(otherGroupsListEl, data.other_groups_progress);
+                if (data.penalty_info && playerWheelCanvas && penaltyWheelCanvas && typeof Winwheel !== 'undefined') { setupWheels(); }
                 else { penaltyWheelsContainer?.classList.add('hidden'); }
-            } catch (error) { console.error("Error processing initial_state:", error); updateStatus(`Error processing initial data: ${error.message}`, 'error'); stopAutoScroll(); }
+            } catch (error) {
+                console.error("[OverlayWS] Error processing initial_state:", error);
+                updateStatus(`Error processing initial data: ${error.message}`, 'error');
+                stopAutoScroll();
+            }
         });
 
         socket.on('progress_update', (data) => {
-            console.log('Received progress_update:', data);
+            // console.debug('[OverlayWS] Received progress_update:', data);
             try {
-                if (!data || !data.challenge_id || data.challenge_id !== challengeId || !currentChallengeStructure) return;
-                if (data.group_id === streamerGroupId) { // Only update if it's for the streamer's group
+                if (!data || data.challenge_id !== challengeId || !currentChallengeStructure) return;
+                if (data.group_id === streamerGroupId) {
                     if (streamerProgressBar && streamerProgressLabel && data.progress_stats) {
                         renderOverlayProgressBar(streamerProgressBar, streamerProgressLabel, data.progress_stats);
                     }
@@ -733,76 +582,65 @@ function connectWebSocket() {
                         renderOverlayRules(rulesListEl, currentChallengeStructure, data.progress_data);
                     }
                 }
-                if (otherGroupsListEl && data.other_groups_progress) {
+                if (otherGroupsListEl && data.other_groups_progress) { // other_groups_progress could be an array
                     renderOtherGroups(otherGroupsListEl, data.other_groups_progress);
                 }
-            } catch (error) { console.error("Error processing progress_update:", error); }
+            } catch (error) { console.error("[OverlayWS] Error processing progress_update:", error); }
         });
 
-        // --- MODIFIED active_penalty_update Listener ---
         socket.on('active_penalty_update', (data) => {
-            console.log('[WebSocket Overlay] Received active_penalty_update:', data);
+            // console.debug('[OverlayWS] Received active_penalty_update:', data);
             try {
-                // Basic validation
-                if (!data || !data.challenge_id || data.challenge_id !== challengeId || data.group_id === undefined) return;
-
-                // Update ONLY if the penalty is for the streamer's group
+                if (!data || data.challenge_id !== challengeId || data.group_id === undefined) return;
                 if (data.group_id === streamerGroupId) {
-                    console.log(`[WebSocket Overlay] Updating penalty display for streamer's group (${streamerGroupId})`);
-                    // Directly call the UI update function with the received text
                     if (activePenaltyEl && activePenaltyTextEl) {
-                        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, data.penalty_text); // Pass text directly
+                        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, data.penalty_text);
                     }
-                } else {
-                     console.log(`[WebSocket Overlay] Penalty update ignored (group ${data.group_id} is not streamer's group ${streamerGroupId}).`);
                 }
-            } catch (error) { console.error("[WebSocket Overlay] Error processing active_penalty_update:", error); }
+            } catch (error) { console.error("[OverlayWS] Error processing active_penalty_update:", error); }
         });
-        // --- END MODIFICATION ---
 
         socket.on('penalty_result', (data) => {
-            console.log('[WebSocket Overlay] Received penalty_result DATA:', JSON.stringify(data, null, 2));
+            // console.debug('[OverlayWS] Received penalty_result:', data);
             try {
-                if (!data || !data.challenge_id || data.challenge_id !== challengeId || !data.result) return;
-                if (data.group_id === streamerGroupId) { // Only trigger spin for streamer's group
+                if (!data || data.challenge_id !== challengeId || !data.result) return;
+                if (data.group_id === streamerGroupId && typeof Winwheel !== 'undefined') {
                     triggerPenaltySpinAnimation(data);
                 }
-            } catch (error) { console.error("[WebSocket Overlay] Error processing penalty_result:", error); }
+            } catch (error) { console.error("[OverlayWS] Error processing penalty_result:", error); }
         });
 
     } catch (err) {
-        console.error("Socket.IO client connection failed:", err);
-        updateStatus('Connection failed.', 'error');
+        console.error("[OverlayWS] Socket.IO client instantiation failed:", err);
+        updateStatus('Connection setup failed.', 'error');
     }
 }
 
-// --- Initialization ---
+// --- DOMContentLoaded Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Overlay DOM loaded.");
+    // console.debug("Overlay DOM loaded.");
 
     const urlParams = new URLSearchParams(window.location.search);
     apiKey = urlParams.get('key');
     const pathSegments = window.location.pathname.split('/');
-    challengeId = pathSegments[pathSegments.length - 1];
+    challengeId = pathSegments.length > 1 ? pathSegments[pathSegments.length - 1] : null; // Ensure challengeId is extracted
 
-    console.log(`Parsed - Challenge ID: ${challengeId}, API Key: ${apiKey ? 'Present' : 'MISSING'}`);
+    // console.debug(`Parsed - Challenge ID: ${challengeId}, API Key: ${apiKey ? 'Set' : 'MISSING'}`);
 
     if (!challengeId || !apiKey) {
         updateStatus('Missing Challenge ID or API Key in URL.', 'error');
         console.error("Overlay URL must be in the format /overlay/{challenge_id}?key={api_key}");
-        document.getElementById('overlay-container').innerHTML = '<div class="alert alert-danger m-4">Configuration Error: Invalid Overlay URL. Please check the link provided.</div>';
+        const overlayContainer = document.getElementById('overlay-container');
+        if (overlayContainer) {
+            overlayContainer.innerHTML = '<div class="alert alert-danger m-3 small">Config Error: Invalid Overlay URL. Check link.</div>';
+        }
         return;
     }
 
-    // Add hover listener to pause/resume scrolling for the rules list
     if (rulesListEl) {
-        rulesListEl.addEventListener('mouseenter', () => {
-            if (scrollInterval) { isHoveringScroll = true; console.log("[Scroll] Hover detected, pausing scroll."); }
-        });
-        rulesListEl.addEventListener('mouseleave', () => {
-            if (isHoveringScroll) { isHoveringScroll = false; console.log("[Scroll] Hover ended, resuming scroll."); }
-        });
+        rulesListEl.addEventListener('mouseenter', () => { if (scrollInterval) isHoveringScroll = true; });
+        rulesListEl.addEventListener('mouseleave', () => { if (isHoveringScroll) isHoveringScroll = false; });
     }
 
-    connectWebSocket(); // Initial connection attempt
+    connectWebSocket();
 });

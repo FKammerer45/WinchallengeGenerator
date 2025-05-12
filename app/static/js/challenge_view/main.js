@@ -48,8 +48,15 @@ let challengeConfig = {
     }
 };
 
-const requestControllers = { join: null, leave: null, create: null, savePlayers: null, authorize: null, removeAuth: null };
-
+let requestControllers = { // For aborting API requests
+    joinLeaveGroup: null,
+    createGroup: null,
+    updatePlayers: null,
+    progress: null,
+    penalty: null,
+    timer: null,
+    authorization: null
+};
 // --- DOM Element References ---
 let myGroupContainerEl = null;
 let otherGroupsContainerEl = null;
@@ -213,86 +220,75 @@ async function autoJoinGroup(groupId) {
         );
     }
 }
+function handleSocketInitialState(event) {
+    const freshInitialState = event.detail;
+    console.log('[MainJS] Handling socketInitialStateReceived:', JSON.parse(JSON.stringify(freshInitialState)));
+    // Update the global challengeConfig with the fresh state
+    if (freshInitialState) {
+        challengeConfig.coreChallengeStructure = freshInitialState.challenge_structure || challengeConfig.coreChallengeStructure;
+        // Use 'all_groups_data' if present from initial_state, otherwise keep existing 'initialGroups'
+        challengeConfig.initialGroups = freshInitialState.all_groups_data || challengeConfig.initialGroups || [];
+        challengeConfig.userJoinedGroupId = freshInitialState.user_group ? freshInitialState.user_group.id : null;
+        challengeConfig.initialGroupCount = challengeConfig.initialGroups?.length || 0;
+        challengeConfig.penaltyInfo = freshInitialState.penalty_info || challengeConfig.penaltyInfo;
+        // Update initialTimerState in config as well, for consistency if other parts need it
+        challengeConfig.initialTimerState = freshInitialState.timer_state || challengeConfig.initialTimerState;
 
+        // Explicitly update timer.js module with the fresh timer state
+        if (freshInitialState.timer_state) {
+            console.log("[MainJS] Calling updateTimerStateFromServer with data from socket 'initial_state'.");
+            updateTimerStateFromServer(freshInitialState.timer_state);
+        } else {
+             console.warn("[MainJS] 'initial_state' received from socket is missing 'timer_state'. Timer might not reflect server status.");
+        }
+        // Refresh the main UI based on the new comprehensive state
+        // Ensure containers are defined before calling UI updates
+        if (myGroupContainerEl && otherGroupsContainerEl) {
+             updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+             updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+        }
+        if (typeof updatePenaltyConfig === 'function') updatePenaltyConfig(challengeConfig); // Update penalty module too
+    }
+}
 
 function handleSocketGroupCreated(newGroupData) {
     console.log("[MainJS] Handling socketGroupCreated:", newGroupData);
-    if (!challengeConfig || !challengeConfig.initialGroups) {
-        console.error("[MainJS] challengeConfig not ready for group_created event.");
-        return;
-    }
-
-    // Avoid adding if it already exists (e.g., if the creator client already added it)
-    if (challengeConfig.initialGroups.some(g => g.id === newGroupData.id)) {
-        console.log(`[MainJS] Group ${newGroupData.id} already in local state. Ignoring duplicate create.`);
-        return;
-    }
+    if (!challengeConfig || !challengeConfig.initialGroups) return;
+    if (challengeConfig.initialGroups.some(g => g.id === newGroupData.id)) return; // Avoid duplicates
 
     challengeConfig.initialGroups.push(newGroupData);
-    challengeConfig.initialGroupCount = (challengeConfig.initialGroupCount || 0) + 1;
+    challengeConfig.initialGroupCount = challengeConfig.initialGroups.length;
 
-    // Add to DOM (will go to 'other' groups initially unless userJoinedGroupId matches)
-    addGroupToDOM(newGroupData, challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-    updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
-
-    // UpdateUIAfterMembershipChange will correctly place and style it,
-    // especially if the creator of the group was auto-joined.
-    updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-    // Optional: show a subtle flash for other users
-    // if (newGroupData.creator_id !== current_user_id_from_config) { // Need a way to know current user ID
-    //     showFlash(`New group "${escapeHtml(newGroupData.name)}" created.`, 'info');
-    // }
+    if (myGroupContainerEl && otherGroupsContainerEl) {
+        addGroupToDOM(newGroupData, challengeConfig, myGroupContainerEl, otherGroupsContainerEl); // Assuming addGroupToDOM exists in ui.js
+        updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl); // Re-sort/style
+    }
 }
+
 function handleSocketGroupMembershipUpdate(updateData) {
     console.log("[MainJS] Handling socketGroupMembershipUpdate:", updateData);
-    if (!challengeConfig || !challengeConfig.initialGroups) {
-        console.error("[MainJS] challengeConfig not ready for group_membership_update event.");
-        return;
-    }
-
+    if (!challengeConfig || !challengeConfig.initialGroups) return;
     const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === updateData.group_id);
     if (groupIndex !== -1) {
         challengeConfig.initialGroups[groupIndex].member_count = updateData.member_count;
-        challengeConfig.initialGroups[groupIndex].player_names = updateData.player_names || []; // Ensure it's an array
-
-        // If this client is the one who joined/left, their userJoinedGroupId might need update
-        // This is typically handled by the API response directly for the acting user.
-        // For other users, this event primarily updates display.
-
-        // updateUIAfterMembershipChange will refresh the specific card's button and player list
-        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-    } else {
-        console.warn(`[MainJS] Group ${updateData.group_id} not found in local state for membership update.`);
+        challengeConfig.initialGroups[groupIndex].player_names = updateData.player_names || [];
+        if (myGroupContainerEl && otherGroupsContainerEl) {
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+        }
     }
 }
 
 function handleSocketPlayerNamesUpdated(updateData) {
     console.log("[MainJS] Handling socketPlayerNamesUpdated:", updateData);
-    if (!challengeConfig || !challengeConfig.initialGroups) {
-        console.error("[MainJS] challengeConfig not ready for player_names_updated event.");
-        return;
-    }
-
+    if (!challengeConfig || !challengeConfig.initialGroups) return;
     const groupIndex = challengeConfig.initialGroups.findIndex(g => g.id === updateData.group_id);
     if (groupIndex !== -1) {
         challengeConfig.initialGroups[groupIndex].player_names = updateData.player_names || [];
-
-        // Re-render the player names section for the specific card,
-        // or let updateUIAfterMembershipChange handle it.
-        // updateUIAfterMembershipChange should be sufficient if it calls renderPlayerNameInputs.
-        updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-
-        // If only player names changed and not membership, a more targeted UI update might be:
-        // const cardWrapper = document.querySelector(`.group-card-wrapper[data-group-id="${updateData.group_id}"]`);
-        // const playerNamesSectionWrapper = cardWrapper?.querySelector('.player-names-section-wrapper');
-        // if (playerNamesSectionWrapper) {
-        //     const canInteract = challengeConfig.isLoggedIn && challengeConfig.isAuthorized && (challengeConfig.userJoinedGroupId === updateData.group_id);
-        //     if (canInteract) { // Or just always re-render if it's just display names
-        //         renderPlayerNameInputs(playerNamesSectionWrapper, updateData.group_id, updateData.player_names, challengeConfig.numPlayersPerGroup);
-        //     }
-        // }
-    } else {
-        console.warn(`[MainJS] Group ${updateData.group_id} not found in local state for player names update.`);
+        if (myGroupContainerEl && otherGroupsContainerEl) {
+            // This should handle re-rendering the player name inputs within the specific card
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+        }
     }
 }
 
@@ -394,47 +390,75 @@ function initializeConfigFromDOM() {
     }
 }
 
-async function handleRequestTimerStart() {
+async function handleRequestTimerStart(event) {
+    const timerIdSuffix = event.detail?.timerId || 'main';
     if (challengeConfig.isLocal || !challengeConfig.urls.timerStart || !challengeConfig.isAuthorized) return;
-    const btn = document.getElementById(`btnStart-${TIMER_ID}`);
-    if (!btn) { console.error(`Start button not found.`); return; }
+    const btn = document.getElementById(`btnStart-${timerIdSuffix}`);
+    if (!btn) { console.error(`[MainJS] Start button for timer ${timerIdSuffix} not found.`); return; }
+
     lockButton(btn, 'Starting...');
     try {
-        await apiFetch(challengeConfig.urls.timerStart, { method: 'POST', signal: nextSignal('timer') }, challengeConfig.csrfToken);
-        console.log("[MainJS] Timer start request successful. Waiting for WebSocket event.");
+        await apiFetch(challengeConfig.urls.timerStart, { method: 'POST', signal: nextSignal('timer', requestControllers) }, challengeConfig.csrfToken);
+        console.log(`[MainJS] Timer start request successful for ${timerIdSuffix}. Waiting for WebSocket event.`);
     } catch (error) {
-        console.error("Failed to start timer API:", error);
-        showError(statusDiv, `Error starting timer: ${error.message}`, 'danger');
+        if (error.name !== 'AbortError') {
+            console.error(`[MainJS] Failed to start timer ${timerIdSuffix} API:`, error);
+            showError(statusDiv, `Error starting timer: ${error.message}`, 'danger');
+            // Revert optimistic UI update in timer.js if API fails
+            // Send a mock "stopped" state based on current data
+            // Note: Need access to the current state before the failed attempt
+            updateTimerStateFromServer({
+                current_value_seconds: challengeConfig.initialTimerState?.current_value_seconds || 0, // Use a known value
+                is_running: false,
+                last_started_at_utc: null
+            });
+        }
     } finally {
         if (btn) restoreButton(btn);
     }
 }
-async function handleRequestTimerStop() {
+async function handleRequestTimerStop(event) {
+    const timerIdSuffix = event.detail?.timerId || 'main';
     if (challengeConfig.isLocal || !challengeConfig.urls.timerStop || !challengeConfig.isAuthorized) return;
-    const btn = document.getElementById(`btnStop-${TIMER_ID}`);
-    if (!btn) { console.error(`Stop button not found.`); return; }
+    const btn = document.getElementById(`btnStop-${timerIdSuffix}`);
+    if (!btn) { console.error(`[MainJS] Stop button for timer ${timerIdSuffix} not found.`); return; }
+
     lockButton(btn, 'Stopping...');
     try {
-        await apiFetch(challengeConfig.urls.timerStop, { method: 'POST', signal: nextSignal('timer') }, challengeConfig.csrfToken);
-        console.log("[MainJS] Timer stop request successful. Waiting for WebSocket event.");
+        await apiFetch(challengeConfig.urls.timerStop, { method: 'POST', signal: nextSignal('timer', requestControllers) }, challengeConfig.csrfToken);
+        console.log(`[MainJS] Timer stop request successful for ${timerIdSuffix}. Waiting for WebSocket event.`);
     } catch (error) {
-        console.error("Failed to stop timer API:", error);
-        showError(statusDiv, `Error stopping timer: ${error.message}`, 'danger');
+        if (error.name !== 'AbortError') {
+            console.error(`[MainJS] Failed to stop timer ${timerIdSuffix} API:`, error);
+            showError(statusDiv, `Error stopping timer: ${error.message}`, 'danger');
+            // Revert optimistic stop if API fails
+            updateTimerStateFromServer({
+                current_value_seconds: challengeConfig.initialTimerState?.current_value_seconds || 0, // Revert to a known good state
+                is_running: true, // Assume it was running before failed stop
+                last_started_at_utc: challengeConfig.initialTimerState?.last_started_at_utc || null
+            });
+        }
     } finally {
         if (btn) restoreButton(btn);
     }
 }
-async function handleRequestTimerReset() {
+async function handleRequestTimerReset(event) {
+    const timerIdSuffix = event.detail?.timerId || 'main';
     if (challengeConfig.isLocal || !challengeConfig.urls.timerReset || !challengeConfig.isAuthorized) return;
-    const btn = document.getElementById(`btnReset-${TIMER_ID}`);
-    if (!btn) { console.error(`Reset button not found.`); return; }
+    const btn = document.getElementById(`btnReset-${timerIdSuffix}`);
+    if (!btn) { console.error(`[MainJS] Reset button for timer ${timerIdSuffix} not found.`); return; }
+
     lockButton(btn, 'Resetting...');
     try {
-        await apiFetch(challengeConfig.urls.timerReset, { method: 'POST', signal: nextSignal('timer') }, challengeConfig.csrfToken);
-        console.log("[MainJS] Timer reset request successful. Waiting for WebSocket event.");
+        await apiFetch(challengeConfig.urls.timerReset, { method: 'POST', signal: nextSignal('timer', requestControllers) }, challengeConfig.csrfToken);
+        console.log(`[MainJS] Timer reset request successful for ${timerIdSuffix}. Waiting for WebSocket event.`);
     } catch (error) {
-        console.error("Failed to reset timer API:", error);
-        showError(statusDiv, `Error resetting timer: ${error.message}`, 'danger');
+        if (error.name !== 'AbortError') {
+            console.error(`[MainJS] Failed to reset timer ${timerIdSuffix} API:`, error);
+            showError(statusDiv, `Error resetting timer: ${error.message}`, 'danger');
+            // If reset fails, UI might be optimistically at 0. Server state is unknown.
+            // A full state refresh might be best, or revert to previous known state.
+        }
     } finally {
         if (btn) restoreButton(btn);
     }
@@ -1098,45 +1122,34 @@ document.addEventListener('DOMContentLoaded', () => {
     pageContainer = document.getElementById('challengeViewContainer');
     if (!pageContainer) { console.error("CRITICAL: #challengeViewContainer missing!"); return; }
 
-    if (!initializeConfigFromDOM()) { return; } // Read config, assigns to module-scoped statusDiv
+    // 1. Read config from DOM (sets challengeConfig, statusDiv)
+    if (!initializeConfigFromDOM()) { return; }
 
-    // Initialize Timer (common for local and shared)
-    if (!challengeConfig.isLocal) {
-        // For shared challenges, initialize with server state and authorization
-        document.addEventListener('socketInitialStateReceived', (event) => {
-            const freshInitialState = event.detail; // This is where your log is
-            console.log('[MainJS] Handling socketInitialStateReceived:', freshInitialState); // THIS ISN'T FIRING
-            if (freshInitialState && freshInitialState.timer_state) {
-                console.log("[AAAAAAAAAAAAAAAAAA] L12g1g14g1g1r display."); // THIS ISN'T FIRING
-                updateTimerStateFromServer(freshInitialState.timer_state);
-            }
-        });
-        // Listen for custom events dispatched by timer.js to trigger API calls
-        document.addEventListener('requestTimerStart', handleRequestTimerStart);
-        document.addEventListener('requestTimerStop', handleRequestTimerStop);
-        document.addEventListener('requestTimerReset', handleRequestTimerReset);
-        document.addEventListener('socketGroupCreated', (event) => handleSocketGroupCreated(event.detail));
-        document.addEventListener('socketGroupMembershipUpdate', (event) => handleSocketGroupMembershipUpdate(event.detail));
-        document.addEventListener('socketPlayerNamesUpdated', (event) => handleSocketPlayerNamesUpdated(event.detail));
-
-        console.log("[MainJS] Server-synced timer initialized and event listeners for requests attached.");
-    } else {
-        // For local challenges
+    // 2. Initialize Timer using data from DOM attributes (for immediate display)
+    let initialTimerStateForSetup;
+    let isAuthorizedForSetup;
+    if (challengeConfig.isLocal) {
         const localChallengeData = typeof getLocalChallengeById === 'function' ? getLocalChallengeById(challengeConfig.id) : null;
-        const localTimerState = localChallengeData?.timerState || challengeConfig.initialTimerState;
-        initializeTimer(TIMER_ID, localTimerState, true); // Local user always authorized
-        console.log("[MainJS] Local timer initialized for display.");
-        // Add local-specific listeners if timer actions should modify local storage
+        initialTimerStateForSetup = localChallengeData?.timerState || challengeConfig.initialTimerState || { currentValueSeconds: 0, isRunning: false, lastStartedAtUTC: null }; // Provide default
+        isAuthorizedForSetup = true;
+        console.log("[MainJS] Initializing LOCAL timer with data:", initialTimerStateForSetup);
+    } else {
+        initialTimerStateForSetup = challengeConfig.initialTimerState || { currentValueSeconds: 0, isRunning: false, lastStartedAtUTC: null }; // Provide default
+        isAuthorizedForSetup = challengeConfig.isAuthorized;
+        console.log("[MainJS] Initializing SHARED timer with HTML data:", initialTimerStateForSetup);
     }
+    // Call initializeTimer which sets up internal state and starts interval if needed
+    initializeTimer(TIMER_ID, initialTimerStateForSetup, isAuthorizedForSetup);
 
     // --- Branch Logic: Local vs. Database Challenge ---
     if (challengeConfig.isLocal) {
         // --- LOCAL CHALLENGE SETUP ---
+        console.log("[MainJS] Setting up UI and listeners for LOCAL challenge.");
         const localData = typeof getLocalChallengeById === 'function' ? getLocalChallengeById(challengeConfig.id) : null;
         if (localData) {
             challengeConfig.coreChallengeStructure = localData.challengeData || {};
             challengeConfig.progressData = localData.progressData || {};
-            challengeConfig.penaltyInfo = localData.penalty_info || null;
+            challengeConfig.penaltyInfo = localData.penalty_info || null
 
             const titleEl = document.getElementById('local-challenge-title');
             const rulesContainer = document.getElementById('local-rules-content');
@@ -1182,17 +1195,29 @@ document.addEventListener('DOMContentLoaded', () => {
             showError(statusDiv || document.body, errorMsg, 'danger');
         }
     } else {
-        // --- DATABASE CHALLENGE (SHARED) SETUP ---
-        myGroupContainerEl = document.getElementById('myGroupContainer'); // Assign here
-        otherGroupsContainerEl = document.getElementById('otherGroupsContainer'); // Assign here
+        // --- SHARED (DATABASE) CHALLENGE SETUP ---
+        console.log("[MainJS] Setting up UI and listeners for SHARED challenge.");
+        myGroupContainerEl = document.getElementById('myGroupContainer');
+        otherGroupsContainerEl = document.getElementById('otherGroupsContainer');
 
         if (!myGroupContainerEl || !otherGroupsContainerEl) {
             console.error("Essential DB challenge elements missing (#myGroupContainer or #otherGroupsContainer)!");
             showError(statusDiv || document.body, "Initialization Error: Page structure for shared challenge is incomplete.", "danger");
-            return; // Stop further DB challenge setup if containers are missing
+            return;
         }
 
-        const addGroupForm = document.getElementById('addGroupForm');
+        // Attach listeners for socket events (dispatched by socket_handler)
+        document.addEventListener('socketInitialStateReceived', handleSocketInitialState);
+        document.addEventListener('socketGroupCreated', (event) => handleSocketGroupCreated(event.detail));
+        document.addEventListener('socketGroupMembershipUpdate', (event) => handleSocketGroupMembershipUpdate(event.detail));
+        document.addEventListener('socketPlayerNamesUpdated', (event) => handleSocketPlayerNamesUpdated(event.detail));
+
+        // Attach listeners for timer requests (dispatched by timer.js)
+        document.addEventListener('requestTimerStart', handleRequestTimerStart);
+        document.addEventListener('requestTimerStop', handleRequestTimerStop);
+        document.addEventListener('requestTimerReset', handleRequestTimerReset);
+        console.log("[MainJS] Listeners for socket events and timer requests attached.");
+
         try {
             updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
             const theOnlyGroup = challengeConfig.initialGroups?.[0];
@@ -1221,20 +1246,24 @@ document.addEventListener('DOMContentLoaded', () => {
             showError(statusDiv, "Error initializing UI state for shared challenge.", "danger");
         }
 
+        // Add Group Form listener
+        const addGroupForm = document.getElementById('addGroupForm');
         if (addGroupForm && challengeConfig.isCreator) {
             addGroupForm.addEventListener('submit', handleCreateGroupSubmit);
         } else if (addGroupForm) {
             addGroupForm.style.display = 'none';
         }
-    }
 
-    // Attach listener for "Show/Copy Overlay Link" button ONCE
+        // Initialize Socket Connection AFTER setting up listeners that depend on socket events
+        initializeChallengeSockets(challengeConfig, statusDiv);
+    } // End shared challenge setup
+
+    // --- Common Setup (Listeners attached to pageContainer) ---
     const showOverlayBtn = document.getElementById('showOverlayLinkBtn');
     if (showOverlayBtn) {
         showOverlayBtn.addEventListener('click', handleShowOverlayLink);
-        // console.log("Attached listener for showOverlayLinkBtn (once)."); // Can be removed if confirmed
     } else {
-        if (!challengeConfig.isLocal) { // Only warn if it's expected
+        if (!challengeConfig.isLocal) {
             console.warn("showOverlayLinkBtn not found (expected on shared challenge view).");
         }
     }
@@ -1243,9 +1272,6 @@ document.addEventListener('DOMContentLoaded', () => {
     pageContainer.addEventListener('click', (evt) => {
         const btn = evt.target.closest('button');
         if (!btn || btn.disabled) return;
-
-        // Check button type by ID or class, and call appropriate handler
-        // Note: showOverlayLinkBtn is handled above, not here.
         if (btn.id === 'authorizeUserBtn') { handleAuthorizeUserClick(btn); return; }
         if (btn.classList.contains('remove-auth-user-btn')) { handleRemoveUserClick(btn); return; }
         if (btn.classList.contains('join-group-btn')) { handleJoinGroupClick(evt, btn); return; }
@@ -1254,11 +1280,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('clear-penalty-btn')) { handleClearPenaltyClick(evt, btn); return; }
     });
 
-    // Delegated change listener for progress checkboxes
-    pageContainer.addEventListener('change', handleProgressChange);
-
-    // Initialize Socket.IO connection and listeners (moved to socket_handler.js)
-    // Pass the module-scoped challengeConfig and statusDiv
-    initializeChallengeSockets(challengeConfig, statusDiv);
+    // Delegated change listener for progress checkboxes (shared challenges)
+    // Local challenge progress listener is attached specifically to its card above
+    if (!challengeConfig.isLocal) {
+        pageContainer.addEventListener('change', handleProgressChange);
+    }
 
 }); // End DOMContentLoaded
