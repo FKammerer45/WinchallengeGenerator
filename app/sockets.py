@@ -1,4 +1,5 @@
 # app/sockets.py
+import datetime
 import logging
 from flask import request, session # Import request for sid
 from flask_login import current_user
@@ -80,23 +81,30 @@ def calculate_progress(challenge_data, progress_data):
 
 
 def get_challenge_state_for_overlay(challenge, user_id):
-    """Fetches and formats the initial state needed by the overlay."""
-    if not challenge: return None
+    """Fetches and formats the initial state needed by the overlay (and main page)."""
+    if not challenge:
+        logger.error("[get_challenge_state_for_overlay] Challenge object provided is None!")
+        return None
+
+    # Log the state of the 'challenge' object as this function receives it
+    # This is crucial for debugging the "timer not running on reload" issue's server side.
+   
 
     user_group_data = None
     other_groups_progress = []
-    challenge_data_struct = challenge.challenge_data or {}
+    challenge_data_struct = challenge.challenge_data or {} # Ensure it's at least an empty dict
 
-    # Find the user's group and calculate progress for others
     groups = challenge.groups or []
     for group in groups:
         try:
-             is_member = any(member.id == user_id for member in group.members) if group.members else False
+            # Ensure group.members is accessed safely, assuming it's loaded
+            is_member = any(member.id == user_id for member in group.members) if group.members and hasattr(group.members[0], 'id') else False
         except Exception as e:
-             logger.error(f"Error checking membership for group {group.id}: {e}")
-             is_member = False
+            logger.error(f"Error checking membership for group {group.id if hasattr(group, 'id') else 'Unknown'}: {e}")
+            is_member = False
 
         group_progress_data = group.progress_data or {}
+        # Assuming calculate_progress is defined and works correctly
         progress_stats = calculate_progress(challenge_data_struct, group_progress_data)
 
         if is_member:
@@ -104,18 +112,46 @@ def get_challenge_state_for_overlay(challenge, user_id):
                 "id": group.id,
                 "name": group.group_name,
                 "progress_data": group_progress_data,
-                "progress_stats": progress_stats,
+                "progress_stats": progress_stats, # from calculate_progress
                 "active_penalty_text": group.active_penalty_text or ""
             }
         else:
             other_groups_progress.append({
                 "id": group.id,
                 "name": group.group_name,
-                "percentage": progress_stats['percentage']
+                "percentage": progress_stats['percentage'] if progress_stats else 0
             })
+    
+    # --- Revised Timer State Logic ---
+    base_timer_value_seconds = challenge.timer_current_value_seconds # This is the DB field, the base accumulated time
+    is_running_from_db = challenge.timer_is_running
+    last_started_at_utc_from_db = challenge.timer_last_started_at_utc
 
-  
-    current_timer_val = challenge.get_current_timer_value() # Use helper method
+    iso_formatted_last_started_utc = None
+    if is_running_from_db and last_started_at_utc_from_db:
+        aware_last_started_utc = last_started_at_utc_from_db
+        # Ensure the datetime object is UTC aware before calling isoformat()
+        if aware_last_started_utc.tzinfo is None or aware_last_started_utc.tzinfo.utcoffset(aware_last_started_utc) is None:
+            # If naive, assume the numbers represent UTC time and make it aware.
+            # This matches how it's set: datetime.now(datetime.timezone.utc)
+            aware_last_started_utc = aware_last_started_utc.replace(tzinfo=datetime.timezone.utc)
+            logger.warning(
+                f"[get_challenge_state_for_overlay] timer_last_started_at_utc from DB was naive ('{last_started_at_utc_from_db}'). "
+                f"Stamped as UTC: '{aware_last_started_utc}' for challenge {challenge.public_id}."
+            )
+        else:
+            # If already aware, explicitly convert to UTC to standardize the offset in isoformat string (e.g., to +00:00 or Z)
+            aware_last_started_utc = aware_last_started_utc.astimezone(datetime.timezone.utc)
+        
+        iso_formatted_last_started_utc = aware_last_started_utc.isoformat()
+
+    timer_state_payload = {
+        "current_value_seconds": base_timer_value_seconds, # Send the base value for client-side live calculation
+        "is_running": is_running_from_db,
+        "last_started_at_utc": iso_formatted_last_started_utc
+    }
+    # --- End Revised Timer State Logic ---
+    
 
     return {
         "challenge_id": challenge.public_id,
@@ -124,13 +160,7 @@ def get_challenge_state_for_overlay(challenge, user_id):
         "penalty_info": challenge.penalty_info,
         "user_group": user_group_data,
         "other_groups_progress": other_groups_progress,
-        
-        "timer_state": {
-            "current_value_seconds": current_timer_val, # Send the calculated current value
-            "is_running": challenge.timer_is_running,
-            "last_started_at_utc": challenge.timer_last_started_at_utc.isoformat() if challenge.timer_is_running and challenge.timer_last_started_at_utc else None
-        }
-      
+        "timer_state": timer_state_payload # Use the revised timer state
     }
 
 # ... (handle_connect and handle_disconnect remain the same) ...
@@ -139,7 +169,6 @@ def handle_connect():
     sid = request.sid
     api_key = request.args.get('apiKey')
     challenge_public_id_from_query = request.args.get('challengeId')
-    logger.info(f"[Socket Connect] Client attempting connection: SID={sid}, APIKeyProvided={bool(api_key)}, ChallengeIdInQuery={challenge_public_id_from_query}")
 
     if api_key and challenge_public_id_from_query:
         logger.info(f"[Socket Connect] SID={sid} identified as OVERLAY client. Proceeding with API key auth.")
@@ -167,7 +196,6 @@ def handle_connect():
             logger.info(f"[Socket Connect] OVERLAY SID={sid} AUTHENTICATED for user {user.username}, challenge {challenge.public_id}")
             connected_overlays[sid] = {'user_id': user.id, 'challenge_id': challenge.id, 'public_challenge_id': challenge.public_id }
             join_room(challenge.public_id)
-            logger.info(f"@@@ [Socket Connect] OVERLAY SID={sid} successfully joined room '{challenge.public_id}' immediately on connect.") # Explicit log
             initial_state = get_challenge_state_for_overlay(challenge, user.id)
             if initial_state:
                 emit('initial_state', initial_state, room=sid)
@@ -291,7 +319,6 @@ def emit_timer_update_to_room(challenge_public_id: str, event_name: str, data: d
 def handle_join_challenge_room(data):
     sid = request.sid
     challenge_public_id = data.get('challenge_id')
-    logger.info(f"@@@@@ [Join Room Attempt] SID {sid} trying to join room for challenge_id: {challenge_public_id}. Data: {data}")
 
     if not challenge_public_id:
         logger.warning(f"[Join Room] SID {sid} FAILED PRE-CHECK: 'challenge_id' not provided.")
@@ -310,12 +337,9 @@ def handle_join_challenge_room(data):
             logger.info(f"[Join Room] PAGE VIEWER SID={sid} (User: {user_for_log}) proceeding to join challenge '{challenge_public_id}'.")
         
         # --- Explicitly log before and after join_room ---
-        logger.info(f"@@@@@ [Join Room] SID {sid} (User: {user_for_log}) CALLING join_room('{challenge_public_id}').")
         join_room(challenge_public_id)
-        logger.info(f"@@@@@ [Join Room] SID {sid} (User: {user_for_log}) SUCCESSFULLY EXECUTED join_room for: '{challenge_public_id}'.")
         
         emit('room_joined', {'room': challenge_public_id, 'message': f'Successfully joined room {challenge_public_id}. SID: {sid}'}, room=sid)
-        logger.info(f"@@@@@ [Join Room] SID {sid} (User: {user_for_log}) EMITTED 'room_joined' event for room: {challenge_public_id}")
 
 
         if not is_overlay_client and hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
