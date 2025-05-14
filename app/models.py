@@ -13,15 +13,16 @@ from app import db # Import the db instance from app/__init__.py
 from flask_login import UserMixin
 logger = logging.getLogger(__name__)
 
-# Association Table for User <-> ChallengeGroup Membership
-# Use db.Table and db.metadata
-user_challenge_group_membership = db.Table('user_challenge_group_membership', db.metadata,
-    db.Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
-    db.Column('group_id', Integer, ForeignKey('challenge_groups.id'), primary_key=True)
+# Association Table for User <-> SharedChallenge (Authorization)
+challenge_authorized_users_table = db.Table('challenge_authorized_users', db.metadata,
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', name='fk_auth_user_id'), primary_key=True),
+    db.Column('challenge_id', db.Integer, db.ForeignKey('shared_challenges.id', name='fk_auth_challenge_id'), primary_key=True)
 )
-challenge_authorized_users = db.Table('challenge_authorized_users', db.metadata,
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
-    db.Column('challenge_id', db.Integer, db.ForeignKey('shared_challenges.id'), primary_key=True)
+
+# Association Table for User <-> ChallengeGroup Membership
+user_challenge_group_membership_table = db.Table('user_challenge_group_membership', db.metadata,
+    db.Column('user_id', Integer, ForeignKey('users.id', name='fk_membership_user_id'), primary_key=True),
+    db.Column('group_id', Integer, ForeignKey('challenge_groups.id', name='fk_membership_group_id'), primary_key=True)
 )
 # --- Basic Config/Entry Models ---
 
@@ -116,129 +117,137 @@ class User(db.Model, UserMixin):
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     twitch_id = Column(String(50), unique=True, nullable=True, index=True)
-    password_hash = Column(String(255), nullable=False) # Consider increasing length for future hash algorithms
+    password_hash = Column(String(255), nullable=False) 
     overlay_api_key = Column(String(64), unique=True, nullable=True, index=True)
     email = Column(String(120), unique=True, nullable=False, index=True)
     confirmed = Column(Boolean, nullable=False, default=False)
     confirmed_on = Column(DateTime(timezone=True), nullable=True)
 
-    # Relationships using db.relationship
-    created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select")
+    # Relationship to challenges created by this user
+    created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select", cascade="all, delete-orphan")
+    
+    # Relationship to groups this user is a member of
     joined_groups = db.relationship(
         "ChallengeGroup",
-        secondary=user_challenge_group_membership,
+        secondary=user_challenge_group_membership_table, # Use the table object
         back_populates="members",
         lazy="select"
     )
 
-    # Flask-Login required properties/methods
-    # These are provided by UserMixin if you choose to use it
+    # Relationship to challenges this user is authorized for
+    authorized_for_challenges = db.relationship( # Renamed for clarity from User's perspective
+        "SharedChallenge",
+        secondary=challenge_authorized_users_table, # Use the table object
+        back_populates="authorized_users_list", # Matches new name on SharedChallenge
+        lazy="select" 
+    )
+
     @property
     def is_active(self) -> bool: return True
     @property
     def is_authenticated(self) -> bool: return True
     @property
     def is_anonymous(self) -> bool: return False
-    def get_id(self) -> str: return str(self.id) # Required by Flask-Login
+    def get_id(self) -> str: return str(self.id) 
 
     @property
     def is_twitch_user(self) -> bool:
-        """Check if the user authenticated via Twitch (has twitch_id)."""
         return self.twitch_id is not None
-    # Password methods
     def set_password(self, password: str): 
         self.password_hash = generate_password_hash(password)
-        
     def check_password(self, password: str) -> bool: 
         return check_password_hash(self.password_hash, password)
-    
     def generate_overlay_key(self) -> str:
-        """Generates a new secure random API key."""
-        new_key = secrets.token_urlsafe(32) # Generate a 32-byte URL-safe key
+        new_key = secrets.token_urlsafe(32) 
         self.overlay_api_key = new_key
         return new_key
-        
     def __repr__(self):
         return f"<User {self.username}>"
 
-# Inherit from db.Model instead of Base
-class SharedChallenge(db.Model):
-    """Model for storing shared challenges."""
-    __tablename__ = 'shared_challenges'
 
+class SharedChallenge(db.Model):
+    __tablename__ = 'shared_challenges'
     id = Column(Integer, primary_key=True, index=True)
-    public_id = Column(String(36), unique=True, index=True, nullable=False) # UUID field
+    public_id = Column(String(36), unique=True, index=True, nullable=False) 
     creator_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
-    name = Column(String(120), nullable=True) # Name for the overall challenge template
-    challenge_data = Column(JSON, nullable=False) # Stores the structure {normal:[...], b2b:[...]}
-    penalty_info = Column(JSON, nullable=True) # Stores {tab_id:..., player_names:[...]} (player_names might be legacy)
+    name = Column(String(120), nullable=True) 
+    challenge_data = Column(JSON, nullable=False) 
+    penalty_info = Column(JSON, nullable=True) 
     max_groups = Column(Integer, default=10, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc), nullable=False)
-    num_players_per_group = Column(Integer, nullable=False, default=1, server_default='1') # Default players needed to start a group
+    num_players_per_group = Column(Integer, nullable=False, default=1, server_default='1') 
     timer_current_value_seconds = Column(Integer, nullable=False, default=0, server_default='0')
     timer_is_running = Column(Boolean, nullable=False, default=False, server_default='0')
     timer_last_started_at_utc = Column(DateTime(timezone=True), nullable=True)
-    # Relationships using db.relationship
+    
     groups = db.relationship("ChallengeGroup", back_populates="shared_challenge", cascade="all, delete-orphan", lazy="select")
     creator = db.relationship("User", back_populates="created_challenges")
-    authorized_users = db.relationship(
+
+    # MODIFIED: Renamed relationship attribute and used back_populates
+    authorized_users_list = db.relationship( # Changed from 'authorized_users'
         "User",
-        secondary=challenge_authorized_users,
-        # Consider a backref if you need to easily find challenges a user is authorized for
-        backref=db.backref("authorized_challenges", lazy="dynamic"),
-        lazy="select" # Or 'dynamic' if you expect large lists and want to query further
+        secondary=challenge_authorized_users_table, # Use the table object
+        back_populates="authorized_for_challenges", # Matches new name on User
+        lazy="select"
     )
     def __repr__(self): 
         return f"<SharedChallenge id={self.id} public_id='{self.public_id}'>"
         
     def get_penalty_tab_id(self): 
-        # Safely access the dictionary key
+        """Returns the original source_tab_id if penalties are enabled and info is present."""
         if isinstance(self.penalty_info, dict):
-            return self.penalty_info.get('tab_id')
+            return self.penalty_info.get('source_tab_id')
         return None
+
+    def get_penalties(self):
+        """Returns the list of actual penalty entries embedded in this challenge."""
+        if isinstance(self.penalty_info, dict):
+            # Ensure 'penalties' key exists and is a list
+            penalties_list = self.penalty_info.get('penalties', [])
+            return penalties_list if isinstance(penalties_list, list) else []
+        return []
+
+    def get_penalty_source_tab_name(self):
+        """Returns the name of the original source penalty tab."""
+        if isinstance(self.penalty_info, dict):
+            return self.penalty_info.get('source_tab_name')
+        return None
+    
     def get_current_timer_value(self) -> int:
         """Returns the current effective value of the timer in seconds."""
         if self.timer_is_running and self.timer_last_started_at_utc:
-            # Ensure self.timer_last_started_at_utc is offset-aware (UTC)
             last_started_utc = self.timer_last_started_at_utc
-            
-            # Check if last_started_utc is naive (has no timezone info)
             if last_started_utc.tzinfo is None or last_started_utc.tzinfo.utcoffset(last_started_utc) is None:
-                # If naive, assume it's UTC and make it offset-aware
                 try:
                     last_started_utc = last_started_utc.replace(tzinfo=datetime.timezone.utc)
                 except Exception as e:
                     logger.error(f"Error making naive datetime offset-aware for timer_last_started_at_utc: {e}. Value: {self.timer_last_started_at_utc}")
-                    # Fallback or re-raise, depending on desired behavior. Here, we'll fallback to not adding elapsed time.
                     return self.timer_current_value_seconds
-
-
-            # Now both datetime objects should be offset-aware (UTC)
             try:
                 current_utc_time = datetime.datetime.now(datetime.timezone.utc)
                 elapsed_since_start = (current_utc_time - last_started_utc).total_seconds()
                 return self.timer_current_value_seconds + int(elapsed_since_start)
-            except TypeError as te: # Catch TypeError specifically if subtraction still fails
+            except TypeError as te: 
                 logger.error(f"TypeError during timer calculation: {te}. current_utc_time: {current_utc_time.isoformat() if current_utc_time else 'None'}, last_started_utc: {last_started_utc.isoformat() if last_started_utc else 'None'}")
-                return self.timer_current_value_seconds # Fallback
+                return self.timer_current_value_seconds 
             except Exception as e_calc:
                 logger.error(f"Unexpected error during timer elapsed calculation: {e_calc}")
-                return self.timer_current_value_seconds # Fallback
-
+                return self.timer_current_value_seconds 
         return self.timer_current_value_seconds
     
 # Inherit from db.Model instead of Base
 class ChallengeGroup(db.Model):
     __tablename__ = 'challenge_groups'
     id = Column(Integer, primary_key=True, index=True)
-    shared_challenge_id = Column(Integer, ForeignKey('shared_challenges.id'), nullable=False, index=True) # FK constraint handles deletion
+    shared_challenge_id = Column(Integer, ForeignKey('shared_challenges.id'), nullable=False, index=True) 
     group_name = Column(String(80), nullable=False)
     progress_data = Column(JSON, nullable=True, default=lambda: {})
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
     active_penalty_text = Column(String(255), nullable=True)
-    player_names = Column(JSON, nullable=True)
+    player_names = Column(JSON, nullable=True) 
+    
     shared_challenge = db.relationship("SharedChallenge", back_populates="groups", lazy="select")
-    # Association for members - cascade delete handled by User/Group deletion
-    members = db.relationship( "User", secondary=user_challenge_group_membership, back_populates="joined_groups", lazy="select" )
+    members = db.relationship( "User", secondary=user_challenge_group_membership_table, back_populates="joined_groups", lazy="select" ) # Use table object
+    
     __table_args__ = ( Index('uq_shared_challenge_group_name', 'shared_challenge_id', 'group_name', unique=True), )
     def __repr__(self): return f"<ChallengeGroup id={self.id} name='{self.group_name}' challenge_id={self.shared_challenge_id}>"

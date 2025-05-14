@@ -14,7 +14,7 @@ import {
     initLocalStorage as initPenaltyLocalStorageIfAbsent
     // getLocalOnlyPenaltyTabs, getLocalOnlyPenaltyEntries, setLocalOnlyPenaltyTabs, setLocalOnlyPenaltyEntries (already imported above)
 } from "./penaltyLocalStorageUtils.js";
-
+import { getNextPenaltyTabIdNumber } from "./penaltyTabManagement.js";
 
 // --- Autosave Logic for Penalties ---
 let penaltyAutosaveTimeout = null;

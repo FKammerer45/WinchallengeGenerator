@@ -5,6 +5,7 @@ import uuid
 from flask import Blueprint, render_template, request, jsonify, current_app, url_for
 from flask_login import login_required, current_user
 import datetime
+import secrets
 # Import logic functions
 from app.modules.challenge_generator import generate_challenge_logic
 from app.modules.game_preferences import initialize_game_vars
@@ -19,7 +20,7 @@ from app.sockets import (
     emit_timer_update_to_room # Import new emitters
 )
 # Import necessary models
-from app.models import SharedChallenge, ChallengeGroup, User
+from app.models import SavedPenaltyTab, SharedChallenge, ChallengeGroup, User
 from app.utils.auth_helpers import is_user_authorized
 # Import SQLAlchemy components
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -70,6 +71,7 @@ def generate_challenge():
             get = lambda k, default=None: data_src.get(k, default)
             getlist = lambda k: data_src.getlist(k)
             from_form = True
+            raw_penalty_info_full_str = request.form.get("penalty_info_full")
         elif request.is_json:
             js = request.get_json()
             if not js:
@@ -78,6 +80,7 @@ def generate_challenge():
             get = lambda k, default=None: js.get(k, default)
             getlist = lambda k: js.get(k, [])
             from_form = False
+            raw_penalty_info_full_str = js.get("penalty_info_full")
         else:
             return jsonify({"error": "Unsupported format."}), 415
 
@@ -100,7 +103,35 @@ def generate_challenge():
             logger.warning(f"--- [API /generate] Received selected_modes is not a dict: {type(gd['selected_modes'])}. Resetting to empty dict.")
             gd['selected_modes'] = {} # Ensure it's a dict if parsing failed somehow
             
-        gd['use_penalties']        = (get('use_penalties') == 'on') if from_form else bool(get('use_penalties', False))
+        gd['use_penalties'] = (request.form.get('use_penalties') == 'on') if request.form else bool(js.get('use_penalties', False))
+
+        processed_penalty_info = None
+        if gd['use_penalties'] and raw_penalty_info_full_str:
+            try:
+                # raw_penalty_info_full_str is already a JSON string from formData
+                processed_penalty_info = json.loads(raw_penalty_info_full_str)
+
+                # Basic validation of the structure
+                if not isinstance(processed_penalty_info, dict) or \
+                   'penalties' not in processed_penalty_info or \
+                   not isinstance(processed_penalty_info['penalties'], list) or \
+                   'source_tab_id' not in processed_penalty_info: # Check for source_tab_id
+                    logger.warning(f"Invalid structure for penalty_info_full received: {processed_penalty_info}")
+                    processed_penalty_info = None 
+                else:
+                    # Ensure all penalties have an ID if missing
+                    # This is more of a safeguard; JS should provide IDs.
+                    for p_entry in processed_penalty_info.get('penalties', []):
+                        if 'id' not in p_entry or not p_entry['id']:
+                            p_entry['id'] = f"pgen-{secrets.token_hex(4)}"
+                    logger.debug(f"Processed penalty_info_full for generation: {len(processed_penalty_info.get('penalties', []))} penalties from tab '{processed_penalty_info.get('source_tab_name', 'Unknown')}'.")
+
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse penalty_info_full JSON from form data: {e}")
+                processed_penalty_info = None
+        elif gd['use_penalties']:
+             logger.warning("Penalties enabled but penalty_info_full not provided. Penalties will not be included.")
+
         gd['penalty_tab_id']       = get('penalty_tab_id', 'default')
         gd['challenge_name']       = get('challenge_name', None)
         gd['group_mode']           = get('group_mode', 'single')
@@ -147,45 +178,40 @@ def generate_challenge():
             logger.warning(f"Challenge generation failed: {error_msg}")
             return jsonify({"error": error_msg}), 400
 
-        # --- 5. Augment & Return ---
-        result['penalty_info'] = {'tab_id': gd['penalty_tab_id']} if gd['use_penalties'] else None
+        # Augment result with the full penalty_info (or null if not used)
+        result['penalty_info'] = processed_penalty_info 
+
         result['share_options'] = {
-            'challenge_name':       gd['challenge_name'],
-            'desired_diff':         gd['desired_diff'], # Original desired diff
-            'group_mode':           gd['group_mode'],
-            'max_groups':           gd['max_groups'],
-            'num_players_per_group':num_players_per_group
+            'challenge_name':       gd.get('challenge_name'), 
+            'desired_diff':         gd.get('desired_diff'), 
+            'group_mode':           gd.get('group_mode', 'single'),
+            'max_groups':           gd.get('max_groups', 1),
+            'num_players_per_group': gd.get('num_players_per_group', 1)
         }
         logger.info("Challenge generated successfully.")
 
         rendered_html = render_template(
-        "_challenge_result.html", # Use the new template name
-        normal_group=result.get("normal", {}),
-        b2b_grouped=result.get("b2b", []),
-        total_difficulty=result.get("total_difficulty", 0.0), # Get calculated total diff
-        share_options=result.get("share_options", {}), # Pass share options if needed in template
-        penalty_info=result.get("penalty_info")      # Pass penalty info if needed
-    )
-
-        # --- Return JSON including the *newly rendered* HTML ---
-        # Ensure the key for the rendered HTML is "result" so form.js works
+            "_challenge_result.html", 
+            normal_group=result.get("normal", {}),
+            b2b_grouped=result.get("b2b", []),
+            total_difficulty=result.get("total_difficulty", 0.0),
+            share_options=result.get("share_options", {}),
+            penalty_info=result.get("penalty_info") 
+        )
         return jsonify({
-            "result": rendered_html, # The HTML rendered from _challenge_result.html
-            "normal": result.get("normal", {}), # Still include raw data for share.js
-            "b2b": result.get("b2b", []),       # Still include raw data for share.js
+            "result": rendered_html, 
+            "normal": result.get("normal", {}), 
+            "b2b": result.get("b2b", []),       
             "share_options": result.get("share_options", {}),
-            "penalty_info": result.get("penalty_info")
+            "penalty_info": result.get("penalty_info") # Pass the full structure
         })
 
-
-
-    except (ValueError, json.JSONDecodeError) as e:
-        logger.exception("Bad input:")
-        return jsonify({"error": str(e)}), 400
+    except (ValueError, TypeError, json.JSONDecodeError) as e: # Added TypeError
+        logger.exception("Bad input for /generate:")
+        return jsonify({"error": f"Invalid input: {str(e)}"}), 400
     except Exception as e:
-        logger.exception("Server error:")
-        return jsonify({"error": "Server error."}), 500
-
+        logger.exception("Server error during /generate:")
+        return jsonify({"error": "Server error during challenge generation."}), 
 
 # --- /share endpoint ---
 # Update decorator to use the new blueprint name
@@ -228,75 +254,73 @@ def share_challenge():
         return jsonify({"error": error_msg}), 400
     # --- End Validation ---
 
-    challenge_data = data.get('challenge_data')
-    penalty_info = data.get('penalty_info') # Optional
-    name = data.get('name', None) # Optional
+    challenge_data_from_payload = data.get('challenge_data')
+    penalty_info_to_store = data.get('penalty_info') # This is the full object or null
 
+    if penalty_info_to_store: # If penalties are enabled for this challenge
+        if not isinstance(penalty_info_to_store, dict) or \
+           'penalties' not in penalty_info_to_store or \
+           not isinstance(penalty_info_to_store['penalties'], list) or \
+           'source_tab_id' not in penalty_info_to_store: # Validate structure
+            logger.warning(f"Invalid penalty_info structure received at /share for user {current_user.username}. Storing as null. Data: {penalty_info_to_store}")
+            penalty_info_to_store = None # Discard if malformed
+        else:
+            # Ensure all penalties in the list to be stored have an ID
+            for p_entry in penalty_info_to_store.get('penalties', []):
+                if 'id' not in p_entry or not p_entry['id']:
+                    p_entry['id'] = f"shared-p-{secrets.token_hex(4)}" 
+            logger.info(f"Storing challenge with {len(penalty_info_to_store.get('penalties',[]))} embedded penalties from tab '{penalty_info_to_store.get('source_tab_name', 'Unknown')}'.")
     # --- Robust Type Conversion and Validation ---
+    name = data.get('name', None)
     try:
         max_groups = int(data.get('max_groups', 1)) 
         num_players_per_group = int(data.get('num_players_per_group', 1)) 
         if max_groups < 1: max_groups = 1
         if num_players_per_group < 1: num_players_per_group = 1
     except (ValueError, TypeError) as conv_err:
-         logger.warning(f"Invalid numeric value for max_groups or num_players_per_group: {conv_err}. Data: {data}")
-         return jsonify({"error": "Invalid value for max_groups or num_players_per_group."}), 400
-    # --- End Type Conversion ---
+        logger.warning(f"Invalid numeric value for max_groups or num_players_per_group: {conv_err}. Data: {data}")
+        return jsonify({"error": "Invalid value for max_groups or num_players_per_group."}), 400
 
     try:
-        # Check user challenge limit
-        current_challenge_count = db.session.query(func.count(SharedChallenge.id))\
-            .filter(SharedChallenge.creator_id == current_user.id)\
-            .scalar()
+        current_challenge_count = db.session.query(func.count(SharedChallenge.id)).filter(SharedChallenge.creator_id == current_user.id).scalar()
         if current_challenge_count >= MAX_CHALLENGES_PER_USER:
             logger.warning(f"User {current_user.username} reached challenge limit ({MAX_CHALLENGES_PER_USER}).")
-            return jsonify({"error": f"Max challenges ({MAX_CHALLENGES_PER_USER}) reached."}), 403 # Use 403 Forbidden
+            return jsonify({"error": f"Max challenges ({MAX_CHALLENGES_PER_USER}) reached."}), 403
 
-        logger.debug(f"User {current_user.username} has {current_challenge_count} challenges. Limit is {MAX_CHALLENGES_PER_USER}. Proceeding.")
-
-        # Create SharedChallenge object
         public_id = str(uuid.uuid4())
         new_challenge = SharedChallenge(
             public_id=public_id,
             creator_id=current_user.id,
             name=name,
-            challenge_data=challenge_data, 
-            penalty_info=penalty_info,     
+            challenge_data=challenge_data_from_payload, 
+            penalty_info=penalty_info_to_store, # Store the full penalty info structure (or null)
             max_groups=max_groups,
             num_players_per_group=num_players_per_group
         )
 
-        if current_user.is_authenticated: # Ensure user is logged in
-            user_to_add = db.session.get(User, current_user.id) # Get user object in session
+        if current_user.is_authenticated:
+            user_to_add = db.session.get(User, current_user.id)
             if user_to_add:
-                new_challenge.authorized_users.append(user_to_add)
-                logger.info(f"Automatically authorized creator {current_user.username} for challenge {public_id}")
-            else:
-                logger.warning(f"Could not re-fetch user {current_user.id} to auto-authorize.")
+                new_challenge.authorized_users_list.append(user_to_add)
 
         db.session.add(new_challenge)
-        db.session.commit() # Commit transaction
+        db.session.commit() 
         logger.info(f"Successfully created SharedChallenge {public_id} by user {current_user.username}")
 
-        # Generate share URL using correct parameter name
         share_url = url_for('main.challenge_view', challenge_id=public_id, _external=True)
-
         return jsonify({
-            "status": "success",
-            "message": "Challenge shared successfully.",
-            "public_id": public_id,
-            "share_url": share_url
+            "status": "success", "message": "Challenge shared successfully.",
+            "public_id": public_id, "share_url": share_url
         }), 201
 
     except (IntegrityError, SQLAlchemyError) as e:
-        db.session.rollback() # Rollback on DB error
+        db.session.rollback() 
         logger.exception(f"DB Error sharing challenge for user {current_user.username}")
         return jsonify({"error": "Database error creating challenge."}), 500
     except Exception as e:
-        db.session.rollback() # Rollback on unexpected error
+        db.session.rollback() 
         logger.exception(f"Unexpected error sharing challenge for user {current_user.username}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
-
 
 
 
@@ -930,7 +954,7 @@ def set_group_penalty(group_id):
 @login_required
 def add_authorized_user(public_id):
     challenge = db.session.query(SharedChallenge).options(
-        selectinload(SharedChallenge.authorized_users) # Eager load for check
+        selectinload(SharedChallenge.authorized_users_list)
     ).filter_by(public_id=public_id).first_or_404()
 
     if challenge.creator_id != current_user.id:
@@ -948,23 +972,18 @@ def add_authorized_user(public_id):
          # Return ok status, but maybe indicate they are creator
          return jsonify({"status": "ok", "message": "Creator is always authorized."}), 200
 
-    if user_to_add not in challenge.authorized_users:
-        challenge.authorized_users.append(user_to_add)
+    if user_to_add not in challenge.authorized_users_list: # MODIFIED
+        challenge.authorized_users_list.append(user_to_add) # MODIFIED
         db.session.commit()
         logger.info(f"User {user_to_add.username} authorized for challenge {public_id} by {current_user.username}.")
-        # ----> MODIFIED RETURN START <----
         return jsonify({
-            "status": "success",
-            "message": f"User {user_to_add.username} authorized.",
-            "user": {"id": user_to_add.id, "username": user_to_add.username} # Include user info
+            "status": "success", "message": f"User {user_to_add.username} authorized.",
+            "user": {"id": user_to_add.id, "username": user_to_add.username}
         }), 200
-        # ----> MODIFIED RETURN END <----
     else:
-        # ----> MODIFIED RETURN START (Optional: Include user info even if already authorized) <----
         return jsonify({
-            "status": "ok",
-            "message": f"User {user_to_add.username} already authorized.",
-            "user": {"id": user_to_add.id, "username": user_to_add.username} # Optionally include info
+            "status": "ok", "message": f"User {user_to_add.username} already authorized.",
+            "user": {"id": user_to_add.id, "username": user_to_add.username}
         }), 200
         # ----> MODIFIED RETURN END <----
 
@@ -975,14 +994,17 @@ def add_authorized_user(public_id):
 @login_required
 def remove_authorized_user(public_id, user_id):
     # ... (existing implementation is likely okay) ...
-     challenge = db.session.query(SharedChallenge).options(selectinload(SharedChallenge.authorized_users)).filter_by(public_id=public_id).first_or_404()
+     challenge = db.session.query(SharedChallenge).options(
+         selectinload(SharedChallenge.authorized_users_list) # MODIFIED
+        ).filter_by(public_id=public_id).first_or_404()
      if challenge.creator_id != current_user.id:
          return jsonify({"error": "Only the creator can remove users."}), 403
 
+
      user_to_remove = None
-     for user in challenge.authorized_users:
-          if user.id == user_id:
-                user_to_remove = user
+     for user_in_list in challenge.authorized_users_list: # MODIFIED
+          if user_in_list.id == user_id:
+                user_to_remove = user_in_list
                 break
 
      if not user_to_remove:
@@ -990,7 +1012,7 @@ def remove_authorized_user(public_id, user_id):
      if user_to_remove.id == challenge.creator_id:
           return jsonify({"error": "Cannot remove the creator."}), 400
 
-     challenge.authorized_users.remove(user_to_remove)
+     challenge.authorized_users_list.remove(user_to_remove) # MODIFIED
      db.session.commit()
      logger.info(f"User {user_to_remove.username} authorization revoked for challenge {public_id} by {current_user.username}.")
      return jsonify({"status": "success", "message": f"User {user_to_remove.username} removed."}), 200
@@ -1233,3 +1255,93 @@ def _initialize_player_slots_for_emit(group_obj: ChallengeGroup, num_slots_expec
         final_slots = final_slots[:num_slots_expected]
 
     return final_slots
+
+@challenge_api.route("/<public_id>/update_penalties", methods=["POST"])
+@login_required
+@csrf.exempt # Add CSRF protection if needed for your setup
+def update_challenge_penalties(public_id):
+    challenge = db.session.query(SharedChallenge).filter_by(public_id=public_id).first_or_404()
+
+    if challenge.creator_id != current_user.id:
+        return jsonify({"error": "Only the challenge creator can update penalty sets."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided."}), 400
+
+    new_penalty_source_tab_id = data.get('new_penalty_tab_id') # The client_tab_id of the creator's SavedPenaltyTab
+    disable_penalties = data.get('disable_penalties', False) # Option to disable penalties
+
+    if disable_penalties:
+        challenge.penalty_info = None # Set to None to disable penalties
+        db.session.commit()
+        logger.info(f"User {current_user.username} DISABLED penalties for challenge {public_id}.")
+
+        # Emit update
+        socketio.emit('challenge_penalties_updated', {
+            'challenge_id': public_id,
+            'penalty_info': None 
+        }, room=public_id)
+        return jsonify({"status": "success", "message": "Penalties disabled for this challenge.", "new_penalty_info": None}), 200
+
+    if not new_penalty_source_tab_id:
+        return jsonify({"error": "New penalty source tab ID is required."}), 400
+
+    # Fetch the creator's chosen penalty tab to get its entries
+    chosen_penalty_tab = db.session.query(SavedPenaltyTab).filter_by(
+        user_id=current_user.id,
+        client_tab_id=new_penalty_source_tab_id
+    ).first()
+
+    if not chosen_penalty_tab:
+        return jsonify({"error": f"Penalty tab '{new_penalty_source_tab_id}' not found for your account."}), 404
+
+    try:
+        new_penalty_entries_from_tab = json.loads(chosen_penalty_tab.penalties_json or '[]')
+
+        # Filter for valid probabilities again before embedding
+        valid_new_penalty_entries = [
+            p for p in new_penalty_entries_from_tab 
+            if p and isinstance(p.get('probability'), (int, float)) and p['probability'] > 0 and p.get('name')
+        ]
+
+        if not valid_new_penalty_entries and len(new_penalty_entries_from_tab) > 0: # If tab had entries but none valid
+             return jsonify({"error": f"The selected tab '{chosen_penalty_tab.tab_name}' contains no penalties with a probability greater than 0. Penalties not updated."}), 400
+        elif not valid_new_penalty_entries: # If tab was genuinely empty of usable penalties
+            # Decide: do you want to allow setting an empty penalty list, or require at least one?
+            # For now, let's allow it but the challenge will effectively have no penalties to spin.
+            logger.warning(f"User {current_user.username} selected penalty tab '{chosen_penalty_tab.tab_name}' for challenge {public_id}, but it has no usable penalties.")
+
+
+        # Ensure all penalties to be embedded have an ID
+        for p_entry in valid_new_penalty_entries:
+            if 'id' not in p_entry or not p_entry['id']:
+                p_entry['id'] = f"pembed-{secrets.token_hex(4)}" # p-embed for embedded
+
+        new_penalty_info_for_challenge = {
+            "source_tab_id": new_penalty_source_tab_id,
+            "source_tab_name": chosen_penalty_tab.tab_name,
+            "penalties": valid_new_penalty_entries 
+        }
+        challenge.penalty_info = new_penalty_info_for_challenge
+        db.session.commit()
+
+        socketio.emit('challenge_penalties_updated', {
+            'challenge_id': public_id,
+            'penalty_info': challenge.penalty_info 
+        }, room=public_id)
+
+        logger.info(f"User {current_user.username} updated penalty set for challenge {public_id} to use tab {new_penalty_source_tab_id} ('{chosen_penalty_tab.tab_name}') with {len(valid_new_penalty_entries)} penalties.")
+        return jsonify({
+            "status": "success", 
+            "message": f"Challenge penalty set updated to '{chosen_penalty_tab.tab_name}'.",
+            "new_penalty_info": challenge.penalty_info 
+        }), 200
+
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse penalties_json for tab {new_penalty_source_tab_id} for user {current_user.id}")
+        return jsonify({"error": "Internal error processing selected penalty tab."}), 500
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating challenge penalties for {public_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to update challenge penalties due to a server error."}), 500

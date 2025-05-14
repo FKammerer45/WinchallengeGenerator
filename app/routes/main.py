@@ -134,7 +134,7 @@ def challenge_view(challenge_id):
     num_players_per_group = 1 # Default
     is_creator = False
     is_authorized = False
-    authorized_user_list = [] # Initialize
+    authorized_user_list_for_template = []
     
     if challenge_id.startswith("local_"):
         is_local = True
@@ -156,7 +156,7 @@ def challenge_view(challenge_id):
             # Query challenge with related data efficiently loaded
             shared_challenge = db.session.query(SharedChallenge).options(
                 selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members), # Load groups and their members
-                selectinload(SharedChallenge.authorized_users),
+                selectinload(SharedChallenge.authorized_users_list),
                 joinedload(SharedChallenge.creator) # Load the creator user
             ).filter(SharedChallenge.public_id == challenge_id).first()
 
@@ -165,11 +165,6 @@ def challenge_view(challenge_id):
                 abort(404)
             
            
-    
-
-
-
-
             if current_user.is_authenticated:
                 # Use the helper function (ensure it's accessible or redefined here)
                 from .challenge_api import is_user_authorized # Assuming helper is in challenge_api.py
@@ -179,13 +174,14 @@ def challenge_view(challenge_id):
 
                 # If the viewer is the creator, prepare the list of authorized users for the template
                 if is_creator:
-                    authorized_user_list = [
-                        {'id': u.id, 'username': u.username}
-                        for u in shared_challenge.authorized_users # Iterate over the pre-loaded list
+                    authorized_user_list_for_template = [ # Renamed template variable for clarity
+                    {'id': u.id, 'username': u.username}
+                    for u in shared_challenge.authorized_users_list # MODIFIED HERE
                     ]
                     # Optional: Sort the list alphabetically by username
-                    authorized_user_list.sort(key=lambda x: x['username'].lower())
-
+                    authorized_user_list_for_template.sort(key=lambda x: x['username'].lower())
+            else: # Ensure variable exists even if user not authenticated
+                authorized_user_list_for_template = []
             # Refresh group objects to ensure latest state within this session
             # This is useful if other requests might have modified groups concurrently
             # although less critical if you just loaded them. Can be intensive.
@@ -253,7 +249,7 @@ def challenge_view(challenge_id):
             num_players_per_group=num_players_per_group,
             is_creator=is_creator, 
             is_authorized=is_authorized, 
-            authorized_user_list=authorized_user_list 
+            authorized_user_list=authorized_user_list_for_template
         )
     except Exception as render_error:
         logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")

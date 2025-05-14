@@ -47,7 +47,7 @@ let challengeConfig = {
         last_started_at_utc: null
     }
 };
-
+let userPenaltyTabsData = { tabs: {}, entries: {} };
 let requestControllers = { // For aborting API requests
     joinLeaveGroup: null,
     createGroup: null,
@@ -95,6 +95,70 @@ function restoreButton(btn) {
     // Use the imported setLoading function
     setLoading(btn, false); // setLoading(false) should restore original text
     // console.log(`[MainJS restoreButton] Button ${btn.id} restored.`);
+}
+
+
+async function loadPenaltyDataForChallengeView(currentChallengeConfig) {
+    if (!currentChallengeConfig.isLoggedIn || !currentChallengeConfig.penaltyInfo?.tab_id) {
+        console.log("[MainJS CV] Skipping penalty data load: Not logged in or no penalty tab ID for this challenge.");
+        // Ensure penaltyPageConfig in penalty.js is updated even if no data is loaded
+        if (typeof updatePenaltyConfig === 'function') {
+            updatePenaltyConfig(currentChallengeConfig);
+        }
+        return;
+    }
+
+    console.log("[MainJS CV] Penalties are active. Fetching user's penalty tabs for window.userPenaltyTabsData.");
+    const csrfToken = currentChallengeConfig.csrfToken;
+
+    try {
+        // 1. Fetch system default penalty definitions (if not already globally available or needed for merge logic)
+        // For challenge view, primarily for reference if SYSTEM_DEFAULT_PENALTY_TABS is used elsewhere in this view's logic.
+        if (Object.keys(systemDefaultPenaltyTabs).length === 0) { // Changed to use module-scoped variable
+            const systemDefaultsApiResponse = await apiFetch('/api/penalties/default_definitions');
+            if (typeof systemDefaultsApiResponse === 'object' && systemDefaultsApiResponse !== null) {
+                systemDefaultPenaltyTabs = systemDefaultsApiResponse; // Assign to module-scoped
+            } else {
+                systemDefaultPenaltyTabs = {};
+            }
+        }
+
+        // 2. Fetch user's saved penalty tabs
+        const userSavedPenaltyTabsApi = await apiFetch('/api/penalties/load_tabs', {}, csrfToken);
+        
+        // Reset module-scoped userPenaltyTabsData before populating
+        userPenaltyTabsData.tabs = {};
+        userPenaltyTabsData.entries = {};
+
+        if (typeof userSavedPenaltyTabsApi === 'object' && userSavedPenaltyTabsApi !== null) {
+            for (const tabId in userSavedPenaltyTabsApi) {
+                const tabData = userSavedPenaltyTabsApi[tabId];
+                if (tabData) { 
+                    userPenaltyTabsData.tabs[tabId] = { name: tabData.tab_name || `Penalty Tab ${tabId}` };
+                    userPenaltyTabsData.entries[tabId] = tabData.penalties || [];
+                }
+            }
+            console.log("[MainJS CV] Populated module-scoped userPenaltyTabsData with API data:", JSON.parse(JSON.stringify(userPenaltyTabsData)));
+            
+            // Make it available globally IF penalty.js absolutely needs it globally.
+            // It's better if penalty.js can accept this data or access it via a getter.
+            // For now, let's ensure window.userPenaltyTabsData is updated as penalty.js expects.
+            window.userPenaltyTabsData = userPenaltyTabsData;
+
+        } else {
+            console.warn("[MainJS CV] No saved penalty tabs returned from API or invalid format for userPenaltyTabsData.");
+             window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Ensure it's an empty object
+        }
+    } catch (error) {
+        console.error("[MainJS CV] Error fetching user's penalty tab data:", error);
+        if(statusDiv) showPageError(statusDiv, "Could not load your penalty configurations.", "warning");
+        window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Ensure it's an empty object on error
+    }
+
+    // After data is potentially loaded, update penalty.js's config
+    if (typeof updatePenaltyConfig === 'function') {
+        updatePenaltyConfig(currentChallengeConfig); // Pass the main challengeConfig
+    }
 }
 
 async function handleShowOverlayLink() {
@@ -320,6 +384,7 @@ function initializeConfigFromDOM() {
             isLoggedIn: dataEl.dataset.isLoggedIn,
             isCreator: dataEl.dataset.isCreator,
             isAuthorized: dataEl.dataset.isAuthorized,
+            penaltyInfo: dataEl.dataset.penaltyInfo,
             addGroupUrl: dataEl.dataset.addGroupUrl,
             updateProgressUrlBase: dataEl.dataset.updateProgressUrlBase,
             joinLeaveUrlBase: dataEl.dataset.joinLeaveUrlBase,
@@ -1118,14 +1183,18 @@ async function handleRemoveUserClick(removeBtn) {
 }
 
 // --- Page Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async() => {
     pageContainer = document.getElementById('challengeViewContainer');
     if (!pageContainer) { console.error("CRITICAL: #challengeViewContainer missing!"); return; }
 
     // 1. Read config from DOM (sets challengeConfig, statusDiv)
     if (!initializeConfigFromDOM()) { return; }
-
-    // 2. Initialize Timer using data from DOM attributes (for immediate display)
+    if (challengeConfig.isLoggedIn && challengeConfig.isCreator && challengeConfig.penaltyInfo?.source_tab_id) {
+        await loadPenaltyDataForChallengeView(challengeConfig); 
+    } else if (typeof updatePenaltyConfig === 'function') {
+        // For non-creators or if penalties are disabled, still pass config for isLocal, etc.
+        updatePenaltyConfig(challengeConfig);
+    }
     let initialTimerStateForSetup;
     let isAuthorizedForSetup;
     if (challengeConfig.isLocal) {

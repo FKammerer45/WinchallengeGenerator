@@ -34,7 +34,10 @@ let penaltyPageConfig = {
     userJoinedGroupId: null,
     numPlayersPerGroup: 1,
     initialGroups: [],
-    isMultigroup: false
+    isMultigroup: false,
+    isLocal: false, // Initialize isLocal
+    challengeId: null // Add challengeId to store the ID of the current challenge view
+
 };
 
 // Function called by main.js to update config
@@ -42,11 +45,17 @@ export function updatePenaltyConfig(newChallengeConfig) {
     console.log("[Penalty Module] Received config update:", newChallengeConfig);
     penaltyPageConfig.userJoinedGroupId = newChallengeConfig.userJoinedGroupId;
     penaltyPageConfig.numPlayersPerGroup = newChallengeConfig.numPlayersPerGroup || 1;
-    // Ensure initialGroups is always an array
     penaltyPageConfig.initialGroups = Array.isArray(newChallengeConfig.initialGroups) ? newChallengeConfig.initialGroups : [];
     penaltyPageConfig.isMultigroup = newChallengeConfig.isMultigroup === true;
-}
+    penaltyPageConfig.isLocal = newChallengeConfig.isLocal === true; 
+    penaltyPageConfig.challengeId = newChallengeConfig.id || null;
+    // This line correctly stores the whole config from main.js
+    penaltyPageConfig.challengeConfigData = newChallengeConfig; 
 
+    console.log("[Penalty Module] penaltyPageConfig updated. isLocal:", penaltyPageConfig.isLocal, 
+                "challengeId:", penaltyPageConfig.challengeId,
+                "Embedded Penalty Info:", penaltyPageConfig.challengeConfigData?.penaltyInfo); // Add this log
+}
 
 // --- Penalty Wheel Specific Helper Functions ---
 function createSegments(items, colors) {
@@ -239,9 +248,17 @@ function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelTyp
 }
 
 
-// --- Core Wheel Logic ---
-function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button, participants, playerStopAngle, playerWinningSegmentIndex) {
-    console.log("[Penalty Spin] Participant selected:", chosenEntity, "Preparing penalty wheel...");
+function spinPenaltyWheel(idx, penaltyTabIdFromButton, chosenEntity, button, participants, playerStopAngle, playerWinningSegmentIndex) {
+    const isLoggedIn = window.isLoggedIn === true; 
+    
+    console.log(
+        "[Penalty Spin Start - CV] isLoggedIn:", isLoggedIn, 
+        "penaltyPageConfig.isLocal:", penaltyPageConfig.isLocal, 
+        "penaltyTabIdFromButton (for local):", penaltyTabIdFromButton, // This is source for local
+        "challengeConfigData.penaltyInfo (for shared):", penaltyPageConfig.challengeConfigData?.penaltyInfo,
+        "idx (context):", idx
+    );
+
     const resultDisplay = document.getElementById(`penaltyResult-${idx}`);
     const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
     const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-${idx}`);
@@ -261,67 +278,132 @@ function spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button, participants,
     const NUM_PENALTY_SEGMENTS = 8;
 
     try {
-        const allPenalties = getLocalPenalties();
-        const penaltyList = allPenalties[penaltyTabId] || [];
+        let penaltyList = [];
+        let sourceDescription = "Unknown Source";
+
+        if (penaltyPageConfig.isLocal) { 
+            const localPenaltyTabs = getLocalPenalties();
+            penaltyList = localPenaltyTabs[penaltyTabIdFromButton] || []; // Use ID from button for local
+            sourceDescription = `localStorage (Tab ID: ${penaltyTabIdFromButton})`;
+        } else { // Shared challenge
+            const embeddedPenaltyInfo = penaltyPageConfig.challengeConfigData?.penaltyInfo;
+            if (embeddedPenaltyInfo && Array.isArray(embeddedPenaltyInfo.penalties)) {
+                penaltyList = embeddedPenaltyInfo.penalties;
+                const sourceTabName = embeddedPenaltyInfo.source_tab_name || embeddedPenaltyInfo.source_tab_id || 'Embedded';
+                sourceDescription = `Embedded in Shared Challenge (Original: ${sourceTabName})`;
+            } else {
+                console.warn(`[Penalty Spin CV] No embedded penalties found in challengeConfig for shared challenge. Falling back for ${isLoggedIn ? 'logged-in' : 'anonymous'}`);
+                // Fallback for shared challenges if embedded data is missing (should ideally not happen)
+                if (isLoggedIn && window.userPenaltyTabsData?.entries?.[penaltyTabIdFromButton]) {
+                    penaltyList = window.userPenaltyTabsData.entries[penaltyTabIdFromButton];
+                     sourceDescription = `Fallback to window.userPenaltyTabsData for tab ${penaltyTabIdFromButton}`;
+                } else {
+                    const localFallback = getLocalPenalties();
+                    penaltyList = localFallback[penaltyTabIdFromButton] || []; // Fallback to local (likely system defaults)
+                    sourceDescription = `Fallback to localStorage for tab ${penaltyTabIdFromButton}`;
+                }
+            }
+        }
+        
+        console.log(`[Penalty Spin CV] Source: ${sourceDescription}. Found ${penaltyList.length} penalties.`);
+
+        if (!Array.isArray(penaltyList)) {
+            penaltyList = [];
+        }
+        
         chosenPenalty = selectWeightedPenalty(penaltyList);
-        console.log("[Penalty Spin] Chosen Penalty (Weighted):", chosenPenalty);
+        console.log("[Penalty Spin CV] Chosen Penalty (Weighted):", JSON.stringify(chosenPenalty));
 
         if (!chosenPenalty || chosenPenalty.name === "No Penalty") {
             displayFinalResult(idx, chosenEntity, chosenPenalty, participants, [], playerStopAngle, playerWinningSegmentIndex, button);
-            penaltyWheelContainer.style.display = 'none'; return;
+            penaltyWheelContainer.style.display = 'none'; 
+            return;
         }
 
-        // --- Build wheelSegmentPenalties list ---
+        // Build wheelSegmentPenalties list
+        wheelSegmentPenalties = []; 
         let displayablePenalties = penaltyList.filter(p => p?.name && parseFloat(p.probability) > 0);
+
+        if (chosenPenalty && chosenPenalty.name !== "No Penalty") {
+             wheelSegmentPenalties.push(chosenPenalty);
+        }
+
         if (displayablePenalties.length > 0) {
-            wheelSegmentPenalties.push(chosenPenalty);
-            let otherPenalties = displayablePenalties.filter(p => p.id !== chosenPenalty.id);
+            let otherPenalties = displayablePenalties.filter(p => p.id !== chosenPenalty?.id); 
             shuffleArray(otherPenalties);
+            
             let needed = NUM_PENALTY_SEGMENTS - wheelSegmentPenalties.length;
             wheelSegmentPenalties = wheelSegmentPenalties.concat(otherPenalties.slice(0, needed));
-            let pool = otherPenalties.length > 0 ? otherPenalties : [chosenPenalty];
-            let padIdx = 0;
-            while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
-                wheelSegmentPenalties.push(pool[padIdx % pool.length]); padIdx++;
+            
+            let pool = wheelSegmentPenalties.length > 0 ? wheelSegmentPenalties : 
+                       (displayablePenalties.length > 0 ? displayablePenalties : 
+                       (chosenPenalty && chosenPenalty.name !== "No Penalty" ? [chosenPenalty] : []));
+            if (pool.length > 0) {
+                let padIdx = 0;
+                while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) { // Added check for >0 to prevent infinite loop on empty pool
+                    wheelSegmentPenalties.push(pool[padIdx % pool.length]);
+                    padIdx++;
+                }
             }
-            if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) {
-                wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS);
-                if (!wheelSegmentPenalties.some(p => p.id === chosenPenalty.id)) { wheelSegmentPenalties[0] = chosenPenalty; }
+        }
+         if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) {
+            wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS);
+        }
+        if(wheelSegmentPenalties.length === 0 && chosenPenalty && chosenPenalty.name !== "No Penalty"){
+            wheelSegmentPenalties.push(chosenPenalty);
+             while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
+                wheelSegmentPenalties.push(wheelSegmentPenalties[0]);
             }
-            if (wheelSegmentPenalties.length > 1) shuffleArray(wheelSegmentPenalties);
-        } else { wheelSegmentPenalties.push(chosenPenalty); }
-        // Ensure list has NUM_PENALTY_SEGMENTS
-        while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) { wheelSegmentPenalties.push(wheelSegmentPenalties[0]); }
-        if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) { wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS); }
-        if (!wheelSegmentPenalties.some(p => p.id === chosenPenalty.id) && wheelSegmentPenalties.length > 0) { wheelSegmentPenalties[0] = chosenPenalty; }
-        // --- End build list ---
+        }
 
+        if (wheelSegmentPenalties.length === 0) {
+             console.warn("[Penalty Spin CV] No valid penalties to display on the wheel.");
+             displayFinalResult(idx, chosenEntity, { name: "No Penalty", description: "No penalties available for wheel." }, participants, [], playerStopAngle, playerWinningSegmentIndex, button);
+             penaltyWheelContainer.style.display = 'none'; return;
+        }
         penaltyWheelSegments = createSegments(wheelSegmentPenalties.map(p => p.name), penaltyColors);
-        if (penaltyWheelSegments.length === 0) throw new Error("Failed to create penalty segments.");
+        if (penaltyWheelSegments.length === 0) {
+            throw new Error("Failed to create penalty segments for the wheel (no text from penalties).");
+        }
 
-    } catch (e) { console.error("Error preparing penalty segments:", e); showError(errorTarget, "Error loading penalties!", 'danger'); if (button) button.disabled = false; penaltyWheelContainer.style.display = 'none'; return; }
+    } catch (e) { 
+        console.error("Error preparing penalty segments:", e); 
+        showError(errorTarget, "Error loading penalties for the wheel!", 'danger'); 
+        if (button) button.disabled = false; 
+        penaltyWheelContainer.style.display = 'none'; 
+        return; 
+    }
 
-    // Find the index based on the final segment list
     const penaltyWinningSegmentIndex = penaltyWheelSegments.findIndex(seg => seg.text === chosenPenalty.name) + 1;
     if (penaltyWinningSegmentIndex <= 0) {
-        console.error("Chosen penalty missing from final visual segments!");
+        console.error(`Chosen penalty ("${chosenPenalty.name}") missing from final visual segments! Wheel segments:`, penaltyWheelSegments.map(s=>s.text).join(', '));
         displayFinalResult(idx, chosenEntity, chosenPenalty, participants, wheelSegmentPenalties, playerStopAngle, playerWinningSegmentIndex, button);
         penaltyWheelContainer.style.display = 'none'; return;
     }
 
-    if (getPenaltyWheel(idx)) { getPenaltyWheel(idx).stopAnimation?.(false); setPenaltyWheel(idx, null); } // Clear old wheel
+    if (getPenaltyWheel(idx)) { getPenaltyWheel(idx).stopAnimation?.(false); setPenaltyWheel(idx, null); }
 
     try {
         const config = getPenaltyWheelConfig(penaltyWheelSegments, penaltyWinningSegmentIndex,
             () => displayFinalResult(idx, chosenEntity, chosenPenalty, participants, wheelSegmentPenalties, playerStopAngle, playerWinningSegmentIndex, button),
             idx, 'Penalty'
         );
-        if (!config) { if (button) button.disabled = false; return; }
+        if (!config) { 
+            showError(errorTarget, "Failed to configure penalty wheel.", 'danger');
+            if (button) button.disabled = false; 
+            penaltyWheelContainer.style.display = 'none';
+            return; 
+        }
         const wheel = new Winwheel(config);
         setPenaltyWheel(idx, wheel);
         wheel.startAnimation();
-        console.log("[Penalty Spin] Penalty wheel animation started.");
-    } catch (e) { console.error("Error creating Penalty WinWheel:", e); showError(errorTarget, "Error initializing penalty wheel!", 'danger'); if (button) button.disabled = false; penaltyWheelContainer.style.display = 'none'; }
+        console.log("[Penalty Spin CV] Penalty wheel animation started.");
+    } catch (e) { 
+        console.error("Error creating Penalty WinWheel:", e); 
+        showError(errorTarget, "Error initializing penalty wheel display!", 'danger'); 
+        if (button) button.disabled = false; 
+        penaltyWheelContainer.style.display = 'none'; 
+    }
 }
 
 

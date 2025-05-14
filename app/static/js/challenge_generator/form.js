@@ -123,53 +123,65 @@ function updateIndexFormUI() {
  * Populates the penalty source dropdown from local storage tabs.
  */
 function populatePenaltySourceDropdown() {
-  // ... (function content remains the same) ...
   const dropdown = document.getElementById("penaltySourceSelect");
   if (!dropdown) {
     console.error("Penalty source dropdown (#penaltySourceSelect) missing.");
     return;
   }
   dropdown.innerHTML = ""; // Clear previous options
-
-  let defaultExists = false; // Declare before try
+  let defaultExists = false;
 
   try {
-    const tabs = getLocalPenaltyTabs(); // Assumes this returns {} or null/undefined if none
-    if (!tabs) {
-      console.warn("No penalty tabs data found in local storage.");
+    // *** MODIFICATION START: Choose data source based on login status ***
+    const isLoggedIn = window.IS_AUTHENTICATED === true;
+    const tabs = isLoggedIn
+      ? window.indexPagePenaltyTabs?.tabs || {}
+      : getLocalPenaltyTabs();
+    // *** MODIFICATION END ***
+
+    if (!tabs || Object.keys(tabs).length === 0) {
+      // Check if tabs object is empty
+      console.warn("No penalty tabs data found for dropdown.");
       dropdown.innerHTML =
         '<option value="" disabled selected>No penalty tabs found</option>';
-      return; // Exit if no tabs object
+      return;
     }
+
+    // Ensure SYSTEM_DEFAULT_PENALTY_TABS is available globally if you intend to sort/prioritize them
+    // For simplicity, this version will just add what's in 'tabs'
+    // You can enhance with sorting like in populateGameSourceDropdown if needed
 
     // Add default option if it exists in the retrieved tabs
-    if (tabs["default"]) {
+    // The key for default in penalty definitions is "default-all-penalties"
+    const defaultPenaltyTabKey = "default-all-penalties"; // Or your actual key
+    if (tabs[defaultPenaltyTabKey]) {
       const option = document.createElement("option");
-      option.value = "default";
-      option.textContent = tabs["default"].name || "Default";
+      option.value = defaultPenaltyTabKey; // Use the key as value
+      option.textContent =
+        tabs[defaultPenaltyTabKey].name || "All Penalties (Default)";
       dropdown.appendChild(option);
-      defaultExists = true; // Mark that default was found and added
+      defaultExists = true;
     }
 
-    // Add other tabs
-    for (const tabId in tabs) {
-      if (tabId !== "default") {
-        // Avoid duplicating default
+    // Add other tabs, sorting by name
+    Object.entries(tabs)
+      .filter(([tabId]) => tabId !== defaultPenaltyTabKey) // Exclude the default if already added
+      .sort(([, tabA], [, tabB]) =>
+        (tabA.name || "").localeCompare(tabB.name || "")
+      ) // Sort by name
+      .forEach(([tabId, tabData]) => {
         const option = document.createElement("option");
         option.value = tabId;
-        option.textContent = tabs[tabId]?.name || tabId; // Use name, fallback to ID
+        option.textContent = tabData?.name || tabId;
         dropdown.appendChild(option);
-      }
-    }
+      });
 
     // Set dropdown value after adding all options
     if (defaultExists) {
-      dropdown.value = "default"; // Select "Default" if it was added
+      dropdown.value = defaultPenaltyTabKey;
     } else if (dropdown.options.length > 0) {
-      // Fallback: Select the first available option if "Default" wasn't found
       dropdown.value = dropdown.options[0].value;
     } else {
-      // No tabs found at all (neither default nor others)
       dropdown.innerHTML =
         '<option value="" disabled selected>No penalty tabs found</option>';
     }
@@ -479,8 +491,8 @@ function handleChallengeFormSubmit(event) {
   const errorDisplay = document.getElementById("formErrorDisplay");
   const resultWrapper = document.getElementById("challengeResultWrapper");
   const resultDiv = document.getElementById("challengeResult");
-  const submitButton = form.querySelector('button[type="submit"]'); // Generate button
-  const shareBtn = document.getElementById("shareChallengeBtn"); // Share button
+  const submitButton = form.querySelector('button[type="submit"]');
+  const shareBtn = document.getElementById("shareChallengeBtn");
   const shareResultDiv = document.getElementById("shareResult");
   const viewLocalBtn = document.getElementById("viewLocalChallengeBtn");
 
@@ -490,7 +502,8 @@ function handleChallengeFormSubmit(event) {
 
   if (formData.get("group_mode") === "multi" && !isAuthenticated) {
     showError(errorDisplay, "Login required for multigroup.");
-    return updateIndexFormUI();
+    updateIndexFormUI(); // Call the UI update function
+    return;
   }
   if (checkedGames.length === 0) {
     showError(errorDisplay, "Please select at least one game.");
@@ -508,34 +521,20 @@ function handleChallengeFormSubmit(event) {
   }
   if (resultDiv) resultDiv.innerHTML = "";
 
-  // MODIFICATION: Reset share button and its result div here
   if (shareBtn) {
-    shareBtn.style.display = "none"; // Hide it initially
-    shareBtn.disabled = true; // Keep it disabled until a successful generation for logged-in users
+    shareBtn.style.display = "none";
+    shareBtn.disabled = true;
     shareBtn.classList.remove("btn-secondary");
     shareBtn.classList.add("btn-primary");
     const shareBtnText = shareBtn.querySelector("span:not(.spinner-border-sm)");
     if (shareBtnText) shareBtnText.textContent = "Share Challenge";
-    shareBtn.title = "Share this generated challenge"; // Reset title
+    shareBtn.title = "Share this generated challenge";
   }
   if (shareResultDiv) {
     shareResultDiv.style.display = "none";
     shareResultDiv.innerHTML = "";
   }
-  // END MODIFICATION
-
   if (viewLocalBtn) viewLocalBtn.style.display = "none";
-
-  if (selectedMode === "multi" && !isAuthenticated) {
-    showError(
-      errorDisplay,
-      "Login is required for Multigroup/Shared challenges."
-    );
-    const singleRadio = document.getElementById("modeSingleGroup");
-    if (singleRadio) singleRadio.checked = true;
-    updateIndexFormUI();
-    return;
-  }
 
   const selectedGameTab = formData.get("game_tab_id");
   if (!selectedGameTab) {
@@ -543,48 +542,29 @@ function handleChallengeFormSubmit(event) {
     return;
   }
 
-  let convertedEntries = [];
+  let convertedGameEntries = [];
   try {
-    console.log(
-      `[Submit] Getting entries for selected tab: ${selectedGameTab}`
-    );
-    const allTabsData = getLocalOnlyEntries(selectedGameTab); // Corrected function name if it was an alias before
-    console.log(
-      "[Submit] Raw data received from getLocalOnlyEntries:",
-      JSON.stringify(allTabsData)
-    );
-
-    let currentEntries = [];
-    if (allTabsData && allTabsData.hasOwnProperty(selectedGameTab)) {
-      const specificTabEntries = allTabsData[selectedGameTab];
-      console.log(
-        `[Submit] Data for key '${selectedGameTab}':`,
-        JSON.stringify(specificTabEntries)
-      );
+    const allGameTabsData = isAuthenticated
+      ? window.indexPageGameTabs?.entries || {}
+      : getLocalOnlyEntries();
+    let currentGameEntries = [];
+    if (allGameTabsData && allGameTabsData.hasOwnProperty(selectedGameTab)) {
+      const specificTabEntries = allGameTabsData[selectedGameTab];
       if (Array.isArray(specificTabEntries)) {
-        currentEntries = specificTabEntries;
-        console.log(
-          `[Submit] Successfully extracted ${currentEntries.length} entries.`
-        );
+        currentGameEntries = specificTabEntries;
       } else {
-        console.error(
-          `[Submit] Data for tab '${selectedGameTab}' is not an array.`
+        throw new Error(
+          `Game data for tab '${selectedGameTab}' is not an array.`
         );
-        throw new Error(`Data for tab '${selectedGameTab}' is not an array.`);
       }
     } else {
-      console.error(
-        `[Submit] No data found for tab '${selectedGameTab}' in the retrieved object.`
-      );
-      throw new Error(
-        `No data found for tab '${selectedGameTab}' in the retrieved object.`
-      );
+      throw new Error(`No game data found for tab '${selectedGameTab}'.`);
     }
 
-    if (currentEntries.length === 0) {
+    if (currentGameEntries.length === 0) {
       throw new Error("No game entries found in the selected source tab.");
     }
-    convertedEntries = currentEntries
+    convertedGameEntries = currentGameEntries
       .map((entry) =>
         entry
           ? {
@@ -600,19 +580,101 @@ function handleChallengeFormSubmit(event) {
       )
       .filter(Boolean);
 
-    if (convertedEntries.length === 0)
+    if (convertedGameEntries.length === 0)
       throw new Error(
         "Selected game entries are invalid or empty after processing."
       );
-    formData.append("entries", JSON.stringify(convertedEntries));
-    console.log("[Submit] Appending converted entries to FormData.");
+    formData.append("entries", JSON.stringify(convertedGameEntries));
   } catch (error) {
-    console.error("[Submit] Error processing game entries:", error);
+    console.error("[Submit Form] Error processing game entries:", error);
     showError(errorDisplay, `Error processing game entries: ${error.message}`);
     return;
   }
 
   formData.append("selected_modes", JSON.stringify(gatherSelectedModes()));
+
+  // --- MODIFIED PENALTY HANDLING ---
+  const usePenalties = formData.get("use_penalties") === "on";
+  if (usePenalties) {
+    const penaltyTabId = formData.get("penalty_tab_id");
+    const penaltySourceSelect = document.getElementById("penaltySourceSelect");
+    const penaltyTabName = penaltySourceSelect
+      ? penaltySourceSelect.options[penaltySourceSelect.selectedIndex]?.text
+      : "Unknown Tab";
+
+    if (!penaltyTabId) {
+      showError(
+        errorDisplay,
+        "Please select a penalty source tab when penalties are enabled."
+      );
+      setLoading(submitButton, false, "Generate Challenge"); // Re-enable generate button
+      return;
+    }
+
+    let penaltyEntriesList = [];
+    try {
+      // window.indexPagePenaltyTabs should be populated by initializeChallengeForm
+      if (
+        isAuthenticated &&
+        window.indexPagePenaltyTabs &&
+        window.indexPagePenaltyTabs.entries
+      ) {
+        penaltyEntriesList =
+          window.indexPagePenaltyTabs.entries[penaltyTabId] || [];
+      } else {
+        // Anonymous user
+        const localPenaltyData = getLocalPenaltyEntries();
+        penaltyEntriesList = localPenaltyData[penaltyTabId] || [];
+      }
+
+      if (!Array.isArray(penaltyEntriesList)) {
+        console.warn(
+          `Penalty entries for tab ${penaltyTabId} is not an array, defaulting to empty.`
+        );
+        penaltyEntriesList = [];
+      }
+
+      // Filter out penalties with zero or invalid probability before sending to /generate
+      const validPenaltyEntries = penaltyEntriesList.filter((p) => {
+        const prob =
+          p && p.probability !== undefined ? parseFloat(p.probability) : NaN;
+        return !isNaN(prob) && prob > 0;
+      });
+
+      if (validPenaltyEntries.length === 0 && penaltyEntriesList.length > 0) {
+        // If original list had items but all were invalid
+        showError(
+          errorDisplay,
+          `The selected penalty tab "${escapeHtml(
+            penaltyTabName
+          )}" has no penalties with a probability greater than 0. Please add some or choose a different tab.`
+        );
+        setLoading(submitButton, false, "Generate Challenge"); // Re-enable generate button
+        return;
+      }
+      // It's okay to send an empty 'penalties' array if the tab itself was empty or only had zero-prob items.
+      // The backend /share endpoint will handle if penalty_info is null or has empty penalties.
+
+      const penaltyInfoPayload = {
+        source_tab_id: penaltyTabId,
+        source_tab_name: penaltyTabName,
+        penalties: validPenaltyEntries, // Send only valid entries
+      };
+      formData.append("penalty_info_full", JSON.stringify(penaltyInfoPayload));
+      console.log(
+        "[Submit Form] Appending full penalty_info:",
+        penaltyInfoPayload
+      );
+    } catch (e) {
+      showError(errorDisplay, `Error processing penalty entries: ${e.message}`);
+      setLoading(submitButton, false, "Generate Challenge"); // Re-enable generate button
+      return;
+    }
+  } else {
+    formData.delete("penalty_info_full");
+    formData.delete("penalty_tab_id");
+  }
+  // --- END MODIFICATION FOR PENALTIES ---
 
   setLoading(submitButton, true, "Generating...");
   if (resultDiv)
@@ -622,7 +684,6 @@ function handleChallengeFormSubmit(event) {
 
   const generateUrl = window.generateChallengeUrl || "/api/challenge/generate";
 
-  console.log("[Submit] Sending fetch request to:", generateUrl);
   fetch(generateUrl, { method: "POST", body: formData })
     .then((response) =>
       response
@@ -630,7 +691,6 @@ function handleChallengeFormSubmit(event) {
         .then((data) => ({ ok: response.ok, status: response.status, data }))
     )
     .then(({ ok, status, data }) => {
-      console.log("[Submit] Received response:", { ok, status, data });
       if (!ok) {
         throw new Error(
           data?.error || `Server responded with status ${status}`
@@ -649,10 +709,11 @@ function handleChallengeFormSubmit(event) {
         });
       }
 
+      // Store full data (including potentially full penalty_info) for sharing
+      window.currentChallengeData = data;
+
       if (isAuthenticated && data.share_options) {
-        window.currentChallengeData = data;
         if (shareBtn) {
-          // MODIFICATION: Re-enable and re-style share button on successful generation
           shareBtn.style.display = "inline-block";
           shareBtn.disabled = false;
           shareBtn.classList.remove("btn-secondary");
@@ -662,7 +723,6 @@ function handleChallengeFormSubmit(event) {
           );
           if (shareBtnText) shareBtnText.textContent = "Share Challenge";
           shareBtn.title = "Share this generated challenge";
-          // END MODIFICATION
         }
         if (viewLocalBtn) viewLocalBtn.style.display = "none";
       } else {
@@ -674,6 +734,7 @@ function handleChallengeFormSubmit(event) {
             `Local Challenge ${new Date().toLocaleDateString()}`,
           createdAt: new Date().toISOString(),
           challengeData: { normal: data.normal, b2b: data.b2b },
+          // For local save, store the penalty_info as received from /generate
           penalty_info: data.penalty_info,
         };
         const saved = saveChallengeToLocalStorage(challengeToStore);
