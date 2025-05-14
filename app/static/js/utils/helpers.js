@@ -23,22 +23,30 @@ export function setLoading(buttonElement, isLoading, loadingText = 'Processing..
    
     } else {
         // When loading is finished:
+        buttonElement.disabled = false; // <<< --- ENSURE BUTTON IS RE-ENABLED ---
         buttonElement.classList.remove('loading'); // Remove 'loading' class to hide spinner via CSS
 
         // Restore original text if available
         if (originalTextSpan && typeof buttonElement.dataset.originalText === 'string') {
             originalTextSpan.textContent = buttonElement.dataset.originalText;
         } else if (originalTextSpan) {
-
-            if (buttonElement.classList.contains('join-group-btn')) originalTextSpan.textContent = 'Join Group';
-            else if (buttonElement.classList.contains('leave-group-btn')) originalTextSpan.textContent = 'Leave Group';
-            else if (buttonElement.id === 'addGroupBtn') originalTextSpan.textContent = 'Create Group';
-            // Add more fallbacks if needed for other buttons that use setLoading
-            // else originalTextSpan.textContent = 'Submit'; // A generic fallback
+            // Fallback text restoration (ensure your specific button's original text is covered)
+            if (buttonElement.classList.contains('generate-btn') || buttonElement.textContent.toLowerCase().includes('generate')) {
+                 originalTextSpan.textContent = 'Generate Challenge';
+            } else if (buttonElement.classList.contains('join-group-btn')) {
+                 originalTextSpan.textContent = 'Join Group';
+            } else if (buttonElement.classList.contains('leave-group-btn')) {
+                 originalTextSpan.textContent = 'Leave Group';
+            } else if (buttonElement.id === 'addGroupBtn') {
+                 originalTextSpan.textContent = 'Create Group';
+            } else if (buttonElement.id === 'shareChallengeBtn') {
+                originalTextSpan.textContent = 'Share Challenge';
+            }
+            // Add more specific fallbacks if needed for other buttons that use setLoading
+            else {
+                originalTextSpan.textContent = 'Submit'; // A generic fallback
+            }
         }
-
-
-
         delete buttonElement.dataset.originalText; // Clean up stored text
     }
 }

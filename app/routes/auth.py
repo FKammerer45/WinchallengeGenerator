@@ -5,13 +5,14 @@ from flask import (Blueprint, render_template, request, redirect,
                    url_for, flash, current_app, jsonify) 
 from flask_login import (login_user, logout_user, login_required,
                          current_user, fresh_login_required) 
-from werkzeug.security import generate_password_hash # Keep generate_password_hash
+from werkzeug.security import generate_password_hash 
 import random
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 from werkzeug.exceptions import TooManyRequests
 # Import db instance and models
 from app import db, limiter
+# Import SavedGameTab and SavedPenaltyTab models
 from app.models import User, SavedGameTab, SavedPenaltyTab 
 
 # Import utilities
@@ -19,12 +20,14 @@ from app.modules.recaptcha import verify_recaptcha
 
 from app.forms import (LoginForm, RegistrationForm, ChangePasswordForm, DeleteAccountForm,
                        ForgotPasswordForm, ResetPasswordForm)
+
+from app.modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS, DEFAULT_PENALTY_TAB_DEFINITIONS
+import json 
+
 # --- Import Email Utilities ---
 from app.utils.email import (send_email, generate_confirmation_token, confirm_token,
                              generate_password_reset_token, confirm_password_reset_token,
                              generate_email_change_token, confirm_email_change_token) 
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +120,8 @@ def logout():
 
 @auth.route('/register', methods=['GET', 'POST'])
 def register():
-    """Handles registration, creates unconfirmed user, sends confirmation email."""
+    """Handles registration, creates unconfirmed user, sends confirmation email,
+    and assigns default game and penalty tabs.""" # MODIFIED: Updated docstring
     if current_user.is_authenticated:
         return redirect(url_for('main.index'))
 
@@ -172,7 +176,57 @@ def register():
                     )
                     new_user.set_password(password)
                     db.session.add(new_user)
-                    db.session.commit() # Commit to save the user
+                    db.session.commit() # Commit to save the user and get new_user.id
+
+                    # --- MODIFICATION: Assign Default Game and Penalty Tabs ---
+                    try:
+                        # Assign Default Game Tab (e.g., "All Games")
+                        default_game_tab_key = "default-all-games" # Key from default_definitions.py
+                        if default_game_tab_key in DEFAULT_GAME_TAB_DEFINITIONS:
+                            game_tab_def = DEFAULT_GAME_TAB_DEFINITIONS[default_game_tab_key]
+                            # Transform entries to the new structure if needed
+                            transformed_game_entries = []
+                            for entry in game_tab_def.get("entries", []):
+                                transformed_game_entries.append({
+                                    "id": entry.get("id") or f"local-g-{random.randint(10000, 99999)}", # Ensure ID
+                                    "game": entry.get("Spiel"),
+                                    "gameMode": entry.get("Spielmodus"),
+                                    "difficulty": str(entry.get("Schwierigkeit", "1.0")),
+                                    "numberOfPlayers": entry.get("Spieleranzahl", 1),
+                                    "weight": entry.get("weight", 1.0) 
+                                })
+                            
+                            default_game_tab = SavedGameTab(
+                                user_id=new_user.id,
+                                client_tab_id=game_tab_def.get("client_tab_id", default_game_tab_key), # Use defined client_tab_id
+                                tab_name=game_tab_def.get("name", "All Games"),
+                                entries_json=json.dumps(transformed_game_entries) # Serialize transformed entries
+                            )
+                            db.session.add(default_game_tab)
+                            logger.info(f"Assigned default game tab '{default_game_tab.tab_name}' to user '{new_user.username}'.")
+
+                        # Assign Default Penalty Tab (e.g., "All Penalties")
+                        default_penalty_tab_key = "default-all-penalties" # Key from default_definitions.py
+                        if default_penalty_tab_key in DEFAULT_PENALTY_TAB_DEFINITIONS:
+                            penalty_tab_def = DEFAULT_PENALTY_TAB_DEFINITIONS[default_penalty_tab_key]
+                            # Entries are already in the correct format (name, probability, description, id)
+                            default_penalty_tab = SavedPenaltyTab(
+                                user_id=new_user.id,
+                                client_tab_id=penalty_tab_def.get("client_tab_id", default_penalty_tab_key), # Use defined client_tab_id
+                                tab_name=penalty_tab_def.get("name", "All Penalties"),
+                                penalties_json=json.dumps(penalty_tab_def.get("penalties", [])) # Serialize penalties
+                            )
+                            db.session.add(default_penalty_tab)
+                            logger.info(f"Assigned default penalty tab '{default_penalty_tab.tab_name}' to user '{new_user.username}'.")
+                        
+                        db.session.commit() # Commit the new default tabs
+                    except Exception as e_tabs:
+                        db.session.rollback()
+                        logger.error(f"Error assigning default tabs to user {new_user.username}: {e_tabs}", exc_info=True)
+                        # Decide if this should prevent registration or just log an error
+                        flash("Could not set up default configurations for your account. Please contact support if issues persist.", "warning")
+                    # --- END MODIFICATION ---
+
 
                     # --- Generate Token & Send Email ---
                     token = generate_confirmation_token(new_user.email)
@@ -190,7 +244,7 @@ def register():
                     logger.info(f"User '{full_username}' registered. Confirmation email sent to '{email}'.")
                     flash('Registration successful! A confirmation email has been sent to your address. Please check your inbox (and spam folder).', 'success')
                     # Redirect to login or a dedicated 'check your email' page
-                    return redirect(url_for('auth.login')) # Redirecting to login for now
+                    return redirect(url_for('auth.login', registered_username=full_username)) # MODIFIED: Pass username to prefill login
 
             except IntegrityError as e:
                  db.session.rollback()
