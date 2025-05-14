@@ -301,7 +301,7 @@ def share_challenge():
         if current_user.is_authenticated:
             user_to_add = db.session.get(User, current_user.id)
             if user_to_add:
-                new_challenge.authorized_users_list.append(user_to_add)
+                new_challenge.authorized_users_list_list.append(user_to_add)
 
         db.session.add(new_challenge)
         db.session.commit() 
@@ -954,7 +954,7 @@ def set_group_penalty(group_id):
 @login_required
 def add_authorized_user(public_id):
     challenge = db.session.query(SharedChallenge).options(
-        selectinload(SharedChallenge.authorized_users_list)
+        selectinload(SharedChallenge.authorized_users_list_list)
     ).filter_by(public_id=public_id).first_or_404()
 
     if challenge.creator_id != current_user.id:
@@ -972,8 +972,8 @@ def add_authorized_user(public_id):
          # Return ok status, but maybe indicate they are creator
          return jsonify({"status": "ok", "message": "Creator is always authorized."}), 200
 
-    if user_to_add not in challenge.authorized_users_list: # MODIFIED
-        challenge.authorized_users_list.append(user_to_add) # MODIFIED
+    if user_to_add not in challenge.authorized_users_list_list: # MODIFIED
+        challenge.authorized_users_list_list.append(user_to_add) # MODIFIED
         db.session.commit()
         logger.info(f"User {user_to_add.username} authorized for challenge {public_id} by {current_user.username}.")
         return jsonify({
@@ -995,14 +995,14 @@ def add_authorized_user(public_id):
 def remove_authorized_user(public_id, user_id):
     # ... (existing implementation is likely okay) ...
      challenge = db.session.query(SharedChallenge).options(
-         selectinload(SharedChallenge.authorized_users_list) # MODIFIED
+         selectinload(SharedChallenge.authorized_users_list_list) # MODIFIED
         ).filter_by(public_id=public_id).first_or_404()
      if challenge.creator_id != current_user.id:
          return jsonify({"error": "Only the creator can remove users."}), 403
 
 
      user_to_remove = None
-     for user_in_list in challenge.authorized_users_list: # MODIFIED
+     for user_in_list in challenge.authorized_users_list_list: # MODIFIED
           if user_in_list.id == user_id:
                 user_to_remove = user_in_list
                 break
@@ -1012,7 +1012,7 @@ def remove_authorized_user(public_id, user_id):
      if user_to_remove.id == challenge.creator_id:
           return jsonify({"error": "Cannot remove the creator."}), 400
 
-     challenge.authorized_users_list.remove(user_to_remove) # MODIFIED
+     challenge.authorized_users_list_list.remove(user_to_remove) # MODIFIED
      db.session.commit()
      logger.info(f"User {user_to_remove.username} authorization revoked for challenge {public_id} by {current_user.username}.")
      return jsonify({"status": "success", "message": f"User {user_to_remove.username} removed."}), 200
@@ -1086,7 +1086,7 @@ def record_penalty_spin_result(group_id):
 def timer_start(public_id):
     try:
         challenge = db.session.query(SharedChallenge).options(
-            selectinload(SharedChallenge.authorized_users)
+            selectinload(SharedChallenge.authorized_users_list)
         ).filter_by(public_id=public_id).first_or_404("Challenge not found")
 
         if not is_user_authorized(challenge, current_user):
@@ -1130,7 +1130,7 @@ def timer_start(public_id):
 def timer_stop(public_id):
     try:
         challenge = db.session.query(SharedChallenge).options(
-            selectinload(SharedChallenge.authorized_users)
+            selectinload(SharedChallenge.authorized_users_list)
         ).filter_by(public_id=public_id).first_or_404("Challenge not found")
 
         if not is_user_authorized(challenge, current_user):
@@ -1196,7 +1196,7 @@ def timer_stop(public_id):
 def timer_reset(public_id):
     try:
         challenge = db.session.query(SharedChallenge).options(
-            selectinload(SharedChallenge.authorized_users)
+            selectinload(SharedChallenge.authorized_users_list)
         ).filter_by(public_id=public_id).first_or_404("Challenge not found")
 
         if not is_user_authorized(challenge, current_user):
