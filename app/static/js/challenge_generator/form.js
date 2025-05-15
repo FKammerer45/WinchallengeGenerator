@@ -9,7 +9,8 @@ import {
 } from "../games/localStorageUtils.js";
 import {
   initLocalStorage as initPenaltiesLocalStorage, // Use 'as' to rename if desired, or use initLocalStorage directly
-  getLocalOnlyTabs as getLocalPenaltyTabs, // Use 'as' to rename if desired, or use getLocalOnlyTabs directly
+  getLocalOnlyTabs as getLocalPenaltyTabs,
+  getLocalOnlyEntries as getLocalPenaltyEntries, // Use 'as' to rename if desired, or use getLocalOnlyTabs directly
 } from "../penalties/penaltyLocalStorageUtils.js"; // Assuming local_storage.js is now in utils/
 import { saveChallengeToLocalStorage } from "../utils/local_storage.js";
 // Assuming helpers.js is in utils/
