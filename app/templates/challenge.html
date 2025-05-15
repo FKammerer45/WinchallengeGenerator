@@ -118,10 +118,8 @@ Challenge Not Found
       </div>
     </div>
 
-    {# Penalty Section #}
-    {# Add check in JS: if localData.penalty_info exists, populate and show #}
+    {# Penalty Section for Local Challenge #}
     <div id="local-penalty-section-container" class="mb-5 card shadow-sm" style="display: none;">
-      {# --- MODIFICATION START: Added Header with Button --- #}
       <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="h5 mb-0">Penalties</h3>
         <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
@@ -130,35 +128,19 @@ Challenge Not Found
           <i class="bi bi-chevron-expand"></i>
         </button>
       </div>
-      {# --- Wrap body content in collapse div --- #}
       <div class="collapse show" id="localPenaltyBody">
-        <div class="card-body"> {# Removed extra id="local-penalty-body" from here #}
-          {# Existing penalty content... #}
-          <p class="text-secondary small">Loading penalties...</p>
-          <div id="penaltyResult-local" class="mt-3 penalty-result-display" style="display: none;"></div>
-          <div id="playerWheelContainer-local" style="display: none;" class="text-center">
-            <h6 id="playerWheelTitle-local">Participant</h6>
-            <canvas id="playerWheelCanvas-local" width="200" height="200"></canvas>
-          </div>
-          <div id="penaltyWheelContainer-local" style="display: none;" class="text-center mt-3">
-            <h6>Penalty</h6>
-            <canvas id="penaltyWheelCanvas-local" width="280" height="280"></canvas>
-          </div>
-          <div class="text-center mb-4 pb-2">
-            <button
-              class="btn btn-lg btn-warning lostGameBtn-local shadow-md d-inline-flex align-items-center justify-content-center"
-              data-penalty-tab-id="" title="Click if a game was lost">
-              <i class="bi bi-dice-6 me-2"></i>
-              <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
-              <span>Lost Game - Spin Penalty</span>
-            </button>
-            <p class="text-secondary small mt-2">Click above to spin for a randomly assigned penalty.</p>
-          </div>
+        <div class="card-body">
+           {% if is_local %}
+             {% set challenge_index = 'local' %} {# ***** THIS LINE IS ESSENTIAL ***** #}
+             {# Other variables like penalty_tab_id can be passed if the partial uses them directly, #}
+             {# but main.js will set data-penalty-tab-id on the button itself. #}
+             {% include 'challenge/_challenge_penalty_section.html' ignore missing with context %}
+           {% else %}
+             <p class="text-warning small text-center">Penalty section context error (should be local).</p>
+           {% endif %}
         </div>
       </div>
-      {# --- MODIFICATION END --- #}
     </div>
-
 
     {# Main Progress Card Section #}
     <hr class="my-5">

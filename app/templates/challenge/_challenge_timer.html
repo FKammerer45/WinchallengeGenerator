@@ -1,6 +1,7 @@
 {# templates/challenge/_challenge_timer.html #}
 {# Side-by-Side Layout Version with Internal Centering #}
 
+{% if current_user.is_authenticated %}
 {# Add h-100 to make card fill column height #}
 <div class="card shadow-sm glass-effect h-100">
     <div class="card-header h6 fw-bold text-light py-2">
@@ -26,3 +27,4 @@
         </div>
     </div>
 </div>
+{% endif %}

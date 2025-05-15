@@ -42,19 +42,15 @@ let penaltyPageConfig = {
 
 // Function called by main.js to update config
 export function updatePenaltyConfig(newChallengeConfig) {
-    console.log("[Penalty Module] Received config update:", newChallengeConfig);
+    // console.log("[Penalty Module] Received config update:", newChallengeConfig);
     penaltyPageConfig.userJoinedGroupId = newChallengeConfig.userJoinedGroupId;
     penaltyPageConfig.numPlayersPerGroup = newChallengeConfig.numPlayersPerGroup || 1;
     penaltyPageConfig.initialGroups = Array.isArray(newChallengeConfig.initialGroups) ? newChallengeConfig.initialGroups : [];
     penaltyPageConfig.isMultigroup = newChallengeConfig.isMultigroup === true;
-    penaltyPageConfig.isLocal = newChallengeConfig.isLocal === true; 
+    penaltyPageConfig.isLocal = newChallengeConfig.isLocal === true;
     penaltyPageConfig.challengeId = newChallengeConfig.id || null;
-    // This line correctly stores the whole config from main.js
-    penaltyPageConfig.challengeConfigData = newChallengeConfig; 
+    penaltyPageConfig.challengeConfigData = newChallengeConfig;
 
-    console.log("[Penalty Module] penaltyPageConfig updated. isLocal:", penaltyPageConfig.isLocal, 
-                "challengeId:", penaltyPageConfig.challengeId,
-                "Embedded Penalty Info:", penaltyPageConfig.challengeConfigData?.penaltyInfo); // Add this log
 }
 
 // --- Penalty Wheel Specific Helper Functions ---
@@ -71,8 +67,8 @@ function createSegments(items, colors) {
 
 function calculateStopAngle(numSegments, winningSegmentNumber) {
     if (numSegments <= 0 || winningSegmentNumber <= 0 || winningSegmentNumber > numSegments) {
-         console.warn(`Invalid input for calculateStopAngle: numSegments=${numSegments}, winningSegmentNumber=${winningSegmentNumber}. Returning random angle.`);
-         return Math.random() * 360;
+        console.warn(`Invalid input for calculateStopAngle: numSegments=${numSegments}, winningSegmentNumber=${winningSegmentNumber}. Returning random angle.`);
+        return Math.random() * 360;
     }
     const segmentAngle = 360 / numSegments;
     // Ensure stop angle is within the segment boundaries (e.g., 10% to 90% into the segment)
@@ -134,89 +130,93 @@ function resetPenaltyUI(idx) {
 }
 
 async function displayFinalResult(idx, chosenEntity, chosenPenalty, allPlayers, allPenaltiesForWheel, playerStopAngle, playerWinningSegmentIndex, button) {
-    const resultDisplay = document.getElementById(`penaltyResult-${idx}`); // The main result display below wheels
-    if (!resultDisplay) { console.error(`Result display not found for index ${idx}`); return; }
+    const resultDisplay = document.getElementById(`penaltyResult-${idx}`);
+    if (!resultDisplay) {
+        console.error(`[PENALTY_RESULT] Result display element not found for index ${idx}`);
+        if (button) button.disabled = false;
+        return;
+    }
 
     let message = '';
     let type = 'info';
-    let penaltyTextToSave = ''; // Text for backend and group card display
+    let penaltyTextToSaveForUI = '';
 
-    // Determine message and text to save
     if (chosenEntity && chosenPenalty && chosenPenalty.name && chosenPenalty.name !== "No Penalty") {
         const baseText = `${escapeHtml(chosenEntity)} receives penalty: ${escapeHtml(chosenPenalty.name)}`;
         message = `<strong>${baseText}</strong>`;
-        penaltyTextToSave = baseText; // Store the core penalty text
+        penaltyTextToSaveForUI = baseText;
         if (chosenPenalty.description) {
             const escapedDesc = escapeHtml(chosenPenalty.description);
             message += `<br><small class="text-muted">(${escapedDesc})</small>`;
-            penaltyTextToSave += ` (${escapedDesc})`; // Append description for saving/display
+            penaltyTextToSaveForUI += ` (${escapedDesc})`;
         }
         type = 'warning';
     } else {
         message = `<strong>${escapeHtml(chosenEntity || 'Participant')}</strong>: ${escapeHtml(chosenPenalty?.description || 'No penalty assigned.')}`;
-        penaltyTextToSave = ''; // No penalty text if "No Penalty"
+        penaltyTextToSaveForUI = ''; // No penalty text for "No Penalty"
         type = 'success';
     }
 
-    // Display result in the main result area below the wheels
     resultDisplay.innerHTML = message;
     resultDisplay.className = `mt-3 penalty-result-display alert alert-${type}`;
     resultDisplay.style.display = 'block';
 
-    // --- START: Direct UI Update for Group Card ---
-    const currentGroupId = penaltyPageConfig.userJoinedGroupId; // Get the ID of the group card to update
-    if (currentGroupId !== null) {
-        try {
-            console.log(`[Penalty Result] Directly updating penalty display for group ${currentGroupId} with text: "${penaltyTextToSave}"`);
-            updatePenaltyDisplay(currentGroupId, penaltyTextToSave); // Call the UI function directly
-
-            // Also update the local state in main.js immediately (optional but good practice)
-            const groupIndex = penaltyPageConfig.initialGroups.findIndex(g => g.id === currentGroupId);
+    // Update UI (local card or shared group card)
+    // For local, idx is 'local', which penaltyPageConfig.challengeId would be (e.g., local_uuid)
+    // For shared, userJoinedGroupId is the relevant group ID.
+    const targetGroupIdForUI = penaltyPageConfig.isLocal ? penaltyPageConfig.challengeId : penaltyPageConfig.userJoinedGroupId;
+    if (targetGroupIdForUI !== null) { // Check if we have a valid target for UI update
+        updatePenaltyDisplay(targetGroupIdForUI, penaltyTextToSaveForUI);
+        if (!penaltyPageConfig.isLocal) { // Update local state for shared challenge's joined group
+            const groupIndex = penaltyPageConfig.initialGroups.findIndex(g => g.id === targetGroupIdForUI);
             if (groupIndex !== -1) {
-                penaltyPageConfig.initialGroups[groupIndex].active_penalty_text = penaltyTextToSave;
-                 console.log(`[Penalty Result] Updated local state penalty for group ${currentGroupId}`);
+                penaltyPageConfig.initialGroups[groupIndex].active_penalty_text = penaltyTextToSaveForUI;
             }
-
-        } catch (uiError) {
-            console.error(`[Penalty Result] Error directly updating group card UI for group ${currentGroupId}:`, uiError);
         }
-    } else {
-        console.warn("[Penalty Result] Cannot update group card display: userJoinedGroupId is null.");
-    }
-    // --- END: Direct UI Update ---
-
-
-    // --- Backend Recording (remains the same logic) ---
-    const dataEl = document.getElementById('challengeData');
-    const csrfToken = dataEl?.dataset.csrfToken;
-    const challengeId = dataEl?.dataset.challengeId;
-
-    if (currentGroupId && challengeId && csrfToken) { // Use currentGroupId here too
-        const recordUrl = `/api/challenge/groups/${currentGroupId}/penalty_spin_result`;
-        const payload = { /* ... payload remains the same ... */
-             penalty_result: {
-                name: chosenPenalty?.name, description: chosenPenalty?.description || null, player: chosenEntity,
-                stopAngle: getPenaltyWheel(idx)?.animation?.stopAngle, winningSegmentIndex: getPenaltyWheel(idx)?.getIndicatedSegmentNumber(),
-                playerStopAngle: playerStopAngle, playerWinningSegmentIndex: playerWinningSegmentIndex,
-                all_players: allPlayers || [], all_penalties: allPenaltiesForWheel || []
-            }
-         };
-        try {
-            console.log(`Recording penalty spin result to backend for group ${currentGroupId}:`, payload.penalty_result);
-            await apiFetch(recordUrl, { method: 'POST', body: payload }, csrfToken);
-            console.log("Backend penalty spin result recording successful.");
-            // Backend will still emit WebSocket event for overlay/other users
-        } catch (error) {
-            console.error("Failed to record penalty spin result to backend:", error);
-            // Append error to the main result display, not the group card display
-            resultDisplay.innerHTML += `<br><small class="text-danger">Error recording spin result: ${error.message}</small>`;
-        }
-    } else {
-        console.warn("Cannot record penalty spin result: Missing Group ID, Challenge ID, or CSRF token.");
+        // If local, active_penalty_text persistence would need specific localStorage handling if desired beyond session.
     }
 
-    if (button) button.disabled = false; // Re-enable original button
+
+    // Backend recording ONLY for SHARED challenges
+    if (!penaltyPageConfig.isLocal) {
+        const currentGroupId = penaltyPageConfig.userJoinedGroupId; // Integer DB ID
+        const sharedChallengePublicId = penaltyPageConfig.challengeId; // Public UUID
+        const csrfToken = penaltyPageConfig.challengeConfigData?.csrfToken;
+
+        if (currentGroupId && sharedChallengePublicId && csrfToken) {
+            const recordUrl = `/api/challenge/groups/${currentGroupId}/penalty_spin_result`;
+            const payload = {
+                penalty_result: {
+                    name: chosenPenalty?.name,
+                    description: chosenPenalty?.description || null,
+                    player: chosenEntity,
+                    stopAngle: getPenaltyWheel(idx)?.animation?.stopAngle,
+                    winningSegmentIndex: getPenaltyWheel(idx)?.getIndicatedSegmentNumber(),
+                    playerStopAngle: playerStopAngle,
+                    playerWinningSegmentIndex: playerWinningSegmentIndex,
+                    all_players: allPlayers || [],
+                    all_penalties: allPenaltiesForWheel || []
+                }
+            };
+            try {
+                await apiFetch(recordUrl, { method: 'POST', body: payload }, csrfToken);
+                // Backend will emit WebSocket event.
+            } catch (error) {
+                console.error("[PENALTY_RESULT - Shared] Failed to record penalty spin to backend:", error);
+                resultDisplay.innerHTML += `<br><small class="text-danger">Error recording spin result: ${error.message}</small>`;
+            }
+        } else {
+            console.warn("[PENALTY_RESULT - Shared] Cannot record spin: Missing Group ID, Challenge Public ID, or CSRF token.");
+        }
+    } else {
+        // console.log(`[PENALTY_RESULT - Local] Spin result for local challenge ${penaltyPageConfig.challengeId} not sent to backend.`);
+    }
+
+    if (button) {
+        button.disabled = false;
+    }
 }
+
 
 // --- Winwheel Configuration Helper ---
 function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelType = 'Penalty') {
@@ -249,189 +249,222 @@ function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelTyp
 
 
 function spinPenaltyWheel(idx, penaltyTabIdFromButton, chosenEntity, button, participants, playerStopAngle, playerWinningSegmentIndex) {
-    const isLoggedIn = window.isLoggedIn === true; 
-    
-    console.log(
-        "[Penalty Spin Start - CV] isLoggedIn:", isLoggedIn, 
-        "penaltyPageConfig.isLocal:", penaltyPageConfig.isLocal, 
-        "penaltyTabIdFromButton (for local):", penaltyTabIdFromButton, // This is source for local
-        "challengeConfigData.penaltyInfo (for shared):", penaltyPageConfig.challengeConfigData?.penaltyInfo,
-        "idx (context):", idx
-    );
-
     const resultDisplay = document.getElementById(`penaltyResult-${idx}`);
     const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
-    const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-${idx}`);
+    const penaltyCanvas = document.getElementById(`penaltyWheelCanvas-${idx}`); // Corrected variable name used for getElementById
     const errorTarget = resultDisplay || document.body;
 
-    if (bailIfLibMissing(resultDisplay) || !resultDisplay || !penaltyWheelContainer || !penaltyCanvas) {
-        showError(errorTarget, "Error: Penalty wheel elements missing or library not loaded.", 'danger');
-        if (button) button.disabled = false; return;
+    // This check is already done in handleLostGameClick, but good for safety if called directly
+    if (bailIfLibMissing(errorTarget) || !resultDisplay || !penaltyWheelContainer || !penaltyCanvas) {
+        effectiveShowError(errorTarget, "Error: Penalty wheel elements missing or library not loaded for penalty spin.", 'danger');
+        if (button) button.disabled = false;
+        return;
     }
 
     resultDisplay.innerHTML = `<span class="text-warning"><strong>${escapeHtml(chosenEntity)}</strong> selected... Spinning for penalty...</span>`;
-    resultDisplay.style.display = 'block';
-    penaltyWheelContainer.style.display = 'block';
+    resultDisplay.style.display = 'block'; // Ensure it's visible
+    resultDisplay.className = 'mt-3 penalty-result-display alert alert-warning'; // Ensure class for styling
+    
+    if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'block';
 
-    let chosenPenalty, penaltyWheelSegments, wheelSegmentPenalties = [];
+
+    let chosenPenalty, penaltyWheelSegments = [], wheelSegmentPenalties = [];
     const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'];
     const NUM_PENALTY_SEGMENTS = 8;
 
     try {
         let penaltyList = [];
-        let sourceDescription = "Unknown Source";
+        // let sourceDescription = "Unknown Source"; // Not strictly needed without logging
 
-        if (penaltyPageConfig.isLocal) { 
-            const localPenaltyTabs = getLocalPenalties();
-            penaltyList = localPenaltyTabs[penaltyTabIdFromButton] || []; // Use ID from button for local
-            sourceDescription = `localStorage (Tab ID: ${penaltyTabIdFromButton})`;
+        if (penaltyPageConfig.isLocal) {
+            const embeddedPenaltyInfo = penaltyPageConfig.challengeConfigData?.penaltyInfo;
+            const hasEmbedded = embeddedPenaltyInfo && Array.isArray(embeddedPenaltyInfo.penalties) && embeddedPenaltyInfo.penalties.length > 0;
+            if (hasEmbedded) {
+                penaltyList = embeddedPenaltyInfo.penalties;
+                // sourceDescription = `Embedded in Local Challenge`;
+            } else if (penaltyTabIdFromButton && String(penaltyTabIdFromButton).trim() !== "") {
+                const localPenaltyData = getLocalPenalties(); // from penaltyLocalStorageUtils.js
+                penaltyList = localPenaltyData[penaltyTabIdFromButton] || [];
+                // sourceDescription = `LocalStorage for local (Tab ID: ${penaltyTabIdFromButton})`;
+            }
         } else { // Shared challenge
             const embeddedPenaltyInfo = penaltyPageConfig.challengeConfigData?.penaltyInfo;
             if (embeddedPenaltyInfo && Array.isArray(embeddedPenaltyInfo.penalties)) {
                 penaltyList = embeddedPenaltyInfo.penalties;
-                const sourceTabName = embeddedPenaltyInfo.source_tab_name || embeddedPenaltyInfo.source_tab_id || 'Embedded';
-                sourceDescription = `Embedded in Shared Challenge (Original: ${sourceTabName})`;
-            } else {
-                console.warn(`[Penalty Spin CV] No embedded penalties found in challengeConfig for shared challenge. Falling back for ${isLoggedIn ? 'logged-in' : 'anonymous'}`);
-                // Fallback for shared challenges if embedded data is missing (should ideally not happen)
-                if (isLoggedIn && window.userPenaltyTabsData?.entries?.[penaltyTabIdFromButton]) {
-                    penaltyList = window.userPenaltyTabsData.entries[penaltyTabIdFromButton];
-                     sourceDescription = `Fallback to window.userPenaltyTabsData for tab ${penaltyTabIdFromButton}`;
-                } else {
-                    const localFallback = getLocalPenalties();
-                    penaltyList = localFallback[penaltyTabIdFromButton] || []; // Fallback to local (likely system defaults)
-                    sourceDescription = `Fallback to localStorage for tab ${penaltyTabIdFromButton}`;
-                }
+                // sourceDescription = `Embedded in Shared Challenge`;
+            }
+            // Fallback for shared if embedded is missing (should be rare)
+            else if (window.isLoggedIn && window.userPenaltyTabsData?.entries?.[penaltyTabIdFromButton]) {
+                 penaltyList = window.userPenaltyTabsData.entries[penaltyTabIdFromButton];
+                //  sourceDescription = `User's saved tab for shared (Tab ID: ${penaltyTabIdFromButton})`;
             }
         }
-        
-        console.log(`[Penalty Spin CV] Source: ${sourceDescription}. Found ${penaltyList.length} penalties.`);
 
-        if (!Array.isArray(penaltyList)) {
-            penaltyList = [];
-        }
+        if (!Array.isArray(penaltyList)) penaltyList = [];
         
         chosenPenalty = selectWeightedPenalty(penaltyList);
-        console.log("[Penalty Spin CV] Chosen Penalty (Weighted):", JSON.stringify(chosenPenalty));
 
         if (!chosenPenalty || chosenPenalty.name === "No Penalty") {
             displayFinalResult(idx, chosenEntity, chosenPenalty, participants, [], playerStopAngle, playerWinningSegmentIndex, button);
-            penaltyWheelContainer.style.display = 'none'; 
+            if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
             return;
         }
 
-        // Build wheelSegmentPenalties list
-        wheelSegmentPenalties = []; 
+        wheelSegmentPenalties = [];
         let displayablePenalties = penaltyList.filter(p => p?.name && parseFloat(p.probability) > 0);
 
         if (chosenPenalty && chosenPenalty.name !== "No Penalty") {
-             wheelSegmentPenalties.push(chosenPenalty);
+            wheelSegmentPenalties.push(chosenPenalty);
         }
 
         if (displayablePenalties.length > 0) {
-            let otherPenalties = displayablePenalties.filter(p => p.id !== chosenPenalty?.id); 
+            let otherPenalties = displayablePenalties.filter(p => p.id !== chosenPenalty?.id);
             shuffleArray(otherPenalties);
-            
             let needed = NUM_PENALTY_SEGMENTS - wheelSegmentPenalties.length;
             wheelSegmentPenalties = wheelSegmentPenalties.concat(otherPenalties.slice(0, needed));
             
-            let pool = wheelSegmentPenalties.length > 0 ? wheelSegmentPenalties : 
-                       (displayablePenalties.length > 0 ? displayablePenalties : 
+            let pool = wheelSegmentPenalties.length > 0 ? wheelSegmentPenalties :
+                       (displayablePenalties.length > 0 ? displayablePenalties :
                        (chosenPenalty && chosenPenalty.name !== "No Penalty" ? [chosenPenalty] : []));
             if (pool.length > 0) {
                 let padIdx = 0;
-                while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) { // Added check for >0 to prevent infinite loop on empty pool
+                while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
                     wheelSegmentPenalties.push(pool[padIdx % pool.length]);
                     padIdx++;
                 }
             }
         }
-         if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) {
+        if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) {
             wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS);
         }
-        if(wheelSegmentPenalties.length === 0 && chosenPenalty && chosenPenalty.name !== "No Penalty"){
+        if (wheelSegmentPenalties.length === 0 && chosenPenalty && chosenPenalty.name !== "No Penalty") {
             wheelSegmentPenalties.push(chosenPenalty);
-             while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
+            while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0) {
                 wheelSegmentPenalties.push(wheelSegmentPenalties[0]);
             }
         }
 
         if (wheelSegmentPenalties.length === 0) {
-             console.warn("[Penalty Spin CV] No valid penalties to display on the wheel.");
              displayFinalResult(idx, chosenEntity, { name: "No Penalty", description: "No penalties available for wheel." }, participants, [], playerStopAngle, playerWinningSegmentIndex, button);
-             penaltyWheelContainer.style.display = 'none'; return;
+             if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
+             if (button) button.disabled = false;
+             return;
         }
         penaltyWheelSegments = createSegments(wheelSegmentPenalties.map(p => p.name), penaltyColors);
         if (penaltyWheelSegments.length === 0) {
-            throw new Error("Failed to create penalty segments for the wheel (no text from penalties).");
+            throw new Error("Failed to create penalty segments for the wheel.");
         }
 
-    } catch (e) { 
-        console.error("Error preparing penalty segments:", e); 
-        showError(errorTarget, "Error loading penalties for the wheel!", 'danger'); 
-        if (button) button.disabled = false; 
-        penaltyWheelContainer.style.display = 'none'; 
-        return; 
+    } catch (e) {
+        console.error("Error preparing penalty segments:", e);
+        effectiveShowError(errorTarget, "Error loading penalties for the wheel!", 'danger');
+        if (button) button.disabled = false;
+        if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
+        return;
     }
 
     const penaltyWinningSegmentIndex = penaltyWheelSegments.findIndex(seg => seg.text === chosenPenalty.name) + 1;
     if (penaltyWinningSegmentIndex <= 0) {
-        console.error(`Chosen penalty ("${chosenPenalty.name}") missing from final visual segments! Wheel segments:`, penaltyWheelSegments.map(s=>s.text).join(', '));
+        // This case means the chosenPenalty.name wasn't found in the segments, which is an issue.
+        // Default to displaying the chosen penalty without spinning, or pick a random segment for spin.
+        // For safety, display result directly.
         displayFinalResult(idx, chosenEntity, chosenPenalty, participants, wheelSegmentPenalties, playerStopAngle, playerWinningSegmentIndex, button);
-        penaltyWheelContainer.style.display = 'none'; return;
+        if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
+        return;
     }
 
-    if (getPenaltyWheel(idx)) { getPenaltyWheel(idx).stopAnimation?.(false); setPenaltyWheel(idx, null); }
+    if (getPenaltyWheel(idx)) {
+        getPenaltyWheel(idx).stopAnimation?.(false);
+        setPenaltyWheel(idx, null);
+    }
 
     try {
         const config = getPenaltyWheelConfig(penaltyWheelSegments, penaltyWinningSegmentIndex,
             () => displayFinalResult(idx, chosenEntity, chosenPenalty, participants, wheelSegmentPenalties, playerStopAngle, playerWinningSegmentIndex, button),
             idx, 'Penalty'
         );
-        if (!config) { 
-            showError(errorTarget, "Failed to configure penalty wheel.", 'danger');
-            if (button) button.disabled = false; 
-            penaltyWheelContainer.style.display = 'none';
-            return; 
+        if (!config) {
+            effectiveShowError(errorTarget, "Failed to configure penalty wheel.", 'danger');
+            if (button) button.disabled = false;
+            if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
+            return;
         }
         const wheel = new Winwheel(config);
         setPenaltyWheel(idx, wheel);
         wheel.startAnimation();
-        console.log("[Penalty Spin CV] Penalty wheel animation started.");
-    } catch (e) { 
-        console.error("Error creating Penalty WinWheel:", e); 
-        showError(errorTarget, "Error initializing penalty wheel display!", 'danger'); 
-        if (button) button.disabled = false; 
-        penaltyWheelContainer.style.display = 'none'; 
+    } catch (e) {
+        console.error("Error creating Penalty WinWheel:", e);
+        effectiveShowError(errorTarget, "Error initializing penalty wheel display!", 'danger');
+        if (button) button.disabled = false;
+        if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
     }
 }
 
 
 /** Main Handler for the "Lost Game" Button Click */
 function handleLostGameClick(event) {
-    const button = event.target.closest('.lostGameBtn-Shared, .lostGameBtn-local');
-    if (!button) return; // Only proceed if the correct button was clicked
+    const clickedElement = event.target;
+    const button = clickedElement.closest('.lostGameBtn-Shared, .lostGameBtn-Local'); // Use .lostGameBtn-Local (capital L)
 
-    console.log("[Lost Game] Button clicked.");
 
-    if (bailIfLibMissing(document.body)) return; // Check if Winwheel library is loaded
+    if (!button) {
+        console.log("[PENALTY_CLICK] Click was not on or within a relevant button. Exiting.");
+        return;
+    }
 
-    const idx = button.classList.contains('lostGameBtn-local') ? 'local' : 'shared';
+
+    if (button.disabled) {
+        console.log("[PENALTY_CLICK] Button is explicitly disabled (attribute=true). Action prevented.");
+        if (typeof showFlash === 'function') showFlash("Penalty spin is currently unavailable.", "info");
+        return;
+    }
+
+    if (bailIfLibMissing(document.getElementById('challengeViewContainer') || document.body)) {
+        console.error("[PENALTY_CLICK] Aborted: Winwheel library is missing or failed to load.");
+        return;
+    }
+
+    const isLocalClick = button.classList.contains('lostGameBtn-Local'); // Check for capital L
+    const idx = isLocalClick ? 'local' : 'shared';
     const penaltyTabId = button.dataset.penaltyTabId;
+
+
+    // Fetch DOM elements using the correct idx.
+    // These names match your original function.
     const resultDisplay = document.getElementById(`penaltyResult-${idx}`);
     const playerWheelContainer = document.getElementById(`playerWheelContainer-${idx}`);
     const playerCanvas = document.getElementById(`playerWheelCanvas-${idx}`);
-    const playerWheelTitle = document.getElementById(`playerWheelTitle-${idx}`);
+    const playerWheelTitle = document.getElementById(`playerWheelTitle-${idx}`); // Original variable name
     const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
+    // Let's also add the penalty canvas element, as it's needed by WinWheel, even if not in your original check
+    const penaltyCanvasEl = document.getElementById(`penaltyWheelCanvas-${idx}`);
+
+
+
+
+
     const errorTarget = resultDisplay || document.getElementById('challengeViewContainer') || document.body;
 
-    if (!resultDisplay || !playerWheelContainer || !playerCanvas || !playerWheelTitle || !penaltyWheelContainer) {
-        showError(errorTarget, "Error: Penalty UI components missing.", "danger");
+    // Conditional check based on your original snippet (penaltyCanvasEl added for robustness)
+    if (!resultDisplay || !playerWheelContainer || !playerCanvas || !playerWheelTitle || !penaltyWheelContainer || !penaltyCanvasEl ) {
+        let missingElements = [];
+        if (!resultDisplay) missingElements.push(`penaltyResult-${idx}`);
+        if (!playerWheelContainer) missingElements.push(`playerWheelContainer-${idx}`);
+        if (!playerCanvas) missingElements.push(`playerWheelCanvas-${idx}`);
+        if (!playerWheelTitle) missingElements.push(`playerWheelTitle-${idx}`);
+        if (!penaltyWheelContainer) missingElements.push(`penaltyWheelContainer-${idx}`);
+        if (!penaltyCanvasEl) missingElements.push(`penaltyWheelCanvas-${idx}`); // Check added element
+
+        console.error(`[PENALTY_CLICK] DOM Error: Missing one or more UI components for index '${idx}'. Missing: ${missingElements.join(', ')}. Aborting.`);
+        effectiveShowError(errorTarget, `Error: Penalty UI components missing (${missingElements.join(', ')}). Please ensure 'challenge_index' is correctly set to '${idx}' in the HTML template for this section.`, "danger");
         return;
     }
 
     resetPenaltyUI(idx); // Clear previous state
+    
+    // Disable button AFTER all checks pass and before starting operations
     button.disabled = true;
+
     resultDisplay.style.display = 'block';
     resultDisplay.className = 'mt-3 penalty-result-display alert alert-info';
     resultDisplay.innerHTML = `<span class="text-info">Determining participants…</span>`;
@@ -439,75 +472,84 @@ function handleLostGameClick(event) {
     // --- Determine Participants List ---
     let participants = [];
     let titleText = "Challenge Participant";
+    // Destructure from penaltyPageConfig; ensure penaltyPageConfig is correctly populated by main.js
     const { userJoinedGroupId, numPlayersPerGroup, isMultigroup, initialGroups } = penaltyPageConfig;
 
-    if (userJoinedGroupId !== null && isMultigroup) {
+    if (idx === 'local') { // Simplified participant logic for local
+        participants = ['Participant'];
+        titleText = "Spinning for Participant"; // Or "Selecting Player"
+        // console.log("[Lost Game] Local challenge: Defaulting to single 'Participant'. penaltyPageConfig:", penaltyPageConfig);
+    } else if (userJoinedGroupId !== null && isMultigroup) { // Shared, multigroup, user is in a group
         const group = initialGroups.find(g => g.id === userJoinedGroupId);
         if (group && Array.isArray(group.player_names)) {
-            // --- FIX: Extract display_name from player slot objects ---
             const savedNames = group.player_names
-                .map(slot => slot?.display_name?.trim()) // Get display_name, trim it
-                .filter(name => name); // Filter out empty/null names
-            // --- END FIX ---
-
+                .map(slot => slot?.display_name?.trim())
+                .filter(name => name);
             if (savedNames.length > 0) {
-                participants = savedNames.slice(0, numPlayersPerGroup); // Use the extracted display names
+                participants = savedNames.slice(0, numPlayersPerGroup);
                 titleText = `Selecting Player (${participants.length}/${numPlayersPerGroup})`;
             } else {
-                // Fallback if no valid display names found
                 participants = Array.from({ length: numPlayersPerGroup }, (_, i) => `Player ${i + 1}`);
                 titleText = `Selecting Player (Default Names)`;
             }
         } else {
-            // Fallback if group data or player_names is missing/invalid
             participants = Array.from({ length: numPlayersPerGroup }, (_, i) => `Player ${i + 1}`);
             titleText = `Selecting Player (Default Names)`;
-            console.warn(`Could not find valid group data or player_names for group ${userJoinedGroupId}. Using defaults.`);
+            // console.warn(`Could not find valid group data or player_names for group ${userJoinedGroupId}. Using defaults.`);
         }
-    } else if (idx === 'local') {
-        // For local challenges, assume single participant
+    } else { // Shared, single group, or user not in a group (less likely for 'shared' idx if UI is correct)
         participants = ['Participant'];
-        titleText = "Selecting Player";
-    } else {
-        // Fallback for non-multigroup shared challenges (shouldn't happen with current logic?)
-        participants = ['Participant'];
-        titleText = "Selecting Player";
-        console.warn("Penalty button clicked in unexpected state (shared, not multigroup, not joined?).");
+        titleText = "Spinning for Participant";
+        // console.warn("Penalty button clicked in shared mode but not multigroup or user not joined? Defaulting to single participant.");
     }
     // --- End Participant Determination ---
 
-    playerWheelTitle.textContent = titleText;
-    console.log("[Lost Game] Participants for player wheel:", participants);
+    playerWheelTitle.textContent = titleText; // Uses your original variable name
+    // console.log("[Lost Game] Participants for player wheel:", participants);
 
     if (participants.length === 0) {
-        showError(resultDisplay, "Error: No participants found to select from.", "danger");
-        button.disabled = false; return;
+        effectiveShowError(resultDisplay, "Error: No participants found to select from.", "danger");
+        button.disabled = false; // Re-enable
+        return;
     }
 
     const chosenEntity = participants[Math.floor(Math.random() * participants.length)];
-    console.log("[Lost Game] Randomly chosen entity:", chosenEntity);
+    // console.log("[Lost Game] Randomly chosen entity:", chosenEntity);
 
     const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'];
     const entitySegments = createSegments(participants, playerColors);
-    if (!entitySegments.length) { showError(resultDisplay, "Error creating player segments.", "danger"); button.disabled = false; return; }
+
+    if (!entitySegments || entitySegments.length === 0) { // Check for empty or null
+        effectiveShowError(resultDisplay, "Error creating player segments.", "danger");
+        button.disabled = false; // Re-enable
+        return;
+    }
 
     const playerWinningSegmentIndex = entitySegments.findIndex(s => s.text === chosenEntity) + 1;
-    if (playerWinningSegmentIndex <= 0) { console.error("Chosen player not found in segments:", chosenEntity, entitySegments); showError(resultDisplay, "Internal error selecting player.", "danger"); button.disabled = false; return; }
+    if (playerWinningSegmentIndex <= 0) {
+        console.error("Chosen player not found in segments:", chosenEntity, entitySegments);
+        effectiveShowError(resultDisplay, "Internal error selecting player.", "danger");
+        button.disabled = false; // Re-enable
+        return;
+    }
 
     const playerStopAngle = calculateStopAngle(entitySegments.length, playerWinningSegmentIndex);
 
-    // Clear old wheel if exists
-    if (getPlayerWheel(idx)) { getPlayerWheel(idx).stopAnimation?.(false); setPlayerWheel(idx, null); }
+    if (getPlayerWheel(idx)) {
+        getPlayerWheel(idx).stopAnimation?.(false);
+        setPlayerWheel(idx, null);
+    }
 
     try {
         const cfg = getPenaltyWheelConfig(entitySegments, playerWinningSegmentIndex,
-            // Callback: Pass necessary data to the next step
             () => spinPenaltyWheel(idx, penaltyTabId, chosenEntity, button, participants, playerStopAngle, playerWinningSegmentIndex),
             idx, 'Player'
         );
-        if (!cfg) { button.disabled = false; return; } // Handle case where config fails
-
-        // Set the calculated stop angle directly
+        if (!cfg) {
+            effectiveShowError(resultDisplay, "Failed to configure player wheel.", "danger");
+            button.disabled = false; // Re-enable
+            return;
+        }
         cfg.animation.stopAngle = playerStopAngle;
 
         const wheel = new Winwheel(cfg);
@@ -516,11 +558,11 @@ function handleLostGameClick(event) {
         resultDisplay.className = 'mt-3 penalty-result-display alert alert-warning';
         resultDisplay.innerHTML = `<span class="text-warning">Spinning for participant...</span>`;
         wheel.startAnimation();
-        console.log("[Lost Game] Player wheel animation started.");
+        // console.log("[Lost Game] Player wheel animation started.");
     } catch (e) {
         console.error("Error creating Participant WinWheel:", e);
-        showError(resultDisplay, "Error initializing participant wheel!", "danger");
-        button.disabled = false;
+        effectiveShowError(resultDisplay, "Error initializing participant wheel!", "danger");
+        button.disabled = false; // Re-enable
     }
 }
 
@@ -549,13 +591,13 @@ function initializePenaltyHandler() {
             // Attach listener using event delegation on a parent container
             const challengeViewContainer = document.getElementById('challengeViewContainer');
             if (challengeViewContainer) {
-                 challengeViewContainer.addEventListener('click', handleLostGameClick);
-                 console.log('[Penalty Module] Delegated click listener attached to challengeViewContainer.');
+                challengeViewContainer.addEventListener('click', handleLostGameClick);
+                console.log('[Penalty Module] Delegated click listener attached to challengeViewContainer.');
             } else {
-                 console.error("[Penalty Module] Could not find 'challengeViewContainer' to attach delegated listener.");
-                 // Fallback to document listener if container not found
-                 document.addEventListener('click', handleLostGameClick);
-                 console.warn('[Penalty Module] Attaching click listener to document as fallback.');
+                console.error("[Penalty Module] Could not find 'challengeViewContainer' to attach delegated listener.");
+                // Fallback to document listener if container not found
+                document.addEventListener('click', handleLostGameClick);
+                console.warn('[Penalty Module] Attaching click listener to document as fallback.');
             }
 
         } catch (e) { console.error("Penalty module failed to read initial config:", e); showError(statusDiv || document.body, "Penalty Init Error.", 'warning'); }

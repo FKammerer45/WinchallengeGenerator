@@ -100,10 +100,18 @@ export function initializeTimer(idSuffixProvided, initialTimerState, authorized)
     isUserAuthorized = authorized;
 
     // Get static references to buttons for attaching listeners
+    timerDisplayEl = document.getElementById(`timerDisplay-${timerIdSuffix}`)
     startButtonEl = document.getElementById(`btnStart-${timerIdSuffix}`);
     stopButtonEl = document.getElementById(`btnStop-${timerIdSuffix}`);
     resetButtonEl = document.getElementById(`btnReset-${timerIdSuffix}`);
 
+    if (!timerDisplayEl) { // Log only if expected (e.g., shared challenge)
+        // This log is fine as a warning if current_user.is_authenticated was true in template
+        // but the element is still missing, or if it's local and we don't expect it.
+        // For local without login, this is expected.
+        console.warn(`[TimerJS - ${timerIdSuffix}] Initial Timer display element #timerDisplay-${timerIdSuffix} not found.`);
+        return;
+    }
     // Check for the display element for an initial log, but it's re-queried in updateTimerDisplay
     const initialDisplayEl = document.getElementById(`timerDisplay-${timerIdSuffix}`);
     if (!initialDisplayEl){

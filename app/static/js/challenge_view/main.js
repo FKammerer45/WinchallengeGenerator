@@ -125,7 +125,7 @@ async function loadPenaltyDataForChallengeView(currentChallengeConfig) {
 
         // 2. Fetch user's saved penalty tabs
         const userSavedPenaltyTabsApi = await apiFetch('/api/penalties/load_tabs', {}, csrfToken);
-        
+
         // Reset module-scoped userPenaltyTabsData before populating
         userPenaltyTabsData.tabs = {};
         userPenaltyTabsData.entries = {};
@@ -133,13 +133,13 @@ async function loadPenaltyDataForChallengeView(currentChallengeConfig) {
         if (typeof userSavedPenaltyTabsApi === 'object' && userSavedPenaltyTabsApi !== null) {
             for (const tabId in userSavedPenaltyTabsApi) {
                 const tabData = userSavedPenaltyTabsApi[tabId];
-                if (tabData) { 
+                if (tabData) {
                     userPenaltyTabsData.tabs[tabId] = { name: tabData.tab_name || `Penalty Tab ${tabId}` };
                     userPenaltyTabsData.entries[tabId] = tabData.penalties || [];
                 }
             }
             console.log("[MainJS CV] Populated module-scoped userPenaltyTabsData with API data:", JSON.parse(JSON.stringify(userPenaltyTabsData)));
-            
+
             // Make it available globally IF penalty.js absolutely needs it globally.
             // It's better if penalty.js can accept this data or access it via a getter.
             // For now, let's ensure window.userPenaltyTabsData is updated as penalty.js expects.
@@ -147,11 +147,11 @@ async function loadPenaltyDataForChallengeView(currentChallengeConfig) {
 
         } else {
             console.warn("[MainJS CV] No saved penalty tabs returned from API or invalid format for userPenaltyTabsData.");
-             window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Ensure it's an empty object
+            window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Ensure it's an empty object
         }
     } catch (error) {
         console.error("[MainJS CV] Error fetching user's penalty tab data:", error);
-        if(statusDiv) showPageError(statusDiv, "Could not load your penalty configurations.", "warning");
+        if (statusDiv) showPageError(statusDiv, "Could not load your penalty configurations.", "warning");
         window.userPenaltyTabsData = { tabs: {}, entries: {} }; // Ensure it's an empty object on error
     }
 
@@ -303,13 +303,13 @@ function handleSocketInitialState(event) {
             console.log("[MainJS] Calling updateTimerStateFromServer with data from socket 'initial_state'.");
             updateTimerStateFromServer(freshInitialState.timer_state);
         } else {
-             console.warn("[MainJS] 'initial_state' received from socket is missing 'timer_state'. Timer might not reflect server status.");
+            console.warn("[MainJS] 'initial_state' received from socket is missing 'timer_state'. Timer might not reflect server status.");
         }
         // Refresh the main UI based on the new comprehensive state
         // Ensure containers are defined before calling UI updates
         if (myGroupContainerEl && otherGroupsContainerEl) {
-             updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
-             updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
+            updateUIAfterMembershipChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
+            updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
         }
         if (typeof updatePenaltyConfig === 'function') updatePenaltyConfig(challengeConfig); // Update penalty module too
     }
@@ -1183,14 +1183,14 @@ async function handleRemoveUserClick(removeBtn) {
 }
 
 // --- Page Initialization ---
-document.addEventListener('DOMContentLoaded', async() => {
+document.addEventListener('DOMContentLoaded', async () => {
     pageContainer = document.getElementById('challengeViewContainer');
     if (!pageContainer) { console.error("CRITICAL: #challengeViewContainer missing!"); return; }
 
     // 1. Read config from DOM (sets challengeConfig, statusDiv)
     if (!initializeConfigFromDOM()) { return; }
     if (challengeConfig.isLoggedIn && challengeConfig.isCreator && challengeConfig.penaltyInfo?.source_tab_id) {
-        await loadPenaltyDataForChallengeView(challengeConfig); 
+        await loadPenaltyDataForChallengeView(challengeConfig);
     } else if (typeof updatePenaltyConfig === 'function') {
         // For non-creators or if penalties are disabled, still pass config for isLocal, etc.
         updatePenaltyConfig(challengeConfig);
@@ -1228,6 +1228,8 @@ document.addEventListener('DOMContentLoaded', async() => {
             const penaltyBody = document.getElementById('local-penalty-body');
             const penaltyButton = penaltyBody?.querySelector('.lostGameBtn-local');
             const activePenaltyDisplay = document.getElementById('local-group-card')?.querySelector('.active-penalty-display');
+            const localPenaltyBody = document.getElementById('localPenaltyBody');
+            const localPenaltyBodyCard = document.getElementById('localPenaltyBody')?.querySelector('.card-body'); // Target the card-body
 
             if (titleEl) titleEl.textContent = localData.name || 'Local Challenge';
             if (rulesContainer && challengeConfig.coreChallengeStructure) renderStaticChallengeDetailsJS(rulesContainer, challengeConfig.coreChallengeStructure);
@@ -1244,20 +1246,74 @@ document.addEventListener('DOMContentLoaded', async() => {
                 progressItemsContainer.innerHTML = '<p class="text-muted small">Progress items unavailable.</p>';
             }
 
-            if (penaltySectionContainer && penaltyBody && penaltyButton && challengeConfig.penaltyInfo) {
-                const tabId = challengeConfig.penaltyInfo.tab_id;
-                if (tabId) {
-                    penaltyButton.dataset.penaltyTabId = tabId;
+           if (penaltySectionContainer && localPenaltyBodyCard) {
+                // First, determine if penaltyInfo itself exists. If not, hide the whole section.
+                if (!challengeConfig.penaltyInfo) {
+                    penaltySectionContainer.style.display = 'none';
+                    console.log("[MainJS Local Setup] No penalty_info found for local challenge. Hiding penalty section.");
+                } else {
+                    // penaltyInfo exists, so show the section card.
+                    // The actual content (button, wheels) depends on details within penaltyInfo.
                     penaltySectionContainer.style.display = 'block';
-                } else console.warn("Local challenge has penalty info but no tab_id");
+
+                    const penaltyButton = penaltySectionContainer.querySelector('.lostGameBtn-Local');
+                    if (!penaltyButton) {
+                        console.error("[MainJS Local Setup] CRITICAL: .lostGameBtn-Local button not found in the template. Penalty functionality broken.");
+                        localPenaltyBodyCard.innerHTML = '<p class="text-danger small text-center mt-3">Error: Penalty controls could not be loaded (button missing).</p>';
+                    } else {
+                        const hasEmbeddedPenalties = Array.isArray(challengeConfig.penaltyInfo.penalties) && challengeConfig.penaltyInfo.penalties.length > 0;
+                        const hasValidSourceTabId = challengeConfig.penaltyInfo.source_tab_id && String(challengeConfig.penaltyInfo.source_tab_id).trim() !== "";
+
+                        // Default message if button remains disabled
+                        let unusablePenaltyMessage = '<p class="text-warning small text-center mt-3">No usable penalties found for this challenge. Please check the source penalty tab or re-generate with penalties.</p>';
+                        
+                        // Logic to enable button and set data
+                        if (hasEmbeddedPenalties) {
+                            penaltyButton.disabled = false;
+                            penaltyButton.dataset.penaltyTabId = challengeConfig.penaltyInfo.source_tab_id || ''; // Can be empty if using only embedded
+                            console.log(`[MainJS Local Setup] Enabled penalty button using embedded penalties. source_tab_id: "${penaltyButton.dataset.penaltyTabId}"`);
+                            localPenaltyBodyCard.querySelector('p.text-secondary.small')?.remove(); // Remove "Loading penalties..."
+                        } else if (hasValidSourceTabId) {
+                            penaltyButton.disabled = false;
+                            penaltyButton.dataset.penaltyTabId = challengeConfig.penaltyInfo.source_tab_id;
+                            console.log(`[MainJS Local Setup] Enabled penalty button using source_tab_id: "${penaltyButton.dataset.penaltyTabId}" (will load from localStorage).`);
+                            localPenaltyBodyCard.querySelector('p.text-secondary.small')?.remove(); // Remove "Loading penalties..."
+                        } else {
+                            // Button remains disabled if neither condition met
+                            penaltyButton.disabled = true;
+                            console.warn("[MainJS Local Setup] Penalty button DISABLED: No embedded penalties AND no valid source_tab_id in penaltyInfo.");
+                            // Show the warning message
+                            const placeholder = localPenaltyBodyCard.querySelector('p.text-secondary.small');
+                            if (placeholder && placeholder.textContent.includes("Loading penalties...")) {
+                                placeholder.outerHTML = unusablePenaltyMessage;
+                            } else if (!localPenaltyBodyCard.querySelector('.text-warning.small.text-center')) {
+                                // Ensure the button's container exists before trying to insert after it
+                                const buttonContainer = penaltyButton.closest('.text-center.mb-4.pb-2');
+                                if (buttonContainer) {
+                                     buttonContainer.insertAdjacentHTML('afterend', unusablePenaltyMessage);
+                                } else { // Fallback append to card body
+                                     localPenaltyBodyCard.insertAdjacentHTML('beforeend', unusablePenaltyMessage);
+                                }
+                            }
+                        }
+                    }                       
+
+                }
             }
-            if (activePenaltyDisplay && localData.active_penalty_text) updatePenaltyDisplay(challengeConfig.id, localData.active_penalty_text);
-            // initializeTimer('main') was already called above for local challenges.
-            if (challengeConfig.penaltyInfo && typeof updatePenaltyConfig === 'function') {
+
+            // Update penalty.js config
+            if (typeof updatePenaltyConfig === 'function') {
                 updatePenaltyConfig({
-                    userJoinedGroupId: challengeConfig.id, numPlayersPerGroup: 1,
-                    isMultigroup: false, initialGroups: [{ id: challengeConfig.id, player_names: ['You'] }]
+                    ...challengeConfig, // Pass the whole main config
+                    isLocal: true,
+                    userJoinedGroupId: challengeConfig.id,
+                    numPlayersPerGroup: 1,
+                    initialGroups: [{
+                        id: challengeConfig.id,
+                        player_names: [{ display_name: "Participant", account_name: null }]
+                    }]
                 });
+                // console.log("[MainJS Local Setup] Called updatePenaltyConfig for local challenge.");
             }
         } else {
             const errorMsg = `Error: Could not load local challenge data (ID: ${escapeHtml(challengeConfig.id)}).`;
