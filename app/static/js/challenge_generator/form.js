@@ -515,7 +515,51 @@ function handleChallengeFormSubmit(event) {
     return;
   }
 
-  showError(errorDisplay, null);
+  // --- NEW CLIENT-SIDE VALIDATION: Player Count vs Selected Games ---
+  const selectedPlayerCount = parseInt(formData.get("num_players"), 10);
+  const selectedGameTabForValidation = formData.get("game_tab_id");
+  let allGameEntriesForValidation = [];
+
+  try {
+      const allGameTabsDataForValidation = isAuthenticated
+          ? window.indexPageGameTabs?.entries || {}
+          : getLocalOnlyEntries();
+
+      if (allGameTabsDataForValidation && allGameTabsDataForValidation.hasOwnProperty(selectedGameTabForValidation)) {
+          const specificTabEntriesForValidation = allGameTabsDataForValidation[selectedGameTabForValidation];
+          if (Array.isArray(specificTabEntriesForValidation)) {
+              allGameEntriesForValidation = specificTabEntriesForValidation;
+          }
+      }
+  } catch (error) {
+      console.error("[Submit Form] Error fetching game entries for client-side validation:", error);
+      // Continue without client-side validation if data fetching fails, rely on backend
+  }
+
+  const compatibleGamesSelected = checkedGames.some(gameName => {
+      // Find entries for this selected game name in the current tab
+      const gameEntries = allGameEntriesForValidation.filter(entry =>
+          (entry?.Spiel || entry?.game)?.trim() === gameName
+      );
+      // Check if any of these entries support the selected player count
+      return gameEntries.some(entry =>
+          parseInt(entry?.Spieleranzahl || entry?.numberOfPlayers) >= selectedPlayerCount
+      );
+  });
+
+  if (!compatibleGamesSelected) {
+      const userMessage = `Challenge generation failed: You selected ${selectedPlayerCount} players, but none of the selected games/modes support this player count. Please select games that fit your player count or reduce the player count.`;
+      showError(errorDisplay, userMessage);
+      // Do NOT proceed with fetch if client-side validation fails
+      setLoading(submitButton, false, "Generate Challenge");
+      if (resultWrapper) resultWrapper.style.display = "none"; // Hide previous result if any
+      if (resultDiv) resultDiv.innerHTML = "";
+      return;
+  }
+  // --- END NEW CLIENT-SIDE VALIDATION ---
+
+
+  showError(errorDisplay, null); // Clear previous errors if validation passed
   if (resultWrapper) {
     resultWrapper.style.display = "none";
     resultWrapper.classList.remove("visible");
