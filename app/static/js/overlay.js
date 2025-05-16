@@ -329,38 +329,41 @@ function triggerPenaltySpinAnimation(data) {
     playerWheel.rotationAngle = 0;
     penaltyWheel.rotationAngle = 0;
 
-    // Hide the final penalty text area (#active-penalty) during the spin
-    // The `updateActivePenalty` function handles showing/hiding activePenaltyEl.
-    // We can call it with an intermediate message or null.
     if (activePenaltyEl && activePenaltyTextEl) {
-        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, "Spinning for penalty..."); // Or null to hide
+        updateActivePenalty(activePenaltyEl, activePenaltyTextEl, "Spinning for penalty...");
     }
 
-    // Show wheel containers
     penaltyWheelsContainer?.classList.remove('hidden');
     playerWheelWrapper?.classList.remove('hidden');
-    penaltyWheelWrapper?.classList.add('hidden'); // Penalty wheel hidden initially
+    penaltyWheelWrapper?.classList.add('hidden');
 
-    const penaltyResultFromServer = data.result; // Renamed for clarity
-    if (!penaltyResultFromServer) {
-        console.error("[Overlay Spin] Invalid penalty_result data received in 'triggerPenaltySpinAnimation'.");
+    // data.result contains { result: actual_penalty_payload, initiator_user_id: X }
+    const eventResultContainer = data.result;
+    if (!eventResultContainer || !eventResultContainer.result) {
+        console.error("[Overlay Spin] Invalid eventResultContainer or eventResultContainer.result received.");
         penaltyWheelsContainer?.classList.add('hidden');
-        isSpinAnimationActive = false; // <<< CLEAR FLAG
+        isSpinAnimationActive = false;
         return;
     }
+    
+    const actualPenaltyData = eventResultContainer.result; // This is the actual penalty payload
+    // const received_initiator_user_id = eventResultContainer.initiator_user_id; // Not used in overlay animation logic
 
-    const allPlayers = penaltyResultFromServer.all_players || [];
-    const allPenalties = penaltyResultFromServer.all_penalties || [];
+    console.log("[Overlay Spin] Actual penalty data for animation:", JSON.parse(JSON.stringify(actualPenaltyData)));
+
+    const allPlayers = actualPenaltyData.all_players || [];
+    const allPenalties = actualPenaltyData.all_penalties || []; // These are the segments for the penalty wheel
 
     const startPenaltyWheelSpin = () => {
-        // console.debug("[Overlay Spin] Player wheel finished. Starting penalty wheel.");
-        setTimeout(() => { // Delay between player and penalty wheel
+        setTimeout(() => {
             playerWheelWrapper?.classList.add('hidden');
 
-            if (penaltyResultFromServer.name && penaltyResultFromServer.name.toLowerCase() !== "no penalty" && penaltyResultFromServer.stopAngle !== undefined && allPenalties.length > 0) {
+            // Use actualPenaltyData for checks and properties
+            if (actualPenaltyData.name && actualPenaltyData.name.toLowerCase() !== "no penalty" && actualPenaltyData.penaltyStopAngle !== undefined && allPenalties.length > 0) {
                 penaltyWheelWrapper?.classList.remove('hidden');
                 try {
                     const penaltyColors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'].sort(() => 0.5 - Math.random());
+                    // allPenalties should be the list of penalty objects for the segments
                     const penaltySegmentsData = createSegments(allPenalties.map(p => p.name || '?'), penaltyColors);
 
                     penaltyWheel.clearCanvas(); penaltyWheel.numSegments = 0; penaltyWheel.segments = [];
@@ -368,21 +371,24 @@ function triggerPenaltySpinAnimation(data) {
                     
                     if (penaltyWheel.numSegments === 0) throw new Error("Penalty wheel has no segments after configuration.");
 
-                    let winningSegmentIndex = -1;
-                    for (let i = 1; i <= penaltyWheel.numSegments; i++) {
-                        if (penaltyWheel.segments[i]?.text === penaltyResultFromServer.name) {
-                            winningSegmentIndex = i; break;
+                    // Use actualPenaltyData.penaltyWinningSegmentIndex if available, otherwise calculate
+                    let winningSegmentIndex = actualPenaltyData.penaltyWinningSegmentIndex;
+                    if (typeof winningSegmentIndex !== 'number' || winningSegmentIndex <= 0) {
+                        // Fallback: find index by name if server didn't provide a valid one (should not happen ideally)
+                        for (let i = 1; i <= penaltyWheel.numSegments; i++) {
+                            if (penaltyWheel.segments[i]?.text === actualPenaltyData.name) {
+                                winningSegmentIndex = i; break;
+                            }
                         }
                     }
                     
                     penaltyWheel.animation.stopAngle = (winningSegmentIndex > 0) 
                         ? penaltyWheel.getRandomForSegment(winningSegmentIndex) 
-                        : penaltyResultFromServer.stopAngle; // Fallback to server angle
+                        : actualPenaltyData.penaltyStopAngle; // Fallback to server angle
 
                     penaltyWheel.animation.callbackFinished = () => {
-                        // console.debug("[Overlay Spin] Penalty animation finished.");
-                        const finalSelectedPlayer = penaltyResultFromServer.selected_player_name || "Player";
-                        const finalSelectedPenaltyName = penaltyResultFromServer.name || "a penalty";
+                        const finalSelectedPlayer = actualPenaltyData.player || "Player"; // Use 'player' from actualPenaltyData
+                        const finalSelectedPenaltyName = actualPenaltyData.name || "a penalty";
 
                         let displayText = "";
                         if (finalSelectedPenaltyName && finalSelectedPenaltyName.toLowerCase() !== "no penalty") {
@@ -391,11 +397,10 @@ function triggerPenaltySpinAnimation(data) {
                             displayText = `${escapeHtml(finalSelectedPlayer)} gets: No Penalty`;
                         }
 
-                        // <<< DISPLAY FINAL PENALTY TEXT USING updateActivePenalty AFTER ANIMATION >>>
                         if (activePenaltyEl && activePenaltyTextEl) {
                             updateActivePenalty(activePenaltyEl, activePenaltyTextEl, displayText);
                         }
-                        isSpinAnimationActive = false; // <<< CLEAR FLAG: Spin sequence fully complete
+                        isSpinAnimationActive = false;
 
                         setTimeout(() => {
                             penaltyWheelsContainer?.classList.add('hidden');
@@ -406,24 +411,23 @@ function triggerPenaltySpinAnimation(data) {
                 } catch (error) {
                     console.error("[Overlay Spin] Error configuring/starting penalty wheel:", error);
                     penaltyWheelsContainer?.classList.add('hidden');
-                    isSpinAnimationActive = false; // <<< CLEAR FLAG on error
+                    isSpinAnimationActive = false;
                 }
-            } else { // No penalty to spin for (e.g., "No Penalty" from server directly)
-                // console.debug("[Overlay Spin] No penalty to spin for (or 'No Penalty' outcome).");
-                const finalSelectedPlayer = penaltyResultFromServer.selected_player_name || "Player";
+            } else {
+                const finalSelectedPlayer = actualPenaltyData.player || "Player";
                 if (activePenaltyEl && activePenaltyTextEl) {
                      updateActivePenalty(activePenaltyEl, activePenaltyTextEl, `${escapeHtml(finalSelectedPlayer)} gets: No Penalty`);
                 }
-                isSpinAnimationActive = false; // <<< CLEAR FLAG
+                isSpinAnimationActive = false;
                 setTimeout(() => {
                     penaltyWheelsContainer?.classList.add('hidden');
                 }, WHEEL_HIDE_DELAY);
             }
-        }, 750); // Delay after player wheel stops
+        }, 750);
     };
 
-    // Player Wheel Configuration and Start
-    if (allPlayers.length > 0 && penaltyResultFromServer.playerStopAngle !== undefined) {
+    // Player Wheel Configuration and Start, using actualPenaltyData
+    if (allPlayers.length > 0 && actualPenaltyData.playerStopAngle !== undefined) {
         try {
             const playerColors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'].sort(() => 0.5 - Math.random());
             const playerSegmentsData = createSegments(allPlayers, playerColors);
@@ -433,15 +437,18 @@ function triggerPenaltySpinAnimation(data) {
 
             if (playerWheel.numSegments === 0) throw new Error("Player wheel has no segments.");
             
-            let winningPlayerSegmentIndex = -1;
-            for (let i = 1; i <= playerWheel.numSegments; i++) {
-                if (playerWheel.segments[i]?.text === penaltyResultFromServer.selected_player_name) {
-                    winningPlayerSegmentIndex = i; break;
+            // Use actualPenaltyData.playerWinningSegmentIndex if available
+            let winningPlayerSegmentIndex = actualPenaltyData.playerWinningSegmentIndex;
+             if (typeof winningPlayerSegmentIndex !== 'number' || winningPlayerSegmentIndex <= 0) {
+                for (let i = 1; i <= playerWheel.numSegments; i++) {
+                    if (playerWheel.segments[i]?.text === actualPenaltyData.player) { // Use actualPenaltyData.player
+                        winningPlayerSegmentIndex = i; break;
+                    }
                 }
             }
             playerWheel.animation.stopAngle = (winningPlayerSegmentIndex > 0)
                 ? playerWheel.getRandomForSegment(winningPlayerSegmentIndex)
-                : penaltyResultFromServer.playerStopAngle; // Fallback
+                : actualPenaltyData.playerStopAngle; // Fallback
 
             playerWheel.animation.callbackFinished = startPenaltyWheelSpin;
             playerWheel.draw();

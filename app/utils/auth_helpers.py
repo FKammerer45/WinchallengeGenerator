@@ -15,5 +15,8 @@ def is_user_authorized(challenge, user):
          logger.warning(f"is_user_authorized: 'authorized_users_list' relationship not loaded or defined on challenge {challenge.id}.")
          return False # Cannot confirm authorization if list isn't loaded
 
-    return user in auth_list
-
+    # Compare by ID instead of object instance
+    for authorized_user in auth_list:
+        if authorized_user.id == user.id:
+            return True
+    return False
