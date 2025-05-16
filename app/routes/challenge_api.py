@@ -778,11 +778,12 @@ def update_group_players(group_id):
         challenge = group.shared_challenge
         if not challenge: return jsonify({"error": "Challenge for group not found."}), 500
 
-        if not is_user_authorized(challenge, current_user):
-            return jsonify({"error": "Not authorized for this challenge."}), 403
+        # MODIFIED AUTHORIZATION: Only require group membership to edit player names
         is_member = any(member.id == current_user.id for member in group.members)
-        if not is_member:
-            return jsonify({"error": "Not authorized to update this group's players."}), 403
+        if not current_user.is_authenticated or not is_member: # User must be logged in and a member of this group
+            logger.warning(f"User {current_user.username if current_user.is_authenticated else 'Guest'} (Member: {is_member}) tried to update player names for group {group_id} without permission.")
+            return jsonify({"error": "You must be a logged-in member of this group to edit its player names."}), 403
+        # The broader challenge-level authorization (is_user_authorized) is removed for this specific action.
 
         player_slots = _initialize_player_slots(group) # Uses your original helper from this file
         max_players = challenge.num_players_per_group
@@ -840,6 +841,70 @@ def update_group_players(group_id):
         db.session.rollback(); logger.exception("DB Error updating group players"); return jsonify({"error": "Database error."}), 500
     except Exception as e:
         db.session.rollback(); logger.exception("Unexpected error updating group players"); return jsonify({"error": "Server error."}), 500
+
+
+@challenge_api.route("/<public_id>/groups/<int:group_id>", methods=["DELETE"])
+@login_required
+def delete_group(public_id, group_id):
+    """Deletes a specific group from a challenge if the current user is the creator."""
+    logger.info(f"User {current_user.username} attempting to delete group {group_id} from challenge {public_id}")
+    try:
+        challenge = db.session.query(SharedChallenge).filter_by(public_id=public_id).first()
+        if not challenge:
+            return jsonify({"error": "Challenge not found."}), 404
+
+        if challenge.creator_id != current_user.id:
+            logger.warning(f"Forbidden: User {current_user.username} tried to delete group {group_id} from challenge {public_id} not owned by them.")
+            return jsonify({"error": "Only the challenge creator can delete groups."}), 403
+
+        group_to_delete = db.session.query(ChallengeGroup).filter_by(id=group_id, shared_challenge_id=challenge.id).first()
+        if not group_to_delete:
+            return jsonify({"error": "Group not found or does not belong to this challenge."}), 404
+
+        # Consider implications if group has members. For now, direct delete.
+        # If members should be handled (e.g., unlinked), add logic here.
+        # Example: if group_to_delete.members:
+        #     return jsonify({"error": "Cannot delete group with active members."}), 400
+
+        # Explicitly handle members before deletion
+        if group_to_delete.members:
+            member_ids_kicked = [member.id for member in group_to_delete.members]
+            logger.info(f"Group {group_id} has members: {member_ids_kicked}. Notifying and clearing members before deletion.")
+            
+            for member_user in list(group_to_delete.members): # Iterate over a copy
+                # Emit an event to notify each user they are being removed from this group
+                socketio.emit('user_kicked_from_group', {
+                    'challenge_id': challenge.public_id,
+                    'group_id': group_id,
+                    'user_id': member_user.id,
+                    'reason': 'group_deleted'
+                }, room=challenge.public_id) # Send to the challenge room; client can filter by user_id
+                logger.info(f"Emitted 'user_kicked_from_group' for user {member_user.id} from group {group_id}.")
+            
+            group_to_delete.members.clear() # Disassociate members from the group
+            db.session.flush() # Apply the clear operation to the session
+
+        db.session.delete(group_to_delete)
+        db.session.commit()
+        logger.info(f"User {current_user.username} successfully deleted group {group_id} from challenge {public_id}.")
+
+        # Emit WebSocket event to inform clients that the group is now deleted
+        socketio.emit('group_deleted', 
+                      {'challenge_id': challenge.public_id, 'group_id': group_id}, 
+                      room=challenge.public_id)
+        logger.info(f"Emitted 'group_deleted' event for group {group_id} in challenge {public_id}.")
+
+        return jsonify({"status": "success", "message": "Group deleted successfully."}), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.exception(f"Database error deleting group {group_id} from challenge {public_id}: {e}")
+        return jsonify({"error": "Database error while deleting group."}), 500
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Unexpected error deleting group {group_id} from challenge {public_id}: {e}")
+        return jsonify({"error": "An unexpected server error occurred."}), 500
+
 
 # Update decorator to use the new blueprint name
 @challenge_api.route("/<public_id>", methods=["DELETE"]) 
@@ -961,19 +1026,35 @@ def add_authorized_user(public_id):
         return jsonify({"error": "Only the creator can authorize users."}), 403
 
     data = request.get_json()
-    username_to_add = data.get('username')
-    if not username_to_add:
-        return jsonify({"error": "Username required."}), 400
+    if not data or not isinstance(data, dict):
+        logger.warning(f"Authorize user: Invalid JSON payload received for challenge {public_id}.")
+        return jsonify({"error": "Invalid JSON payload."}), 400
 
-    user_to_add = db.session.query(User).filter(User.username.ilike(username_to_add)).first()
+    username_from_payload = data.get('username')
+
+    if not isinstance(username_from_payload, str):
+        logger.warning(f"Authorize user: 'username' in payload is not a string for challenge {public_id}. Type: {type(username_from_payload)}")
+        return jsonify({"error": "Username must be a string."}), 400
+    
+    username_to_add = username_from_payload.strip() # Ensure it's a stripped string
+    if not username_to_add: # Check after stripping if it became empty
+        logger.warning(f"Authorize user: Empty username provided for challenge {public_id}.")
+        return jsonify({"error": "Username cannot be empty."}), 400
+
+    # Now, username_to_add is guaranteed to be a non-empty string.
+    user_to_add = db.session.query(User).filter(func.lower(User.username) == func.lower(username_to_add)).first()
+    # Using func.lower for explicit case-insensitive comparison, similar to what .ilike() might do
+    # or stick to .ilike(username_to_add) if that's preferred and works with other DBs.
+    # The key is that username_to_add is now definitely a string.
+
     if not user_to_add:
-        return jsonify({"error": f"User '{username_to_add}' not found."}), 404
+        return jsonify({"error": f"User '{username_to_add}' not found."}), 404 # Reverted to not use escapeHtml here to avoid NameError if not imported
+    
     if user_to_add.id == challenge.creator_id:
-         # Return ok status, but maybe indicate they are creator
          return jsonify({"status": "ok", "message": "Creator is always authorized."}), 200
 
-    if user_to_add not in challenge.authorized_users_list: # MODIFIED
-        challenge.authorized_users_list.append(user_to_add) # MODIFIED
+    if user_to_add not in challenge.authorized_users_list:
+        challenge.authorized_users_list.append(user_to_add)
         db.session.commit()
         logger.info(f"User {user_to_add.username} authorized for challenge {public_id} by {current_user.username}.")
         return jsonify({
@@ -1068,7 +1149,12 @@ def record_penalty_spin_result(group_id):
              logger.debug(f"No change needed for active penalty text after spin result for group {group_id}")
 
         # --- Emit WebSocket Event with Full Result (including animation data) ---
-        emit_penalty_spin_result(challenge.public_id, group_id, penalty_result)
+        # The penalty_result object received from the client contains all necessary animation details.
+        # We add initiator_user_id for client-side logic.
+        # Note: The actual construction of the event payload including initiator_user_id
+        # should ideally happen within the emit_penalty_spin_result function in sockets.py.
+        # For now, we pass current_user.id as an additional argument.
+        emit_penalty_spin_result(challenge.public_id, group_id, penalty_result, current_user.id)
         # --- End Emit ---
 
         return jsonify({"status": "success", "message": "Penalty result recorded."}), 200

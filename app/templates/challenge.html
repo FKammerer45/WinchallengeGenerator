@@ -302,14 +302,14 @@ Challenge Not Found
         </button>
       </div>
       <div class="collapse" id="manageUsersBody"> {# Start collapsed? Or use 'show' class #}
-        <div class="card-body">
+        <div class="card-body authorize-user-section"> {# Added authorize-user-section class #}
           <p class="small text-secondary">Users added here (besides yourself) can join/leave groups, update
             progress/players in groups they join, and use the penalty wheel.</p>
-          <div id="manageUsersError" class="text-danger small mb-2"></div> {# Error display area #}
+          <div id="authUserErrorDisplay" class="text-danger small mb-2"></div> {# Changed ID #}
 
           {# Form for adding users #}
           <div class="input-group mb-3">
-            <input type="text" id="addUsernameInput" class="form-control form-control-sm"
+            <input type="text" id="authUsernameInput" class="form-control form-control-sm" {# Changed ID #}
               placeholder="Enter username to authorize">
             <div class="input-group-append">
               <button class="btn btn-sm btn-outline-success" type="button" id="authorizeUserBtn">
@@ -495,13 +495,14 @@ Challenge Not Found
         <div class="group-progress-container">
           <p class="text-secondary small">Loading progress...</p> {# Placeholder #}
         </div>
-        <div class="player-names-section mt-3 border-top pt-3" style="display: none;">
-          <h6 class="small mb-2">Group Players (Max {{ num_players_per_group | default(1) }}):</h6>
-          <div class="player-name-inputs"></div>
-          <div class="player-name-error text-danger small mt-1"></div>
+        <div class="player-names-section-wrapper mt-3 border-top pt-3" style="display: none;">
+          <div class="player-names-section">
+            <h6 class="small mb-2">Group Players (Max {{ num_players_per_group | default(1) }}):</h6>
+            <div class="player-name-inputs"></div>
+            <div class="player-name-error text-danger small mt-1"></div>
+          </div>
         </div>
-        <div class="active-penalty-display mt-2 border-top pt-2 mx-0 mb-2" data-group-id="" style="display: none;"> {#
-          Adjusted margin/padding #}
+        <div class="active-penalty-display mt-2 border-top pt-2 mx-0 mb-2" data-group-id="" style="display: none;">
           <h6 class="small mb-1">Active Penalty:</h6>
           <p class="mb-0 small penalty-text-content"></p>
         </div>
@@ -526,14 +527,19 @@ Challenge Not Found
 <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
 <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 
-{# --- Core Challenge View Modules --- #}
-<script type="module" src="{{ url_for('static', filename='js/utils/helpers.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/utils/api.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/utils/local_storage.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/challenge_view/ui.js') }}"></script>
+{# Core Challenge View Modules - Order can matter for dependencies #}
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/config.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/ui/uiOrchestrator.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/ui/groupCard.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/ui/progressDisplay.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/ui/challengeInfo.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/realtime/timerHandler.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/realtime/penaltyHandler.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/challenge_view/realtime/socketHandler.js') }}"></script>
+{# Action Modules (if they are imported by main.js, they don't need separate script tags if main.js is type="module") #}
+{# <script type="module" src="{{ url_for('static', filename='js/challenge_view/actions/groupActions.js') }}"></script> #}
+{# <script type="module" src="{{ url_for('static', filename='js/challenge_view/actions/challengeActions.js') }}"></script> #}
 
-
-
-{# --- Main View Orchestrator Module --- #}
+{# THIS IS THE MAIN ENTRY POINT FOR THE PAGE LOGIC #}
 <script type="module" src="{{ url_for('static', filename='js/challenge_view/main.js') }}"></script>
 {% endblock %}

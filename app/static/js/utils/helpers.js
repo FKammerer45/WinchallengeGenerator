@@ -105,20 +105,74 @@ export function showFlash(message, type = 'info', timeout = 4000) {
 
 
   export function confirmModal(message, title = "Please confirm") {
+    const modalElement = document.getElementById('actionConfirmModal');
+    const okBtn = document.getElementById("actionConfirmOk");
+    // Bootstrap 4 uses data-dismiss="modal" on cancel buttons.
+    const cancelBtn = modalElement ? modalElement.querySelector('.btn-secondary[data-dismiss="modal"]') : null;
+    
+    const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
     return new Promise(resolve => {
+      if (!modalElement || !okBtn) {
+        console.error("Confirmation modal DOM elements not found. Falling back to native confirm.");
+        resolve(window.confirm(`${title}\n\n${message}`));
+        return;
+      }
+
       document.getElementById("actionConfirmTitle").textContent = title;
       document.getElementById("actionConfirmBody").textContent = message;
-      $("#actionConfirmModal").modal("show");
-  
-      const okBtn = document.getElementById("actionConfirmOk");
-      const handler = () => {
-        okBtn.removeEventListener("click", handler);
-        $("#actionConfirmModal").modal("hide");
-        resolve(true);
+      
+      let resolved = false;
+
+      const resolveAndCleanup = (value) => {
+        if (resolved) return;
+        resolved = true;
+
+        // Restore focus before modal fully hides if we initiated the hide
+        if (value === true || (value === false && event?.type === 'click')) { // Check if hide was due to button click
+            if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
+                previouslyFocusedElement.focus();
+            }
+        }
+        
+        $(modalElement).modal("hide"); // Ensure hide is called if not already by data-attributes
+        resolve(value);
       };
-      okBtn.addEventListener("click", handler, { once: true });
-  
-      $("#actionConfirmModal").on("hidden.bs.modal", () => resolve(false));
+      
+      const confirmHandler = (e) => {
+        resolveAndCleanup(true, e);
+      };
+
+      const cancelHandler = (e) => { // For explicit cancel button in footer
+        resolveAndCleanup(false, e);
+      };
+      
+      // Using jQuery for event handling to match modal invocation
+      $(okBtn).one('click', confirmHandler);
+      if (cancelBtn) { // If a specific cancel button is handled
+        $(cancelBtn).one('click', cancelHandler);
+      }
+
+      $(modalElement).one('hidden.bs.modal', () => {
+        // This event fires after the modal is hidden.
+        // Clean up listeners to prevent memory leaks if modal is reused.
+        $(okBtn).off('click', confirmHandler);
+        if (cancelBtn) {
+            $(cancelBtn).off('click', cancelHandler);
+        }
+        
+        if (!resolved) { // If neither OK nor explicit Cancel was clicked (e.g., Esc, backdrop)
+            resolved = true;
+            resolve(false); // Default to false if closed by Esc or backdrop
+        }
+
+        // Always attempt to restore focus after modal is hidden
+        if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
+            previouslyFocusedElement.focus();
+        }
+      });
+
+      $(modalElement).modal("show");
     });
   }
 
@@ -137,4 +191,14 @@ export function showFlash(message, type = 'info', timeout = 4000) {
         messageElement.textContent = '';
         messageElement.style.display = 'none';
     }
+}
+
+/**
+ * Helper to get common DOM elements, reducing redundancy.
+ * @returns {{statusDiv: HTMLElement|null}}
+ */
+export function getCommonDOMElements() {
+    return {
+        statusDiv: document.getElementById('pageStatusDisplay') // General page status
+    };
 }
