@@ -62,8 +62,7 @@ class TestingConfig(Config):
     TESTING = True
     DEBUG = True # Keep True for easier debugging of the test instance
     #SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:' # Old line
-    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or \
-        'mysql+pymysql://myappuser:YOUR_DB_PASSWORD@localhost/myappdb_test?charset=utf8mb4' # New line
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') 
     WTF_CSRF_ENABLED = False # Usually False for testing
     RECAPTCHA_ENABLED = False # Keep False for testing
     MAIL_SUPPRESS_SEND = True # Keep True for testing

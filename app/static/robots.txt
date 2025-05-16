@@ -35,6 +35,6 @@ Allow: /sitemap.xml
 # Allow the homepage
 Allow: /$
 
-# Sitemap location (update if your sitemap has a different name/location)
+# Sitemap location 
 Sitemap: https://www.winchallenge.me/sitemap.xml
 
