@@ -181,7 +181,7 @@ def handle_connect():
                 disconnect(sid)
                 return False
             challenge = db.session.query(SharedChallenge).options(
-                selectinload(SharedChallenge.authorized_users),
+                selectinload(SharedChallenge.authorized_users_list), # Corrected relationship name
                 selectinload(SharedChallenge.groups).selectinload(ChallengeGroup.members)
             ).filter_by(public_id=challenge_public_id_from_query).first()
             if not challenge:
@@ -301,7 +301,6 @@ def emit_penalty_spin_result(challenge_public_id: str, group_id: int, penalty_re
         'group_id': group_id,
         'result': penalty_result # Send the whole result object
     }
-    logger.debug(f"Emitting 'penalty_result' with penalty_result data: {json.dumps(penalty_result, indent=2)}") # Log the data being emitted
     socketio.emit('penalty_result', payload, room=challenge_public_id)
     logger.info(f"Emitted 'penalty_result' to room '{challenge_public_id}' for group {group_id}")
 

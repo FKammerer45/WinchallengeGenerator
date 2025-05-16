@@ -434,13 +434,10 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     const penaltyWinningSegmentIndex = actualPenaltyData?.penaltyWinningSegmentIndex;
     const wheelSegmentPenaltiesData = actualPenaltyData?.all_penalties;
 
-    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: Extracted penaltyName from actualPenaltyData:', penaltyName);
-
     const finalPenaltyName = (penaltyName && typeof penaltyName === 'string' && penaltyName.trim() !== "") ? penaltyName : "No Penalty";
     const finalPenaltyDescription = (finalPenaltyName === "No Penalty" && !penaltyDescription) ? "No penalty assigned." : penaltyDescription;
 
     const chosenPenalty = { name: finalPenaltyName, description: finalPenaltyDescription };
-    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: finalPenaltyName:', finalPenaltyName, 'chosenPenalty for animation:', JSON.parse(JSON.stringify(chosenPenalty)));
 
     const playerWheelContainer = document.getElementById(`playerWheelContainer-${idx}`);
     const playerWheelTitle = document.getElementById(`playerWheelTitle-${idx}`);
@@ -531,5 +528,3 @@ function animateActualPenaltyWheelRemote(idx, groupIdForPenalty, chosenEntity, c
         if (buttonToReEnable) buttonToReEnable.disabled = false;
     }
 }
-
-
