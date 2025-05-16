@@ -65,7 +65,9 @@ function calculateStopAngle(numSegments, winningSegmentNumber) {
 }
 
 function selectWeightedPenalty(penalties) {
+    console.log('[PenaltyHandler] selectWeightedPenalty received penalties:', JSON.parse(JSON.stringify(penalties)));
     if (!Array.isArray(penalties) || penalties.length === 0) {
+        console.log('[PenaltyHandler] selectWeightedPenalty: No penalties or not an array, returning "No Penalty".');
         return { name: "No Penalty", description: "No penalties defined." };
     }
     let totalWeight = 0;
@@ -79,8 +81,10 @@ function selectWeightedPenalty(penalties) {
         }
         return false;
     });
+    console.log('[PenaltyHandler] selectWeightedPenalty: validPenalties:', JSON.parse(JSON.stringify(validPenalties)), 'totalWeight:', totalWeight);
 
     if (totalWeight <= 0 || validPenalties.length === 0) {
+        console.log('[PenaltyHandler] selectWeightedPenalty: No valid penalties or totalWeight is zero, returning "No Penalty".');
         return { name: "No Penalty", description: "No applicable penalties with names found." }; // Updated message
     }
     let randomThreshold = Math.random() * totalWeight;
@@ -194,19 +198,15 @@ function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelTyp
     };
 }
 
-// This function is effectively replaced by the logic within handleLostGameClick (for determining results)
-// and triggerRemotePenaltySpinAnimation (for performing animations).
-// It's kept here commented out for reference during refactor but should be removed later.
-/*
-function spinPenaltyWheel(idx, penaltyTabIdFromButton, chosenEntity, button, participants, playerStopAngle, playerWinningSegmentIndex) {
-    // ... old logic ...
-}
-*/
-
 async function handleLostGameClick(event) {
+    console.log('[PenaltyHandler] handleLostGameClick triggered. Event target:', event.target);
     const clickedElement = event.target;
     const button = clickedElement.closest('.lostGameBtn-Shared, .lostGameBtn-Local');
-    if (!button || button.disabled) return;
+
+    if (!button || button.disabled) {
+        return;
+    }
+    event.stopPropagation();
     if (bailIfLibMissing(document.body)) return;
 
     const isLocalClick = button.classList.contains('lostGameBtn-Local');
@@ -223,7 +223,6 @@ async function handleLostGameClick(event) {
         resultDisplay.innerHTML = `<span class="text-info">Determining penalty...</span>`;
     }
 
-    // --- 1. Determine Participants & Chosen Entity ---
     let participants = [];
     if (idx === 'local') {
         participants = ['Participant'];
@@ -243,27 +242,40 @@ async function handleLostGameClick(event) {
         button.disabled = false; return;
     }
     const chosenEntity = participants[Math.floor(Math.random() * participants.length)];
-    const playerEntitySegments = createSegments(participants, ['#8dd3c7', '#ffffb3']); // Example colors
-    const playerWinningSegmentIndex = participants.length > 1 ? (playerEntitySegments.findIndex(s => s.text === chosenEntity) + 1) : 0; // 0 if no player wheel
+    const playerEntitySegments = createSegments(participants, ['#8dd3c7', '#ffffb3']);
+    const playerWinningSegmentIndex = participants.length > 1 ? (playerEntitySegments.findIndex(s => s.text === chosenEntity) + 1) : 0;
     const playerStopAngle = participants.length > 1 ? calculateStopAngle(playerEntitySegments.length, playerWinningSegmentIndex) : 0;
 
-    // --- 2. Determine Penalty List & Chosen Penalty ---
     let penaltyList = [];
     if (penaltyPageConfig.isLocal) {
         const embedded = penaltyPageConfig.challengeConfigData?.penaltyInfo;
-        if (embedded?.penalties?.length) penaltyList = embedded.penalties;
-        else if (penaltyTabId) penaltyList = (getLocalPenalties()[penaltyTabId] || []);
+        if (embedded?.penalties?.length) {
+            penaltyList = embedded.penalties;
+            console.log('[PenaltyHandler] Using embedded penalties for local challenge:', JSON.parse(JSON.stringify(penaltyList)));
+        } else if (penaltyTabId) {
+            penaltyList = (getLocalPenalties()[penaltyTabId] || []);
+            console.log(`[PenaltyHandler] Using local penalties from tab ${penaltyTabId} for local challenge:`, JSON.parse(JSON.stringify(penaltyList)));
+        }
     } else {
         const embedded = penaltyPageConfig.challengeConfigData?.penaltyInfo;
-        if (embedded?.penalties?.length) penaltyList = embedded.penalties;
-        else if (penaltyPageConfig.challengeConfigData?.isLoggedIn && penaltyPageConfig.challengeConfigData?.userPenaltyTabsData?.entries?.[penaltyTabId]) {
+        if (embedded?.penalties?.length) {
+            penaltyList = embedded.penalties;
+            console.log('[PenaltyHandler] Using embedded penalties for shared challenge:', JSON.parse(JSON.stringify(penaltyList)));
+        } else if (penaltyPageConfig.challengeConfigData?.isLoggedIn && penaltyPageConfig.challengeConfigData?.userPenaltyTabsData?.entries?.[penaltyTabId]) {
             penaltyList = penaltyPageConfig.challengeConfigData.userPenaltyTabsData.entries[penaltyTabId];
+            console.log(`[PenaltyHandler] Using user's saved penalties from tab ${penaltyTabId} for shared challenge:`, JSON.parse(JSON.stringify(penaltyList)));
+        } else {
+            console.log(`[PenaltyHandler] No specific penalty list found for shared challenge with tabId ${penaltyTabId}. Defaulting to empty list.`);
         }
     }
-    if (!Array.isArray(penaltyList)) penaltyList = [];
+    if (!Array.isArray(penaltyList)) {
+        console.warn('[PenaltyHandler] penaltyList was not an array, resetting to empty. Original:', penaltyList);
+        penaltyList = [];
+    }
+    console.log('[PenaltyHandler] Final penaltyList before selectWeightedPenalty:', JSON.parse(JSON.stringify(penaltyList)));
     const chosenPenalty = selectWeightedPenalty(penaltyList);
+    console.log('[PenaltyHandler] chosenPenalty after selectWeightedPenalty:', JSON.parse(JSON.stringify(chosenPenalty)));
 
-    // --- 3. Prepare Penalty Wheel Segments ---
     let wheelSegmentPenalties = [];
     let penaltyWheelSegmentsForAnim = [];
     const NUM_PENALTY_SEGMENTS = 8;
@@ -282,31 +294,34 @@ async function handleLostGameClick(event) {
             }
         }
         if (wheelSegmentPenalties.length > NUM_PENALTY_SEGMENTS) wheelSegmentPenalties = wheelSegmentPenalties.slice(0, NUM_PENALTY_SEGMENTS);
-        if (wheelSegmentPenalties.length === 0) wheelSegmentPenalties.push(chosenPenalty); // Ensure chosen is there
-        while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0 && wheelSegmentPenalties.length < 2) { // Ensure at least 2 for wheel if not "No Penalty"
-             wheelSegmentPenalties.push(wheelSegmentPenalties[0]); // Pad with chosen if very few
+        if (wheelSegmentPenalties.length === 0) wheelSegmentPenalties.push(chosenPenalty);
+        while (wheelSegmentPenalties.length < NUM_PENALTY_SEGMENTS && wheelSegmentPenalties.length > 0 && wheelSegmentPenalties.length < 2) {
+             wheelSegmentPenalties.push(wheelSegmentPenalties[0]);
         }
     }
-    if (wheelSegmentPenalties.length === 0 && chosenPenalty.name !== "No Penalty") { // Fallback if logic above fails
+    if (wheelSegmentPenalties.length === 0 && chosenPenalty.name !== "No Penalty") {
         wheelSegmentPenalties.push(chosenPenalty);
-        wheelSegmentPenalties.push({name: "Safe", description:"Almost..."}); // Dummy
+        wheelSegmentPenalties.push({name: "Safe", description:"Almost..."});
     }
-
 
     penaltyWheelSegmentsForAnim = createSegments(wheelSegmentPenalties.map(p => p.name), ['#e41a1c', '#377eb8']);
     const penaltyWinningSegmentIndex = chosenPenalty.name !== "No Penalty" && penaltyWheelSegmentsForAnim.length > 0 ? (penaltyWheelSegmentsForAnim.findIndex(seg => seg.text === chosenPenalty.name) + 1) : 0;
     const penaltyStopAngle = chosenPenalty.name !== "No Penalty" && penaltyWinningSegmentIndex > 0 ? calculateStopAngle(penaltyWheelSegmentsForAnim.length, penaltyWinningSegmentIndex) : 0;
 
-    // --- 4. Construct Payload for API / Local Animation ---
+    console.log('[PenaltyHandler] Data for payload: chosenPenalty:', JSON.parse(JSON.stringify(chosenPenalty)), 
+                'wheelSegmentPenalties:', JSON.parse(JSON.stringify(wheelSegmentPenalties)),
+                'penaltyWinningSegmentIndex:', penaltyWinningSegmentIndex,
+                'penaltyStopAngle:', penaltyStopAngle);
+
     const penaltyResultPayload = {
         player: chosenEntity,
         name: chosenPenalty.name,
         description: chosenPenalty.description || null,
         all_players: participants,
-        playerWinningSegmentIndex: playerWinningSegmentIndex, // 1-based or 0 if no wheel
+        playerWinningSegmentIndex: playerWinningSegmentIndex,
         playerStopAngle: playerStopAngle,
-        all_penalties: wheelSegmentPenalties, // List of penalty objects for the wheel
-        penaltyWinningSegmentIndex: penaltyWinningSegmentIndex, // 1-based or 0 if no penalty/wheel
+        all_penalties: wheelSegmentPenalties,
+        penaltyWinningSegmentIndex: penaltyWinningSegmentIndex,
         penaltyStopAngle: penaltyStopAngle
     };
 
@@ -314,12 +329,19 @@ async function handleLostGameClick(event) {
         if(resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning locally...</span>`;
         const mockEventData = {
             challenge_id: penaltyPageConfig.challengeId,
-            group_id: penaltyPageConfig.challengeId, // For local, group_id is the challenge_id
-            result: penaltyResultPayload,
-            initiator_user_id: 'local_user' // Differentiate from remote
+            group_id: penaltyPageConfig.challengeId,
+            result: penaltyResultPayload, // This is the actual penalty data
+            initiator_user_id: 'local_user'
         };
-        triggerRemotePenaltySpinAnimation(mockEventData, button); // Pass button to re-enable
-    } else { // Shared challenge
+        // For local, we directly pass penaltyResultPayload as the 'result' part of the event
+        triggerRemotePenaltySpinAnimation({
+            group_id: mockEventData.group_id,
+            result: { // Nest it to match server structure
+                result: mockEventData.result,
+                initiator_user_id: mockEventData.initiator_user_id
+            }
+        }, button);
+    } else {
         if (!penaltyPageConfig.userJoinedGroupId) {
             showError(errorTarget, "You must be in a group to spin for a shared challenge.", "danger");
             button.disabled = false; return;
@@ -327,13 +349,12 @@ async function handleLostGameClick(event) {
         if(resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Sending spin to server...</span>`;
         const recordUrl = `/api/challenge/groups/${penaltyPageConfig.userJoinedGroupId}/penalty_spin_result`;
         try {
+            // The backend expects { "penalty_result": penaltyResultPayload }
             await apiFetch(recordUrl, { method: 'POST', body: { penalty_result: penaltyResultPayload } }, penaltyPageConfig.challengeConfigData.csrfToken);
-            // Server will emit WebSocket event. Button re-enabled by displayPenaltyResultUI via remote animation path.
-            // No local animation until event.
         } catch (error) {
             console.error("[PENALTY_CLICK - Shared] Failed to send penalty spin to backend:", error);
             showError(errorTarget, `Error sending spin: ${error.message}`, "danger");
-            button.disabled = false; // Re-enable button on API error
+            button.disabled = false;
         }
     }
 }
@@ -366,51 +387,60 @@ function initializePenaltyHandler() {
 
 initializePenaltyHandler();
 
-export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = null) { // Added initiatorButton
+export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = null) {
     if (bailIfLibMissing(document.body)) return;
 
-    const { group_id, result, initiator_user_id } = eventData;
+    // eventData is the full payload from socket: { group_id, result: { result: actual_payload, initiator_user_id: X } }
+    const { group_id, result: eventResultContainer } = eventData; 
+    
+    // The actual penalty data is nested inside eventResultContainer.result
+    const actualPenaltyData = eventResultContainer?.result;
+    // The initiator_user_id is also inside eventResultContainer
+    const received_initiator_user_id = eventResultContainer?.initiator_user_id;
+
+    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: typeof actualPenaltyData?.name:', typeof actualPenaltyData?.name, 'actualPenaltyData?.name value:', actualPenaltyData?.name);
+    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: Full eventResultContainer object:', JSON.parse(JSON.stringify(eventResultContainer)));
+    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: actualPenaltyData (eventResultContainer.result):', JSON.parse(JSON.stringify(actualPenaltyData)));
+    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: received_initiator_user_id from eventResultContainer:', received_initiator_user_id);
+
     const currentUserIdStr = penaltyPageConfig.challengeConfigData?.currentUserId?.toString();
-    const eventInitiatorIsCurrentUser = initiator_user_id === currentUserIdStr; // True if current client initiated this event (for shared)
-    const isLocalSpinInitiatedByThisClient = initiator_user_id === 'local_user'; // True if it's a local spin triggered by this client
+    // Use received_initiator_user_id for comparisons
+    const eventInitiatorIsCurrentUser = received_initiator_user_id === currentUserIdStr;
+    const isLocalSpinInitiatedByThisClient = received_initiator_user_id === 'local_user';
 
     const idx = (penaltyPageConfig.isLocal && penaltyPageConfig.challengeId === group_id) ? 'local' : 'shared';
     
-    // Identify the button to disable/re-enable on this client's page
     let buttonOnThisClient = null;
     if (isLocalSpinInitiatedByThisClient) {
-        buttonOnThisClient = initiatorButton; // This was passed by local handleLostGameClick
+        buttonOnThisClient = initiatorButton;
     } else if (idx === 'shared') {
-        // For shared challenges, find the button if the penalty applies to the user's current group
-        // This assumes there's one main "Lost Game" button for the joined group, or buttons are per-group card.
-        // If buttons are per-group card, we'd need to find it using group_id.
-        // For simplicity, let's assume a generic shared button if the user is in the affected group.
         if (penaltyPageConfig.userJoinedGroupId === group_id) {
-             // Attempt to find a generic shared button or one specific to the group
              buttonOnThisClient = document.querySelector(`.lostGameBtn-Shared[data-group-id="${group_id}"]`) || document.querySelector('.lostGameBtn-Shared');
         }
     }
-    // If it's a remote event for a group the user is not in, buttonOnThisClient might remain null, which is fine.
 
-    if (buttonOnThisClient && !isLocalSpinInitiatedByThisClient) { // Disable if it's a remote event for this client's relevant button
+    if (buttonOnThisClient && !isLocalSpinInitiatedByThisClient) {
         buttonOnThisClient.disabled = true;
     }
-    // For local spins, initiatorButton (passed as buttonOnThisClient) is already disabled by handleLostGameClick.
 
-    const {
-        player: chosenEntity, name: penaltyName, description: penaltyDescription,
-        playerStopAngle, playerWinningSegmentIndex, all_players: participants,
-        penaltyStopAngle, 
-        penaltyWinningSegmentIndex, 
-        all_penalties: wheelSegmentPenaltiesData
-    } = result; // result is eventData.result from the server
+    // Extract properties from actualPenaltyData
+    const chosenEntity = actualPenaltyData?.player;
+    const penaltyName = actualPenaltyData?.name; 
+    const penaltyDescription = actualPenaltyData?.description;
+    const playerStopAngle = actualPenaltyData?.playerStopAngle;
+    const playerWinningSegmentIndex = actualPenaltyData?.playerWinningSegmentIndex;
+    const participants = actualPenaltyData?.all_players;
+    const penaltyStopAngle = actualPenaltyData?.penaltyStopAngle;
+    const penaltyWinningSegmentIndex = actualPenaltyData?.penaltyWinningSegmentIndex;
+    const wheelSegmentPenaltiesData = actualPenaltyData?.all_penalties;
 
-    // Ensure penaltyName is not falsy (e.g. empty string), default to "No Penalty" if so.
-    // This makes the temporary display consistent if the name from socket is bad.
-    const finalPenaltyName = (penaltyName && penaltyName.trim() !== "") ? penaltyName : "No Penalty";
+    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: Extracted penaltyName from actualPenaltyData:', penaltyName);
+
+    const finalPenaltyName = (penaltyName && typeof penaltyName === 'string' && penaltyName.trim() !== "") ? penaltyName : "No Penalty";
     const finalPenaltyDescription = (finalPenaltyName === "No Penalty" && !penaltyDescription) ? "No penalty assigned." : penaltyDescription;
 
     const chosenPenalty = { name: finalPenaltyName, description: finalPenaltyDescription };
+    console.log('[PenaltyHandler] triggerRemotePenaltySpinAnimation: finalPenaltyName:', finalPenaltyName, 'chosenPenalty for animation:', JSON.parse(JSON.stringify(chosenPenalty)));
 
     const playerWheelContainer = document.getElementById(`playerWheelContainer-${idx}`);
     const playerWheelTitle = document.getElementById(`playerWheelTitle-${idx}`);
@@ -420,7 +450,7 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
 
     if (!resultDisplay || !playerWheelContainer || !penaltyWheelContainer) {
         console.error(`[RemotePenaltyAnim] DOM Error: Missing UI for index '${idx}'.`);
-        if (initiatorButton) initiatorButton.disabled = false; // Safety re-enable
+        if (initiatorButton) initiatorButton.disabled = false;
         return;
     }
     resetPenaltyUI(idx);
@@ -429,11 +459,6 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
         resultDisplay.className = 'mt-3 penalty-result-display alert alert-info';
         resultDisplay.innerHTML = `<span class="text-info">Spinning penalty for ${escapeHtml(chosenEntity)} in group ${escapeHtml(group_id)}...</span>`;
     }
-
-    // Use buttonOnThisClient (which might be null if not relevant to this client)
-    // The initiator's button is handled by its own flow in handleLostGameClick for disabling,
-    // and re-enabled by displayPenaltyResultUI if it's passed as initiatorButton.
-    // This buttonOnThisClient is for remote clients receiving the event.
 
     if (participants && participants.length > 0 && playerWinningSegmentIndex > 0) {
         if (playerWheelTitle) playerWheelTitle.textContent = `Player: ${escapeHtml(chosenEntity)}`;
@@ -506,3 +531,5 @@ function animateActualPenaltyWheelRemote(idx, groupIdForPenalty, chosenEntity, c
         if (buttonToReEnable) buttonToReEnable.disabled = false;
     }
 }
+
+

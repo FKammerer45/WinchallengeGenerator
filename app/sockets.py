@@ -1,5 +1,6 @@
 # app/sockets.py
 import datetime
+import json
 import logging
 from flask import request, session # Import request for sid
 from flask_login import current_user
@@ -300,6 +301,7 @@ def emit_penalty_spin_result(challenge_public_id: str, group_id: int, penalty_re
         'group_id': group_id,
         'result': penalty_result # Send the whole result object
     }
+    logger.debug(f"Emitting 'penalty_result' with penalty_result data: {json.dumps(penalty_result, indent=2)}") # Log the data being emitted
     socketio.emit('penalty_result', payload, room=challenge_public_id)
     logger.info(f"Emitted 'penalty_result' to room '{challenge_public_id}' for group {group_id}")
 
