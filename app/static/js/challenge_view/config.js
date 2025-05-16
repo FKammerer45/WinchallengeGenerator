@@ -152,10 +152,13 @@ function getLocalChallengeById(localId) {
  * @param {number | null} newGroupId - The new group ID or null if leaving.
  */
 export function updateUserJoinedGroupState(newGroupId) {
-    challengeConfig.userJoinedGroupId = newGroupId;
+    // Ensure newGroupId is stored as a number or null
+    const numericGroupId = (newGroupId === null || newGroupId === undefined || isNaN(Number(newGroupId))) ? null : Number(newGroupId);
+    challengeConfig.userJoinedGroupId = numericGroupId;
+    
     const dataEl = document.getElementById('challengeData');
     if (dataEl) {
-        dataEl.dataset.userJoinedGroupId = JSON.stringify(newGroupId); // Store as JSON string
+        dataEl.dataset.userJoinedGroupId = JSON.stringify(numericGroupId); // Store as JSON string
     }
     // Any module interested in this change (like penalty.js) should subscribe to an event
     // or have its config updated by main.js when this changes.

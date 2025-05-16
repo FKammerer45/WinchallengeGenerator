@@ -253,10 +253,9 @@ export function renderPlayerNameInputs(sectionWrapper, groupId, playerSlots = []
         const accountName = slotData.account_name || null;
 
         const placeholderText = `Player ${i + 1}${accountName ? '' : ' (Empty)'}`;
-        inputsHtml += `<div class="player-slot mb-2 d-flex align-items-center">`; // Use flex for better alignment of name and hint
-
-        if (canInteract) {
-            inputsHtml += `
+        // Always render input field
+        inputsHtml += `
+            <div class="player-slot mb-2 d-flex align-items-center">
                 <input type="text"
                        class="form-control form-control-sm player-name-input"
                        value="${escapeHtml(displayName)}"
@@ -264,17 +263,6 @@ export function renderPlayerNameInputs(sectionWrapper, groupId, playerSlots = []
                        data-slot-index="${i}"
                        maxlength="50"
                        aria-label="Player ${i + 1} display name">`;
-        } else {
-            // Render as plain text, styled to look like form control content
-            // Use text-muted for placeholder if display name is empty
-            const nameToShow = escapeHtml(displayName);
-            const placeholderSpan = `<span class="text-muted">${placeholderText}</span>`;
-            inputsHtml += `
-                <span class="form-control-plaintext form-control-sm player-name-display" aria-label="Player ${i + 1} display name">
-                    ${nameToShow || placeholderSpan}
-                </span>`;
-        }
-
         if (accountName) {
             inputsHtml += `<small class="text-muted account-name-hint ms-2" title="Account Name"> 
                                (<i class="bi bi-person-check-fill"></i> ${escapeHtml(accountName)})
@@ -284,15 +272,11 @@ export function renderPlayerNameInputs(sectionWrapper, groupId, playerSlots = []
     }
     inputsContainer.innerHTML = inputsHtml;
 
-    if (canInteract) {
-        saveBtnContainer.innerHTML = `
-            <button class="btn btn-primary btn-sm save-player-names-btn" data-group-id="${groupId}">
-                <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                <span>Save Display Names</span>
-            </button>`;
-        saveBtnContainer.style.display = 'block';
-    } else {
-        saveBtnContainer.innerHTML = ''; // Clear save button if cannot interact
-        saveBtnContainer.style.display = 'none';
-    }
+    // Always show save button within the player names section
+    saveBtnContainer.innerHTML = `
+        <button class="btn btn-primary btn-sm save-player-names-btn" data-group-id="${groupId}">
+            <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+            <span>Save Display Names</span>
+        </button>`;
+    saveBtnContainer.style.display = 'block'; // Ensure container is visible
 }

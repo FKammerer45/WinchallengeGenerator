@@ -124,51 +124,52 @@ export function showFlash(message, type = 'info', timeout = 4000) {
       
       let resolved = false;
 
-      const resolveAndCleanup = (value) => {
+      // Renamed 'event' parameter to 'clickEvent' for clarity and to avoid scope issues
+      const resolveAndCleanup = (value, clickEvent) => { 
         if (resolved) return;
         resolved = true;
 
-        // Restore focus before modal fully hides if we initiated the hide
-        if (value === true || (value === false && event?.type === 'click')) { // Check if hide was due to button click
+        // If hide was initiated by OK or explicit Cancel button click, try to restore focus immediately
+        if (clickEvent && (value === true || value === false)) { 
             if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
                 previouslyFocusedElement.focus();
             }
         }
         
-        $(modalElement).modal("hide"); // Ensure hide is called if not already by data-attributes
+        $(modalElement).modal("hide"); // Ensure hide is called
         resolve(value);
       };
       
-      const confirmHandler = (e) => {
-        resolveAndCleanup(true, e);
+      const okButtonHandler = (e) => { // Renamed for clarity
+        resolveAndCleanup(true, e); // Pass the event object
       };
 
-      const cancelHandler = (e) => { // For explicit cancel button in footer
-        resolveAndCleanup(false, e);
+      const cancelButtonHandler = (e) => { // For explicit cancel button in footer, renamed for clarity
+        resolveAndCleanup(false, e); // Pass the event object
       };
       
-      // Using jQuery for event handling to match modal invocation
-      $(okBtn).one('click', confirmHandler);
-      if (cancelBtn) { // If a specific cancel button is handled
-        $(cancelBtn).one('click', cancelHandler);
+      $(okBtn).one('click', okButtonHandler);
+      if (cancelBtn) { 
+        $(cancelBtn).one('click', cancelButtonHandler);
       }
 
       $(modalElement).one('hidden.bs.modal', () => {
-        // This event fires after the modal is hidden.
-        // Clean up listeners to prevent memory leaks if modal is reused.
-        $(okBtn).off('click', confirmHandler);
+        $(okBtn).off('click', okButtonHandler); // Use correct handler name
         if (cancelBtn) {
-            $(cancelBtn).off('click', cancelHandler);
+            $(cancelBtn).off('click', cancelButtonHandler); // Use correct handler name
         }
         
-        if (!resolved) { // If neither OK nor explicit Cancel was clicked (e.g., Esc, backdrop)
+        if (!resolved) { 
             resolved = true;
-            resolve(false); // Default to false if closed by Esc or backdrop
+            resolve(false); 
         }
 
-        // Always attempt to restore focus after modal is hidden
+        // Fallback focus restoration if not handled by button click path (e.g. Esc/backdrop)
+        // Check if focus is still on a modal element or body, then restore.
         if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
-            previouslyFocusedElement.focus();
+            if (document.activeElement === document.body || modalElement.contains(document.activeElement)) {
+                 previouslyFocusedElement.focus();
+            }
         }
       });
 

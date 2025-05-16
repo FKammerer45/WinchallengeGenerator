@@ -1153,8 +1153,16 @@ def record_penalty_spin_result(group_id):
         # We add initiator_user_id for client-side logic.
         # Note: The actual construction of the event payload including initiator_user_id
         # should ideally happen within the emit_penalty_spin_result function in sockets.py.
-        # For now, we pass current_user.id as an additional argument.
-        emit_penalty_spin_result(challenge.public_id, group_id, penalty_result, current_user.id)
+        
+        # Construct the payload for the socket event, ensuring initiator_user_id is at the correct level
+        # The client's triggerRemotePenaltySpinAnimation expects: { challenge_id, group_id, result, initiator_user_id }
+        # The emit_penalty_spin_result function in sockets.py likely takes (challenge_id, group_id, data_to_merge)
+        # where data_to_merge contains 'result' and 'initiator_user_id'.
+        data_for_socket_event_payload = {
+            'result': penalty_result, # This is the dict from the client's penaltyResultPayload
+            'initiator_user_id': current_user.id
+        }
+        emit_penalty_spin_result(challenge.public_id, group_id, data_for_socket_event_payload)
         # --- End Emit ---
 
         return jsonify({"status": "success", "message": "Penalty result recorded."}), 200

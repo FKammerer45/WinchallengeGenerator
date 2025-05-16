@@ -69,13 +69,19 @@ function selectWeightedPenalty(penalties) {
         return { name: "No Penalty", description: "No penalties defined." };
     }
     let totalWeight = 0;
+    // Ensure penalties considered valid also have a non-empty name
     const validPenalties = penalties.filter(p => {
         const prob = p && p.probability !== undefined ? parseFloat(p.probability) : NaN;
-        if (!isNaN(prob) && prob > 0) { totalWeight += prob; return true; }
+        // Penalty must have a name (non-empty string) and positive probability
+        if (p && typeof p.name === 'string' && p.name.trim() !== "" && !isNaN(prob) && prob > 0) {
+            totalWeight += prob;
+            return true;
+        }
         return false;
     });
+
     if (totalWeight <= 0 || validPenalties.length === 0) {
-        return { name: "No Penalty", description: "No applicable penalties found." };
+        return { name: "No Penalty", description: "No applicable penalties with names found." }; // Updated message
     }
     let randomThreshold = Math.random() * totalWeight;
     for (const penalty of validPenalties) {
@@ -394,11 +400,17 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     const {
         player: chosenEntity, name: penaltyName, description: penaltyDescription,
         playerStopAngle, playerWinningSegmentIndex, all_players: participants,
-        penaltyStopAngle, // Corrected field name
-        penaltyWinningSegmentIndex, // Corrected field name
+        penaltyStopAngle, 
+        penaltyWinningSegmentIndex, 
         all_penalties: wheelSegmentPenaltiesData
-    } = result;
-    const chosenPenalty = { name: penaltyName, description: penaltyDescription };
+    } = result; // result is eventData.result from the server
+
+    // Ensure penaltyName is not falsy (e.g. empty string), default to "No Penalty" if so.
+    // This makes the temporary display consistent if the name from socket is bad.
+    const finalPenaltyName = (penaltyName && penaltyName.trim() !== "") ? penaltyName : "No Penalty";
+    const finalPenaltyDescription = (finalPenaltyName === "No Penalty" && !penaltyDescription) ? "No penalty assigned." : penaltyDescription;
+
+    const chosenPenalty = { name: finalPenaltyName, description: finalPenaltyDescription };
 
     const playerWheelContainer = document.getElementById(`playerWheelContainer-${idx}`);
     const playerWheelTitle = document.getElementById(`playerWheelTitle-${idx}`);
