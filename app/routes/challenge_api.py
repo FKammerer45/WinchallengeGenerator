@@ -173,13 +173,19 @@ def generate_challenge():
             entries=gd['generation_pool_entries'],
             selected_modes=gd['selected_modes']
         )
+        # Check for the specific player count mismatch error
+        if isinstance(result, dict) and result.get("error") == "player_count_mismatch":
+            logger.warning(f"Challenge generation failed due to player count mismatch: {result['message']}")
+            return jsonify({"error": result["message"]}), 400 # Return the specific message
+
+        # Handle other generation errors or None result
         if result is None or result.get("error"):
             error_msg = result.get("error", "No challenge could be generated.") if isinstance(result, dict) else "Challenge generation failed."
             logger.warning(f"Challenge generation failed: {error_msg}")
             return jsonify({"error": error_msg}), 400
 
         # Augment result with the full penalty_info (or null if not used)
-        result['penalty_info'] = processed_penalty_info 
+        result['penalty_info'] = processed_penalty_info
 
         result['share_options'] = {
             'challenge_name':       gd.get('challenge_name'), 

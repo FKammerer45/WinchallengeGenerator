@@ -757,11 +757,22 @@ function handleChallengeFormSubmit(event) {
       requestAnimationFrame(() => {
         if (resultWrapper) resultWrapper.classList.add("visible");
       });
+
+      let userMessage = "Failed to generate challenge. Please try again."; // Default generic message
+      const specificErrorMatch = error.message.match(/^No games found that support (\d+) players\.$/);
+
+      if (specificErrorMatch) {
+          const playerCount = specificErrorMatch[1];
+          userMessage = `Challenge generation failed: You selected ${playerCount} players, but none of the selected games/modes support this player count. Please select games that fit your player count or reduce the player count.`;
+      } else {
+          // Use the generic error message from the backend if available, otherwise the default
+          userMessage = `Failed to generate challenge: ${escapeHtml(error.message)}`;
+      }
+
+
       if (resultDiv)
-        resultDiv.innerHTML = `<p class="text-danger text-center p-3">Failed to generate challenge: ${escapeHtml(
-          error.message
-        )}</p>`;
-      showError(errorDisplay, "Failed to generate challenge: " + error.message);
+        resultDiv.innerHTML = `<p class="text-danger text-center p-3">${userMessage}</p>`;
+      showError(errorDisplay, userMessage);
     })
     .finally(() => {
       if (submitButton) setLoading(submitButton, false, "Generate Challenge");

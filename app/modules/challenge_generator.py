@@ -55,6 +55,8 @@ def generate_challenge_logic(
     logger.debug("Filtered entries count by player number: %d out of %d", len(filtered), len(entries))
     if not filtered and entries:
         logger.warning("No entries passed the minimum player count requirement: %d", num_players)
+        # Return a specific error when filtering by player count results in no entries
+        return {"error": "player_count_mismatch", "message": f"No games found that support {num_players} players."}
 
     available_games = {}
     for game_name_lower in selected_games:
