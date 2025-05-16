@@ -88,7 +88,16 @@ def generate_challenge():
         gd = {}
         gd['selected_games']        = getlist("selected_games")
         gd['weights_str']          = getlist("weights")
-        gd['num_players']          = int(get("num_players", 1))
+        # Explicitly get and parse num_players
+        raw_num_players = get("num_players", "1")
+        try:
+            gd['num_players'] = int(raw_num_players)
+            if gd['num_players'] < 1:
+                gd['num_players'] = 1
+        except ValueError:
+            logger.warning(f"Invalid value for num_players: {raw_num_players}. Defaulting to 1.")
+            gd['num_players'] = 1
+        
         gd['desired_diff']         = float(get("desired_diff", 10.0))
         gd['raw_b2b']              = int(get("raw_b2b", 1))
         gd['generation_pool_entries'] = (json.loads(get("entries")) 
@@ -188,11 +197,12 @@ def generate_challenge():
         result['penalty_info'] = processed_penalty_info
 
         result['share_options'] = {
-            'challenge_name':       gd.get('challenge_name'), 
-            'desired_diff':         gd.get('desired_diff'), 
+            'challenge_name':       gd.get('challenge_name'),
+            'desired_diff':         gd.get('desired_diff'),
             'group_mode':           gd.get('group_mode', 'single'),
             'max_groups':           gd.get('max_groups', 1),
-            'num_players_per_group': gd.get('num_players_per_group', 1)
+            # Correctly get the number of players from the 'num_players' key in gd
+            'num_players_per_group': gd.get('num_players', 1) 
         }
         logger.info("Challenge generated successfully.")
 
@@ -419,7 +429,8 @@ def add_group_to_challenge(public_id):
             "name": new_group.group_name,
             "progress": new_group.progress_data or {},
             "member_count": len(new_group.members),
-            "player_names": new_group.player_names or _initialize_player_slots_for_emit(new_group, challenge.num_players_per_group),
+            # Use the group's player_names directly, it should be correctly initialized/updated by now
+            "player_names": new_group.player_names, 
             "active_penalty_text": new_group.active_penalty_text or ""
         }
         emit_group_created(challenge.public_id, group_data_for_socket)

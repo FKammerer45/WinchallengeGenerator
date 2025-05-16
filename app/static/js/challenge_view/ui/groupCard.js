@@ -239,6 +239,8 @@ export function renderPlayerNameInputs(sectionWrapper, groupId, playerSlots = []
     showError(errorContainer, null);
 
     const numberOfSlotsToRender = playerSlots.length > 0 ? playerSlots.length : numPlayersAllowed;
+    console.log(`[GroupCard] renderPlayerNameInputs for group ${groupId}: numberOfSlotsToRender = ${numberOfSlotsToRender}`);
+
 
     if (numberOfSlotsToRender <= 0) {
         sectionWrapper.style.display = 'none';
