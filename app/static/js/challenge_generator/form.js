@@ -485,6 +485,15 @@ function gatherSelectedModes() {
  */
 function handleChallengeFormSubmit(event) {
   event.preventDefault();
+
+  // Helper function for fallback UUID
+  function generateSimpleUUID() {
+    return 'xxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
   const form = event.target;
   const formData = new FormData(form);
   const selectedMode = formData.get("group_mode") || "single";
@@ -771,7 +780,15 @@ function handleChallengeFormSubmit(event) {
         }
         if (viewLocalBtn) viewLocalBtn.style.display = "none";
       } else {
-        const localId = `local_${crypto.randomUUID()}`;
+        let uuid;
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          uuid = crypto.randomUUID();
+        } else {
+          // Fallback for non-secure contexts or older browsers
+          console.warn("crypto.randomUUID not available, using fallback UUID generator.");
+          uuid = generateSimpleUUID();
+        }
+        const localId = `local_${uuid}`;
         const challengeToStore = {
           localId: localId,
           name:
