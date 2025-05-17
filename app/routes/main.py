@@ -230,6 +230,9 @@ def challenge_view(challenge_id):
         except Exception as db_err:
             # Rollback in case of any error during DB operations or processing
             db.session.rollback() 
+            import sys, traceback
+            print(f"--- ERROR IN challenge_view (DB_ERR) FOR {challenge_id} ---", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             logger.exception(f"Database error loading challenge {challenge_id}: {db_err}")
             flash("Failed to load challenge details due to a database error.", "danger")
             abort(500) # Internal Server Error
@@ -252,6 +255,9 @@ def challenge_view(challenge_id):
             authorized_user_list=authorized_user_list_for_template
         )
     except Exception as render_error:
+        import sys, traceback
+        print(f"--- ERROR IN challenge_view (RENDER_ERR) FOR {challenge_id} ---", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")
         abort(500)
 
