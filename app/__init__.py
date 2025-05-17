@@ -87,6 +87,29 @@ def create_app(config_name=None):
     limiter.init_app(app)
     # --- End Limiter Config ---
 
+    # Explicitly configure logging for the 'testing' environment
+    if config_name == 'testing':
+        import logging # Already imported at the top, but good for clarity here
+        # from logging.handlers import RotatingFileHandler # Not used in Option B
+        import sys # For StreamHandler's default stream
+
+        stream_handler = logging.StreamHandler(sys.stderr) # Explicitly use sys.stderr
+        stream_handler.setFormatter(logging.Formatter(
+             '%(asctime)s %(levelname)s: %(name)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        stream_handler.setLevel(logging.DEBUG)
+        app.logger.addHandler(stream_handler)
+        app.logger.setLevel(logging.DEBUG)
+
+        # Ensure loggers used in blueprints (e.g., logging.getLogger('app.routes.main'))
+        # propagate to the app.logger and have their level set.
+        logging.getLogger('app').setLevel(logging.DEBUG)
+
+        app.logger.info("--- Testing environment: Flask logger explicitly configured to DEBUG level (app.logger) ---")
+        # The print statement might be useful for seeing if this block is hit during Gunicorn startup,
+        # though Gunicorn might handle stdout/stderr differently. app.logger is more reliable.
+        print("--- Testing environment: Flask logger explicitly configured to DEBUG level (print statement) ---")
+
     # Register the custom filter
     app.jinja_env.filters['redact_email'] = redact_email_filter
 
