@@ -70,6 +70,14 @@ class TestingConfig(Config):
     SECURITY_PASSWORD_RESET_SALT = 'testing-pw-reset-salt' # Keep as is or use an env var
     SECURITY_EMAIL_CHANGE_SALT = 'testing-email-change-salt' # Keep as is or use an env var
     RATELIMIT_ENABLED = False # Usually disable rate limiting for testing environment
+    # Settings for correct external URL generation in testing
+    SERVER_NAME = os.environ.get('TEST_SERVER_NAME') or '147.93.63.202:8081' # Your test server IP and Gunicorn port
+    PREFERRED_URL_SCHEME = os.environ.get('TEST_URL_SCHEME') or 'http'
+    # Ensure APPLICATION_ROOT is correct if your app is not served at the domain root
+    # For example, if it's at http://147.93.63.202:8081/myapp/, then set:
+    # APPLICATION_ROOT = '/myapp'
+    # If it's at the root (http://147.93.63.202:8081/), then APPLICATION_ROOT = '/' or can be omitted.
+    APPLICATION_ROOT = '/'
 
 
 class ProductionConfig(Config):
