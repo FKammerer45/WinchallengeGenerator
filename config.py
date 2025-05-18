@@ -46,6 +46,11 @@ class Config:
     PASSWORD_RESET_EXPIRATION = 1800
     EMAIL_CHANGE_EXPIRATION = 1800
     MAX_CHALLENGES_PER_USER = 15
+
+    # --- PayPal Settings ---
+    PAYPAL_MODE = os.environ.get('PAYPAL_MODE') or 'sandbox' # 'sandbox' or 'live'
+    PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID')
+    PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET')
     
 
 class DevelopmentConfig(Config):
@@ -111,6 +116,15 @@ class ProductionConfig(Config):
         raise ValueError("Twitch OAuth settings missing in production")
     if not (os.environ.get('MAILGUN_SMTP_SERVER') and os.environ.get('MAILGUN_SMTP_LOGIN') and os.environ.get('MAILGUN_SMTP_PASSWORD') and os.environ.get('MAIL_DEFAULT_SENDER')):
          raise ValueError("Mailgun SMTP settings (SERVER, LOGIN, PASSWORD, DEFAULT_SENDER) must be set for production")
+    
+    # PayPal checks for production
+    if not (Config.PAYPAL_CLIENT_ID and Config.PAYPAL_CLIENT_SECRET):
+        print("Warning: PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET not set for production. PayPal integration will not work.")
+        # If credentials are not set, PAYPAL_MODE being 'sandbox' is less critical than if it were 'live' with no creds.
+        # However, it's still an issue if PayPal is intended to be functional.
+    elif Config.PAYPAL_MODE != 'live': # Credentials are set, but mode is not 'live'
+        print("Warning: PAYPAL_MODE is configured as '{}' in production, but credentials are set. It should typically be 'live'.".format(Config.PAYPAL_MODE))
+    # If PAYPAL_MODE is 'live' but credentials are NOT set, the first 'if' block already covers this.
 
 
 # Dictionary to easily map environment names to config classes

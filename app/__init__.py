@@ -12,6 +12,7 @@ from flask_socketio import SocketIO
 from flask_mail import Mail
 from config import config # Keep importing config for other settings
 import logging
+import paypalrestsdk # Moved import to top
 
 # Initialize extensions globally
 db = SQLAlchemy()
@@ -86,6 +87,22 @@ def create_app(config_name=None):
     # It will read other settings like default limits from app.config now
     limiter.init_app(app)
     # --- End Limiter Config ---
+
+    # --- PayPal SDK Initialization ---
+    # import paypalrestsdk # Removed from here
+    if app.config.get('PAYPAL_CLIENT_ID') and app.config.get('PAYPAL_CLIENT_SECRET'):
+        try:
+            paypalrestsdk.configure({
+                "mode": app.config.get('PAYPAL_MODE', 'sandbox'), # Default to sandbox if not set
+                "client_id": app.config['PAYPAL_CLIENT_ID'],
+                "client_secret": app.config['PAYPAL_CLIENT_SECRET']
+            })
+            app.logger.info(f"PayPal SDK initialized in {app.config.get('PAYPAL_MODE', 'sandbox')} mode.")
+        except Exception as e:
+            app.logger.error(f"Failed to initialize PayPal SDK: {e}")
+    else:
+        app.logger.warning("PayPal Client ID or Secret not configured. PayPal integration will be disabled.")
+    # --- End PayPal SDK Initialization ---
 
     # Explicitly configure logging for the 'testing' environment
     if config_name == 'testing':

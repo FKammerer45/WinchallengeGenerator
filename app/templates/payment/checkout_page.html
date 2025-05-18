@@ -8,8 +8,12 @@
 {# <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/checkout.css') }}"> #}
 
 {# --- IMPORTANT: Add Payment Provider JS SDK --- #}
-{# Example for Stripe - Replace with your chosen provider's SDK #}
-{# <script src="https://js.stripe.com/v3/"></script> #}
+{# PayPal JavaScript SDK #}
+{% if paypal_client_id %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency={{ pro_plan_currency | default('EUR') }}&intent=capture"></script>
+{% else %}
+<!-- PayPal Client ID not configured -->
+{% endif %}
 
 <style>
   /* Basic styling for placeholder */
@@ -88,15 +92,16 @@
         <div class="card-body p-4 p-lg-5">
             {# --- Payment Provider Integration Placeholder --- #}
             {# This is where you would integrate Stripe Elements, PayPal button, etc. #}
-            <div class="payment-placeholder">
-                 <i class="bi bi-credit-card-2-front"></i> {# Example Icon #}
-                <p>Secure payment processing will be integrated here.</p>
-                {# Example button (replace with actual payment element) #}
-                <button class="btn btn-primary btn-lg disabled" aria-disabled="true">
-                    Proceed to Payment (Placeholder)
-                </button>
+            {# --- PayPal Button Container --- #}
+            <div id="paypal-button-container">
+                {% if not paypal_client_id %}
+                <div class="alert alert-warning text-center">
+                    PayPal payments are currently unavailable as the system is not configured.
+                </div>
+                {% endif %}
             </div>
-            {# --- End Placeholder --- #}
+            <div id="payment-message" class="mt-3 text-center"></div> 
+            {# --- End PayPal Button Container --- #}
         </div>
     </div>
 
@@ -105,11 +110,105 @@
 
 {% block scripts %}
 {{ super() }}
-{# Add specific JS for payment handling here #}
-{# Example for Stripe:
+{% if paypal_client_id %}
 <script>
-    // const stripe = Stripe('YOUR_STRIPE_PUBLISHABLE_KEY');
-    // // ... Stripe Elements setup ...
+document.addEventListener('DOMContentLoaded', function () {
+    const paypalButtonContainer = document.getElementById('paypal-button-container');
+    const paymentMessage = document.getElementById('payment-message');
+    const csrfToken = "{{ csrf_token() }}"; // Get CSRF token from Flask
+
+    if (paypalButtonContainer && typeof paypal !== 'undefined') {
+        paypal.Buttons({
+            // Style the button
+            style: {
+                layout: 'vertical', // 'vertical' or 'horizontal'
+                color:  'gold',    // 'gold', 'blue', 'silver', 'black'
+                shape:  'rect',    // 'rect', 'pill'
+                label:  'pay',     // 'paypal', 'pay', 'buynow', 'checkout', 'subscribe'
+                height: 45
+            },
+
+            // Call your server to set up the transaction
+            createOrder: async function(data, actions) {
+                paymentMessage.innerHTML = ''; // Clear previous messages
+                try {
+                    const response = await fetch("{{ url_for('payment.create_paypal_order') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken 
+                        },
+                        // No body needed if amount is fixed on server
+                    });
+                    const orderData = await response.json();
+                    // Backend now returns { "id": "ORDER_ID_HERE" }
+                    if (orderData.id) { 
+                        console.log("PayPal order created by backend, Order ID from server:", orderData.id);
+                        return orderData.id; // This ID is passed to PayPal SDK
+                    } else {
+                        console.error("Backend failed to return order.id:", orderData.error, orderData.details);
+                        paymentMessage.innerHTML = `<div class="alert alert-danger">Error creating order with server: ${orderData.error || 'Unknown error from server'}. Please try again.</div>`;
+                        throw new Error(orderData.error || "Failed to create order with server (missing id).");
+                    }
+                } catch (error) {
+                    console.error("Error in createOrder:", error);
+                    paymentMessage.innerHTML = `<div class="alert alert-danger">Could not initiate PayPal payment. ${error.message}</div>`;
+                    throw error; // Re-throw to stop PayPal flow
+                }
+            },
+
+            // Call your server to finalize the transaction
+            onApprove: async function(data, actions) {
+                paymentMessage.innerHTML = '<div class="alert alert-info">Processing your payment... <span class="spinner-border spinner-border-sm"></span></div>';
+                try {
+                    const response = await fetch("{{ url_for('payment.capture_paypal_order') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            orderID: data.orderID // data.orderID is provided by PayPal
+                        })
+                    });
+                    const captureData = await response.json();
+                    if (captureData.status === 'success') {
+                        console.log("PayPal payment captured:", captureData);
+                        paymentMessage.innerHTML = `<div class="alert alert-success">${captureData.message} Redirecting...</div>`;
+                        // Redirect to profile or a success page after a short delay
+                        setTimeout(() => {
+                            window.location.href = "{{ url_for('profile.profile_view') }}"; 
+                        }, 3000);
+                    } else {
+                        console.error("Failed to capture PayPal payment:", captureData.error, captureData.details);
+                        paymentMessage.innerHTML = `<div class="alert alert-danger">Payment capture failed: ${captureData.error || 'Unknown error'}. ${captureData.details ? JSON.stringify(captureData.details) : ''} Please contact support.</div>`;
+                    }
+                } catch (error) {
+                    console.error("Error in onApprove:", error);
+                    paymentMessage.innerHTML = `<div class="alert alert-danger">Error processing payment. ${error.message}</div>`;
+                }
+            },
+
+            onError: function(err) {
+                console.error("PayPal button error:", err);
+                paymentMessage.innerHTML = `<div class="alert alert-danger">An error occurred with the PayPal payment. Please try again or contact support. Details: ${err.toString()}</div>`;
+            },
+
+            onCancel: function(data) {
+                console.log("PayPal payment cancelled:", data);
+                paymentMessage.innerHTML = `<div class="alert alert-warning">Payment cancelled.</div>`;
+            }
+        }).render('#paypal-button-container').catch(err => {
+            console.error("Failed to render PayPal buttons:", err);
+            paymentMessage.innerHTML = `<div class="alert alert-danger">Could not load PayPal payment options. Please ensure third-party scripts are not blocked and try again.</div>`;
+        });
+    } else if (!paypal_client_id) {
+        console.warn("PayPal Client ID not configured, PayPal buttons not rendered.");
+    } else {
+        console.error("PayPal SDK not loaded or paypal-button-container not found.");
+         if(paypalButtonContainer) paypalButtonContainer.innerHTML = `<div class="alert alert-danger">Could not load PayPal payment options. Please try refreshing the page.</div>`;
+    }
+});
 </script>
-#}
+{% endif %}
 {% endblock %}
