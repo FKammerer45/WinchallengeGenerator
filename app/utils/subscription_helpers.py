@@ -16,13 +16,33 @@ def is_pro_plan_active(user: User) -> bool:
     """Checks if a user's pro plan is currently active."""
     if not user: # Ensure user object is not None
         return False
+        
     if user.pro_plan_active and user.pro_plan_expiration_date:
         expiration_date = user.pro_plan_expiration_date
         # Ensure the expiration_date is offset-aware (assume UTC if naive)
         if expiration_date.tzinfo is None or expiration_date.tzinfo.utcoffset(expiration_date) is None:
             expiration_date = expiration_date.replace(tzinfo=datetime.timezone.utc)
         
-        return expiration_date > datetime.datetime.now(datetime.timezone.utc)
+        current_utc_time = datetime.datetime.now(datetime.timezone.utc)
+        
+        if expiration_date <= current_utc_time:
+            # Plan has expired, deactivate it
+            user.pro_plan_active = False
+            # user.pro_plan_expiration_date = None # Optionally clear the date
+            db.session.add(user) # Ensure user object is added to session if modified
+            db.session.commit()
+            return False # Plan is no longer active
+        else:
+            return True # Plan is active and not expired
+            
+    # If pro_plan_active is False or no expiration date, it's not active
+    if user.pro_plan_active and not user.pro_plan_expiration_date:
+        # This case should ideally not happen if grant_pro_plan always sets an expiration date
+        # But as a safeguard, deactivate if active but no expiration.
+        user.pro_plan_active = False
+        db.session.add(user)
+        db.session.commit()
+
     return False
 
 def get_user_limit(user: User, limit_name: str) -> int:
