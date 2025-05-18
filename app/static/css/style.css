@@ -2144,3 +2144,15 @@ button.close {
   z-index: 1060;
 }
 
+.custom-tooltip {
+    position: absolute;
+    background-color: #333;
+    color: white;
+    padding: 3px 7px;
+    border-radius: 3px;
+    font-size: 0.75rem; /* Small text */
+    z-index: 1080; /* Ensure it's above most other elements, Bootstrap modals are 1050+ */
+    pointer-events: none; /* So it doesn't interfere with mouse events on elements below it */
+    display: none; /* Hidden by default */
+    white-space: nowrap; /* Keep "doubleclick to edit" on one line */
+}

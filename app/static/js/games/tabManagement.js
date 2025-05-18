@@ -11,6 +11,30 @@ import { showFlash } from "../utils/helpers.js";
 // renderGamesForTab is called by games.js after a tab is created or loaded.
 // import { renderGamesForTab } from "./entryManagement.js"; // Not directly called here anymore
 
+export function updateAnonymousGameTabCountDisplay() {
+    if (window.isLoggedIn === false) {
+        const anonymousTabCountElement = document.getElementById('anonymousGameTabCount');
+        if (anonymousTabCountElement) {
+            const localTabs = getLocalOnlyTabs();
+            let customCount = 0;
+            // Ensure SYSTEM_DEFAULT_GAME_TABS is available or default to empty array
+            const systemDefaultClientTabIds = window.SYSTEM_DEFAULT_GAME_TABS
+                ? Object.values(window.SYSTEM_DEFAULT_GAME_TABS).map(def => def.client_tab_id)
+                : [];
+            
+            for (const tabId in localTabs) {
+                // A tab is custom if its ID is NOT in the list of system default client_tab_ids
+                // AND it's not a system default tab itself (which might not be in SYSTEM_DEFAULT_GAME_TABS if it's a placeholder)
+                // For local tabs, any tab not starting with "default-" is considered custom for counting purposes here.
+                if (!tabId.startsWith("default-")) {
+                     customCount++;
+                }
+            }
+            anonymousTabCountElement.textContent = customCount;
+        }
+    }
+}
+
 // Keep track of the highest tab ID number used for *custom* tabs (e.g., tabPane-X)
 let currentMaxTabIdNum = 0;
 
@@ -285,6 +309,7 @@ export async function createNewTab() {
       setLocalOnlyEntries(entries);
       console.log(`Custom game tab ${newTabId} added to localStorage.`);
       showFlash(`Tab "${newTabName}" created locally.`, "success");
+      updateAnonymousGameTabCountDisplay(); // Update count for anonymous user
     }
     if (typeof $ !== 'undefined' && $.fn.tab) {
       $(newTabLink).tab('show');

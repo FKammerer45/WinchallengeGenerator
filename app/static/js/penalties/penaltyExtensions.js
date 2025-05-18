@@ -14,7 +14,7 @@ import {
     initLocalStorage as initPenaltyLocalStorageIfAbsent
     // getLocalOnlyPenaltyTabs, getLocalOnlyPenaltyEntries, setLocalOnlyPenaltyTabs, setLocalOnlyPenaltyEntries (already imported above)
 } from "./penaltyLocalStorageUtils.js";
-import { getNextPenaltyTabIdNumber } from "./penaltyTabManagement.js";
+import { getNextPenaltyTabIdNumber, updateAnonymousPenaltyTabCountDisplay } from "./penaltyTabManagement.js"; // Import the function
 
 // --- Autosave Logic for Penalties ---
 let penaltyAutosaveTimeout = null;
@@ -274,6 +274,10 @@ export function attachDeletePenaltyTabHandler() {
             if (tabPaneElement) tabPaneElement.remove();
             
             showFlash(`Penalty tab "${tabName}" deleted.`, "success");
+            
+            if (!isLoggedIn) {
+                updateAnonymousPenaltyTabCountDisplay(); // Update count for anonymous user
+            }
             updatePenaltyTabGroupVisibility();
 
             // Activate next available tab

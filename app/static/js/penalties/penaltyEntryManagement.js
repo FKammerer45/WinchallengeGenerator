@@ -127,6 +127,7 @@ export function renderPenaltiesForTab(tabId) {
         entries.forEach(penalty => {
             const row = document.createElement('tr');
             row.dataset.penaltyId = penalty.id; // For editing/deleting later
+            // row.setAttribute('title', 'Double-click to edit this penalty'); // REMOVE old hover hint
 
             // Ensure probability is a number and format it
             let probabilityDisplay = "N/A";

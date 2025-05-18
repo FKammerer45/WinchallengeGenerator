@@ -10,6 +10,7 @@ import {
 import {
     createNewTab, // For user-created custom tabs
     createTabFromLocalData, // For rendering all tabs (system-defaults and custom)
+    updateAnonymousGameTabCountDisplay, // Import the new function
 } from "./tabManagement.js";
 import {
     renderGamesForTab,
@@ -23,7 +24,7 @@ import {
     triggerAutosave,
     handleDuplicateTab
 } from "./gamesExtensions.js";
-import { escapeHtml, showError, confirmModal, showFlash } from "../utils/helpers.js";
+import { escapeHtml, showError, confirmModal, showFlash, showRowTooltip, hideRowTooltip, updateRowTooltipPosition } from "../utils/helpers.js";
 import { apiFetch } from "../utils/api.js";
 
 // --- Global States ---
@@ -343,6 +344,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (tabListElement && addTabBtnLi) tabListElement.appendChild(addTabBtnLi);
         if (tabListElement && loadingPlaceholder) tabListElement.appendChild(loadingPlaceholder);
 
+        // Update anonymous tab count display after all tabs are rendered
+        updateAnonymousGameTabCountDisplay();
 
         // Activate initial tab
         let tabToActivateId = PRIMARY_DEFAULT_TAB_ID;
@@ -536,6 +539,50 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (extError) {
         console.error("Error attaching game extension handlers:", extError);
     }
+
+    // Add tooltip listeners for game entry rows
+    if (gamesTabContent) {
+        gamesTabContent.addEventListener('mouseover', (event) => {
+            const targetElement = event.target;
+            const row = targetElement.closest('tr');
+
+            if (row && row.parentElement && row.parentElement.classList.contains('gamesTable')) {
+                if (row.parentElement.rows.length > 0 && !row.querySelector('td[colspan="4"]')) {
+                    showRowTooltip(event);
+                }
+            }
+        });
+        gamesTabContent.addEventListener('mouseout', (event) => {
+            const targetElement = event.target;
+            const row = targetElement.closest('tr');
+            if (row && row.parentElement && row.parentElement.classList.contains('gamesTable')) {
+                 // Check if the relatedTarget (where the mouse moved to) is outside the row
+                if (!row.contains(event.relatedTarget)) {
+                    hideRowTooltip();
+                }
+            } else if (!targetElement.closest('.custom-tooltip')) { 
+                // If mouseout is not from a row and not to the tooltip itself, hide.
+                // This handles moving out of gamesTabContent entirely.
+                hideRowTooltip();
+            }
+        });
+        gamesTabContent.addEventListener('mousemove', (event) => {
+            const targetElement = event.target;
+            const row = targetElement.closest('tr');
+            
+            if (row && row.parentElement && row.parentElement.classList.contains('gamesTable') && 
+                row.parentElement.rows.length > 0 && !row.querySelector('td[colspan="4"]')) {
+                 updateRowTooltipPosition(event);
+            } else {
+                // If not over a valid data row, ensure tooltip is hidden
+                // This helps if mouse moves quickly out of a row onto the table padding for example
+                // but only if the mouse isn't over the tooltip itself
+                if (!targetElement.closest('.custom-tooltip')) {
+                    hideRowTooltip();
+                }
+            }
+        });
+    }
+
     console.log("Games page initialization finished.");
 });
-

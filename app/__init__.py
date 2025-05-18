@@ -1,7 +1,7 @@
 # app/__init__.py
 import os
 import re
-from flask import Flask
+from flask import Flask, render_template # Add render_template here
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -159,6 +159,17 @@ def create_app(config_name=None):
     # Import and register CLI commands
     from .commands import register_commands
     register_commands(app)
+
+    # --- Custom Error Handlers ---
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('errors/404.html'), 404
+    
+    # You can add other error handlers here, e.g., for 500 errors
+    # @app.errorhandler(500)
+    # def internal_server_error(e):
+    #     return render_template('errors/500.html'), 500
+    # --- End Custom Error Handlers ---
 
     print("--- Application creation complete ---")
     return app

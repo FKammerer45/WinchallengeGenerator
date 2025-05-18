@@ -12,6 +12,7 @@ import os
 # Import SQLAlchemy functions/helpers if needed (like desc, selectinload, etc.)
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import desc, func
+from werkzeug.exceptions import HTTPException # Import HTTPException
 # Import subscription helpers
 from app.utils.subscription_helpers import grant_pro_plan, get_user_limit, is_pro_plan_active
 # Import default definitions for tab counting
@@ -63,7 +64,6 @@ def robots_txt():
     return send_from_directory(static_folder, 'robots.txt')
 
 @main.route("/games")
-@login_required # This page likely requires login to manage user-specific tabs
 def games_config():
     """Renders the games configuration page."""
     custom_game_tab_count = 0
@@ -91,7 +91,6 @@ def games_config():
     )
 
 @main.route("/penalties")
-@login_required # This page likely requires login to manage user-specific tabs
 def penalties_config():
     """Renders the penalties configuration page."""
     custom_penalty_tab_count = 0
@@ -305,7 +304,11 @@ def challenge_view(challenge_id):
             ]
 
         except Exception as db_err:
-            # Rollback in case of any error during DB operations or processing
+            # If it's an HTTPException (like 404 from abort()), re-raise it
+            if isinstance(db_err, HTTPException):
+                raise db_err
+            
+            # Otherwise, it's an unexpected database/processing error
             db.session.rollback()
             import sys, traceback
             print(f"--- ERROR IN challenge_view (DB_ERR) FOR {challenge_id} ---", file=sys.stderr)

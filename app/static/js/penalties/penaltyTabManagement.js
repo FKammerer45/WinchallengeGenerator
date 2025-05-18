@@ -9,6 +9,24 @@ import {
 import { apiFetch } from "../utils/api.js";
 import { showFlash } from "../utils/helpers.js";
 
+export function updateAnonymousPenaltyTabCountDisplay() {
+    if (window.isLoggedIn === false) {
+        const anonymousTabCountElement = document.getElementById('anonymousPenaltyTabCount');
+        if (anonymousTabCountElement) {
+            const localTabs = getLocalOnlyPenaltyTabs();
+            let customCount = 0;
+            // SYSTEM_DEFAULT_PENALTY_TABS might not be populated when this is first called
+            // For local tabs, any tab not starting with "default-" is considered custom.
+            for (const tabId in localTabs) {
+                if (!tabId.startsWith("default-")) {
+                     customCount++;
+                }
+            }
+            anonymousTabCountElement.textContent = customCount;
+        }
+    }
+}
+
 let currentMaxPenaltyTabIdNum = 0;
 
 function initializeMaxPenaltyTabIdNum() {
@@ -233,6 +251,7 @@ export async function createNewTab() { // For Penalties
       entries[newTabId] = [];
       setLocalOnlyPenaltyEntries(entries);
       showFlash(`Penalty Tab "${newTabName}" created locally.`, "success");
+      updateAnonymousPenaltyTabCountDisplay(); // Update count for anonymous user
     }
 
     const newTabLinkElement = document.querySelector(`#penaltiesCustomTabList .nav-link[href="#${newTabId}"]`);

@@ -7,6 +7,7 @@ import {
     setLocalOnlyEntries
     // removeLocalOnlyGameEntry // We might not need this directly if we remove the whole tab's entries
 } from "./localStorageUtils.js";
+import { updateAnonymousGameTabCountDisplay } from "./tabManagement.js"; // Import the function
 import { apiFetch } from "../utils/api.js";
 import { confirmModal, showFlash } from "../utils/helpers.js";
 // renderGamesForTab is called by games.js or entryManagement.js after a tab is created/loaded or entries change.
@@ -525,6 +526,10 @@ export function attachDeleteTabHandler() {
             if (tabPaneElement) tabPaneElement.remove();
             
             showFlash(`Tab "${tabName}" deleted successfully.`, "success");
+
+            if (!isLoggedIn) {
+                updateAnonymousGameTabCountDisplay(); // Update count for anonymous user
+            }
 
             // Activate another tab
             let newActiveTabId = window.PRIMARY_DEFAULT_GAME_TAB_ID || 'default-all-games';

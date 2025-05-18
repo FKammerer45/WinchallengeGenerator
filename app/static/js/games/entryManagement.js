@@ -217,6 +217,7 @@ export function renderGamesForTab(tabId) {
             row.dataset.gameName = gameName; // Used for editing
             // entryIds for this game group are already collected in groupEntriesForDisplay
             row.dataset.entryIds = JSON.stringify(data.entryIds || []);
+            // row.setAttribute('title', 'Double-click to edit entries for this game'); // REMOVE old hover hint
 
             row.innerHTML = `
                 <td>${escapeHtml(gameName)}</td>

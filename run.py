@@ -63,6 +63,6 @@ if __name__ == '__main__':
     print(f"--- Running on http://{host}:{port} ---")
 
    
-    socketio.run(app, host=host, port=port, debug=debug_mode, use_reloader=False)
+    socketio.run(app, host=host, port=port, debug=debug_mode, use_reloader=debug_mode)
     # --- END MODIFICATION ---
 

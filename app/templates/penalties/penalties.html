@@ -62,6 +62,16 @@
           </small>
           {% endif %}
       </div>
+      {% else %}
+      {# For non-logged-in users #}
+      <div class="text-end">
+          <small class="text-secondary d-block">
+              Custom Tabs: <strong id="anonymousPenaltyTabCount">0</strong> / <strong>{{ max_custom_tabs }}</strong>
+          </small>
+          <small class="text-secondary d-block">
+              <a href="{{ url_for('auth.login') }}">Log in</a> or <a href="{{ url_for('auth.register') }}">register</a> to save your changes.
+          </small>
+      </div>
       {% endif %}
   </div>
 

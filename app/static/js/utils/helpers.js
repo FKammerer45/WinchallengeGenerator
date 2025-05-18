@@ -203,3 +203,47 @@ export function getCommonDOMElements() {
         statusDiv: document.getElementById('pageStatusDisplay') // General page status
     };
 }
+
+// --- Custom Row Tooltip Management ---
+let tooltipElement = null;
+
+function getTooltipElement() {
+    if (!tooltipElement) {
+        tooltipElement = document.getElementById('customRowTooltip');
+    }
+    return tooltipElement;
+}
+
+export function showRowTooltip(event) {
+    const tooltip = getTooltipElement();
+    if (!tooltip) {
+        // console.log('CustomTooltip: Tooltip element not found.');
+        return;
+    }
+    // console.log('CustomTooltip: showRowTooltip called', event);
+    // Position the tooltip near the mouse cursor
+    // Add a small offset so it doesn't directly cover the cursor
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY + 10) + 'px';
+    tooltip.style.display = 'block';
+    // console.log('CustomTooltip: Tooltip display set to block at', tooltip.style.left, tooltip.style.top);
+}
+
+export function hideRowTooltip() {
+    const tooltip = getTooltipElement();
+    if (!tooltip) {
+        // console.log('CustomTooltip: Tooltip element not found for hide.');
+        return;
+    }
+    // console.log('CustomTooltip: hideRowTooltip called');
+    tooltip.style.display = 'none';
+}
+
+export function updateRowTooltipPosition(event) {
+    const tooltip = getTooltipElement();
+    if (!tooltip || tooltip.style.display === 'none') return;
+
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY + 10) + 'px';
+}
+// --- END Custom Row Tooltip Management ---

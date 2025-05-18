@@ -10,6 +10,7 @@ import {
 import {
     createNewTab as createNewPenaltyTab,
     createTabFromLocalData as createPenaltyTabUI,
+    updateAnonymousPenaltyTabCountDisplay, // Import the new function
 } from "./penaltyTabManagement.js";
 import {
     renderPenaltiesForTab,
@@ -23,7 +24,7 @@ import {
     triggerAutosavePenalties,
     handleDuplicatePenaltyTab,
 } from "./penaltyExtensions.js";
-import { escapeHtml, confirmModal, showFlash } from "../utils/helpers.js";
+import { escapeHtml, confirmModal, showFlash, showRowTooltip, hideRowTooltip, updateRowTooltipPosition } from "../utils/helpers.js";
 import { apiFetch } from "../utils/api.js";
 
 // --- Global States ---
@@ -216,6 +217,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (loadingCustomPlaceholder) loadingCustomPlaceholder.style.display = 'none';
         customTabsToDisplay.forEach(t => { createPenaltyTabUI(t.id, t.name, t.isSystemDefault); renderPenaltiesForTab(t.id); });
        
+        // Update anonymous tab count display after all tabs are rendered
+        updateAnonymousPenaltyTabCountDisplay();
+
         if (customPenaltyTabsLabel) {
             customPenaltyTabsLabel.style.display = 'list-item'; // Always show it
             console.log("[Penalties Init] Set 'Your Custom Penalty Sets' label to visible.");
@@ -340,5 +344,46 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
     });
+
+    // Add tooltip listeners for penalty entry rows
+    if (penaltiesTabContent) {
+        penaltiesTabContent.addEventListener('mouseover', (event) => {
+            const targetElement = event.target;
+            const row = targetElement.closest('tr');
+
+            if (row && row.parentElement && row.parentElement.classList.contains('penaltiesTable')) {
+                if (row.parentElement.rows.length > 0 && !row.querySelector('td[colspan="3"]')) {
+                    showRowTooltip(event);
+                }
+            }
+        });
+        penaltiesTabContent.addEventListener('mouseout', (event) => {
+            const targetElement = event.target;
+            const row = targetElement.closest('tr');
+            if (row && row.parentElement && row.parentElement.classList.contains('penaltiesTable')) {
+                // Check if the relatedTarget (where the mouse moved to) is outside the row
+                if (!row.contains(event.relatedTarget)) {
+                    hideRowTooltip();
+                }
+            } else if (!targetElement.closest('.custom-tooltip')) {
+                // If mouseout is not from a row and not to the tooltip itself, hide.
+                hideRowTooltip();
+            }
+        });
+        penaltiesTabContent.addEventListener('mousemove', (event) => {
+            const targetElement = event.target;
+            const row = targetElement.closest('tr');
+            
+            if (row && row.parentElement && row.parentElement.classList.contains('penaltiesTable') && 
+                row.parentElement.rows.length > 0 && !row.querySelector('td[colspan="3"]')) {
+                 updateRowTooltipPosition(event);
+            } else {
+                if (!targetElement.closest('.custom-tooltip')) {
+                    hideRowTooltip();
+                }
+            }
+        });
+    }
+
     console.log("Penalties page initialization finished.");
 });
