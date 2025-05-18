@@ -10,6 +10,17 @@
     body {
         background-color: var(--base-bg, #030712);
     }
+    .bulk-delete-mode .challenge-card-hover { /* Apply to the card itself or its wrapper */
+        cursor: pointer;
+    }
+    .challenge-list-item .card.selected-for-delete {
+        border: 2px solid var(--primary-accent, #007bff) !important; /* Using primary accent color */
+        box-shadow: 0 0 8px rgba(var(--primary-accent-rgb, 0, 123, 255), 0.6) !important; /* Softer glow effect */
+        /* background-color: rgba(var(--primary-accent-rgb, 0, 123, 255), 0.05) !important; */ /* Optional: very subtle background tint */
+    }
+    .bulk-delete-mode .challenge-card-hover .card-body-link {
+        pointer-events: none; /* Disable navigation link in selection mode */
+    }
 </style>
 {% endblock %}
 
@@ -47,6 +58,22 @@
     </div>
     {% endif %}
     {# End Challenge Quota Display #}
+
+    {# --- Bulk Delete Controls --- #}
+    {% if current_user.is_authenticated and user_challenges %}
+    <div class="mb-3 text-end" id="bulkDeleteControls">
+        <button type="button" class="btn btn-outline-info btn-sm" id="startBulkDeleteBtn">
+            <i class="bi bi-check2-square me-1"></i> Start Bulk Delete
+        </button>
+        <button type="button" class="btn btn-danger btn-sm" id="confirmBulkDeleteBtn" style="display: none;">
+            <i class="bi bi-trash3-fill me-1"></i> Confirm Delete Selected
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm ms-2" id="cancelBulkDeleteBtn" style="display: none;">
+            <i class="bi bi-x-circle me-1"></i> Cancel
+        </button>
+    </div>
+    {% endif %}
+    {# --- End Bulk Delete Controls --- #}
 
     <div id="myChallengesContainer">
         {% if current_user.is_authenticated and user_challenges %}

@@ -22,23 +22,32 @@ import {
   let pageContainer = null;           //   Delegation root
   let statusDiv = null;               //   Inline status (errors only)
   
+  // Bulk Delete DOM Elements
+  let startBulkDeleteBtn = null;
+  let confirmBulkDeleteBtn = null;
+  let cancelBulkDeleteBtn = null;
+  let myChallengesContainer = null; // The container for account challenges
+  
   // ---------- PAGE CONFIG ------------------------------------------------------
   let pageConfig = {
     isAuthenticated: false,
     csrfToken: null,
     viewLocalUrl: "/challenge/"
   };
+
+  // ---------- BULK DELETE STATE -------------------------------------------------
+  let bulkDeleteModeActive = false;
+  const selectedChallengeIds = new Set();
   
   // ---------- CARD CREATION ----------------------------------------------------
   function createLocalChallengeCard(ch) {
     const col = document.createElement("div");
-    col.className = "col-md-6 col-lg-4 mb-4 local-challenge-item"; // Keep item class
+    col.className = "col-md-6 col-lg-4 mb-4 local-challenge-item challenge-card-item"; // Added common class
     col.dataset.localId = ch.localId; // Keep ID for deletion logic
+    col.dataset.publicId = ch.localId; // For consistency in selection logic
 
-    // Construct the URL using pageConfig
     const href = `${pageConfig.viewLocalUrl || '/challenge/'}${ch.localId}`;
 
-    // --- Apply updated structure matching the shared card ---
     col.innerHTML = `
       <div class="card list-card h-100 glass-effect challenge-card-hover"> 
         <a href="${href}" class="card-body-link text-light" style="text-decoration: none;" target="_blank">
@@ -47,9 +56,6 @@ import {
                 <i class="bi bi-pc-display-horizontal me-2 text-info fs-5"></i> 
                 <span>${escapeHtml(ch.name || "Unnamed Local Challenge")}</span>
             </h5>
-
-
-
             <div class="mt-auto small text-secondary"> 
                 <p class="mb-1">
                     <i class="bi bi-calendar-event me-1 opacity-75"></i>Created: ${
@@ -95,15 +101,128 @@ import {
   
   // ---------- NO‑CHALLENGES BANNER --------------------------------------------
   function updateNoChallengesBanner() {
-    const hasDB = !!accountChallengesRow?.querySelector(".challenge-list-item");
+    const hasDB = !!myChallengesContainer?.querySelector(".challenge-list-item"); // Use myChallengesContainer
     const hasLocal = !!localChallengesContainer?.querySelector(
       ".local-challenge-item"
     );
     noChallengesMessage?.classList.toggle("d-none", hasDB || hasLocal);
   }
+
+  // ---------- BULK DELETE FUNCTIONS --------------------------------------------
+  function toggleBulkDeleteMode(activate) {
+    bulkDeleteModeActive = activate;
+    selectedChallengeIds.clear();
+
+    startBulkDeleteBtn.style.display = activate ? 'none' : 'inline-block';
+    confirmBulkDeleteBtn.style.display = activate ? 'inline-block' : 'none';
+    cancelBulkDeleteBtn.style.display = activate ? 'inline-block' : 'none';
+
+    document.querySelectorAll('#myChallengesContainer .challenge-list-item .card').forEach(card => {
+        card.classList.remove('selected-for-delete');
+        // Disable single delete buttons during bulk mode
+        const singleDeleteBtn = card.querySelector('.delete-challenge-btn');
+        if (singleDeleteBtn) {
+            singleDeleteBtn.disabled = activate;
+            singleDeleteBtn.style.opacity = activate ? '0.5' : '1';
+        }
+    });
+    
+    if (myChallengesContainer) {
+        myChallengesContainer.classList.toggle('bulk-delete-mode', activate);
+    }
+    // Also disable local delete buttons if bulk mode is active for account challenges
+    document.querySelectorAll('#localChallengesContainer .delete-local-challenge-btn').forEach(btn => {
+        btn.disabled = activate;
+        btn.style.opacity = activate ? '0.5' : '1';
+    });
+  }
+
+  function handleChallengeCardClickInBulkMode(event) {
+    if (!bulkDeleteModeActive) return;
+
+    const cardListItem = event.target.closest('.challenge-list-item');
+    if (!cardListItem || !myChallengesContainer.contains(cardListItem)) return; // Only for account challenges
+
+    const card = cardListItem.querySelector('.card');
+    const deleteButton = cardListItem.querySelector('.delete-challenge-btn');
+    const publicId = deleteButton?.dataset.publicId;
+
+    if (!publicId || !card) return;
+
+    event.preventDefault(); // Prevent navigation if card link is clicked
+
+    if (selectedChallengeIds.has(publicId)) {
+        selectedChallengeIds.delete(publicId);
+        card.classList.remove('selected-for-delete');
+    } else {
+        selectedChallengeIds.add(publicId);
+        card.classList.add('selected-for-delete');
+    }
+    confirmBulkDeleteBtn.textContent = `Confirm Delete (${selectedChallengeIds.size}) Selected`;
+    confirmBulkDeleteBtn.disabled = selectedChallengeIds.size === 0;
+  }
+
+  async function handleConfirmBulkDelete() {
+    if (selectedChallengeIds.size === 0) {
+        showFlash("No challenges selected for deletion.", "info");
+        return;
+    }
+
+    const ok = await confirmModal(
+        `Are you sure you want to delete ${selectedChallengeIds.size} selected challenge(s)? This cannot be undone.`,
+        "Confirm Bulk Delete"
+    );
+    if (!ok) return;
+
+    setLoading(confirmBulkDeleteBtn, true, "Deleting...");
+    showError(statusDiv, null);
+
+    try {
+        const response = await apiFetch('/api/challenge/bulk_delete', {
+            method: 'POST',
+            body: { public_ids: Array.from(selectedChallengeIds) }
+        }, pageConfig.csrfToken);
+
+        if (response.status === 'success' || response.status === 'partial_success') {
+            showFlash(response.message || `${response.deleted_ids.length} challenge(s) deleted.`, "success");
+            response.deleted_ids.forEach(id => {
+                const cardListItem = myChallengesContainer.querySelector(`.challenge-list-item .delete-challenge-btn[data-public-id="${id}"]`)?.closest('.challenge-list-item');
+                if (cardListItem) {
+                    cardListItem.style.transition = "opacity .4s ease, transform .4s ease";
+                    cardListItem.style.opacity = "0";
+                    cardListItem.style.transform = "scale(.95)";
+                    setTimeout(() => {
+                        cardListItem.remove();
+                        updateNoChallengesBanner();
+                         if (myChallengesContainer && !myChallengesContainer.querySelector(".challenge-list-item")) {
+                            myChallengesContainer.innerHTML = '<div class="col-12"><p class="empty-section-message">No challenges saved to your account yet.</p></div>';
+                        }
+                    }, 400);
+                }
+            });
+            if (response.failed_details && response.failed_details.length > 0) {
+                let errorMsg = "Some challenges could not be deleted: ";
+                response.failed_details.forEach(detail => {
+                    errorMsg += `ID ${detail[0]}: ${detail[1]}; `;
+                });
+                showFlash(errorMsg, "warning", 10000); // Longer display for partial errors
+            }
+        } else {
+            throw new Error(response.error || response.message || "Unknown error during bulk delete.");
+        }
+    } catch (err) {
+        console.error("Bulk delete error:", err);
+        showFlash("Error during bulk deletion: " + err.message, "danger");
+    } finally {
+        setLoading(confirmBulkDeleteBtn, false, "Confirm Delete Selected");
+        toggleBulkDeleteMode(false); // Exit bulk delete mode
+    }
+  }
   
-  // ---------- DELETE HANDLER ---------------------------------------------------
+  // ---------- DELETE HANDLER (Single) ------------------------------------------
   async function handleDeleteClick(e) {
+    if (bulkDeleteModeActive) return; // Ignore single delete clicks in bulk mode
+
     const btn =
       e.target.closest(".delete-challenge-btn") ||
       e.target.closest(".delete-local-challenge-btn");
@@ -141,7 +260,6 @@ import {
         });
       }
   
-      // Smooth fade‑out then remove
       const card = btn.closest(".challenge-list-item, .local-challenge-item");
       if (card) {
         card.style.transition = "opacity .4s ease, transform .4s ease";
@@ -152,15 +270,16 @@ import {
           updateNoChallengesBanner();
           if (
             isLocal &&
+            localChallengesContainer && // Check if container exists
             !localChallengesContainer.querySelector(".local-challenge-item")
           )
-            renderLocalChallenges();
+            renderLocalChallenges(); // Re-render to show "no local" message if needed
           if (
             !isLocal &&
-            accountChallengesRow &&
-            !accountChallengesRow.querySelector(".challenge-list-item")
+            myChallengesContainer && // Check if container exists
+            !myChallengesContainer.querySelector(".challenge-list-item")
           ) {
-            accountChallengesRow.innerHTML =
+            myChallengesContainer.innerHTML =
               '<div class="col-12"><p class="empty-section-message">No challenges saved to your account yet.</p></div>';
           }
         }, 400);
@@ -170,19 +289,23 @@ import {
     } catch (err) {
       console.error(err);
       showFlash("Error deleting: " + err.message, "danger");
-      setLoading(btn, false);
+    } finally {
+        setLoading(btn, false); // Ensure loading state is reset
     }
   }
   
   // ---------- INIT -------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
-    accountChallengesRow = document.querySelector(
-      "#accountChallengesCollapse .row"
-    );
+    // accountChallengesRow is not used anymore, myChallengesContainer is used for DB challenges
+    myChallengesContainer = document.getElementById("myChallengesContainer"); 
     localChallengesContainer = document.getElementById("localChallengesContainer");
     noChallengesMessage = document.getElementById("noChallengesMessageContainer");
-    pageContainer = document.querySelector(".container.mt-4");
+    pageContainer = document.querySelector(".container.mt-4.my-challenges-page"); // More specific
     statusDiv = document.getElementById("deleteStatus");
+
+    startBulkDeleteBtn = document.getElementById('startBulkDeleteBtn');
+    confirmBulkDeleteBtn = document.getElementById('confirmBulkDeleteBtn');
+    cancelBulkDeleteBtn = document.getElementById('cancelBulkDeleteBtn');
   
     const dataEl = document.getElementById("myData");
     if (!dataEl)
@@ -195,17 +318,26 @@ import {
     };
   
     renderLocalChallenges();
-    updateNoChallengesBanner();
-    pageContainer?.addEventListener("click", handleDeleteClick);
+    updateNoChallengesBanner(); // Initial check
+
+    // Event listeners
+    pageContainer?.addEventListener("click", handleDeleteClick); // For single delete
+    
+    if (myChallengesContainer) { // Add click listener for card selection only if container exists
+        myChallengesContainer.addEventListener('click', handleChallengeCardClickInBulkMode);
+    }
+
+    startBulkDeleteBtn?.addEventListener('click', () => toggleBulkDeleteMode(true));
+    cancelBulkDeleteBtn?.addEventListener('click', () => toggleBulkDeleteMode(false));
+    confirmBulkDeleteBtn?.addEventListener('click', handleConfirmBulkDelete);
   
-    // optional: collapse caret toggle
-    if (typeof $ !== "undefined") {
-      $(".collapse").on("shown.bs.collapse hidden.bs.collapse", e => {
-        $(`[data-target="#${e.target.id}"]`).attr(
-          "aria-expanded",
-          (e.type === "shown").toString()
-        );
+    // optional: collapse caret toggle (if used on this page)
+    if (typeof $ !== 'undefined' && $.fn.collapse) { // Check for collapse specifically
+      $('.collapse').on('shown.bs.collapse hidden.bs.collapse', function (e) {
+        const trigger = $(`[data-toggle="collapse"][data-target="#${e.target.id}"], [data-toggle="collapse"][href="#${e.target.id}"]`);
+        trigger.attr('aria-expanded', (e.type === 'shown').toString());
+        // Optional: Change icon if using chevron
+        // trigger.find('.bi').toggleClass('bi-chevron-expand bi-chevron-contract'); 
       });
     }
   });
-  
