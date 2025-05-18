@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 
 <html lang="en">
-</head>
+<head>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3236245477658963"
   crossorigin="anonymous"></script>
 <meta charset="UTF-8">
@@ -46,6 +46,15 @@
 {# Add flex classes for potential sticky footer #}
 
 <body class="d-flex flex-column min-vh-100">
+  {% if config.get('TESTING', False) or config.get('DEBUG', False) %}
+  <div style="position: fixed; top: 10px; left: 10px; padding: 5px 10px; background-color: {% if config.get('TESTING', False) %}red{% else %}orange{% endif %}; color: white; font-size: 12px; font-weight: bold; z-index: 9999; border-radius: 3px; opacity: 0.8;">
+      {% if config.get('TESTING', False) %}
+          TESTING ENV
+      {% elif config.get('DEBUG', False) %}
+          DEV ENV
+      {% endif %}
+  </div>
+  {% endif %}
   {# --- Flashed Messages --- #}
   {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
