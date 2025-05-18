@@ -202,6 +202,33 @@
                                 value="{{ request.form.get('challenge_name', '') }}">
                             <small class="form-text text-secondary mt-1">Title of the challenge.</small>
                         </div>
+
+                        {# Challenge Limits Display - Added Here #}
+                        {% if current_user.is_authenticated %}
+                        <hr class="my-3">
+                        <div class="form-group mb-0">
+                            <label class="fw-bold">Challenge Quota:</label>
+                            <p class="mb-1">
+                                Created: <strong>{{ challenge_count }} / {{ max_challenges }}</strong>
+                                {% if not user_is_pro and challenge_count >= max_challenges %}
+                                    <span class="badge bg-danger-subtle text-danger-emphasis ms-2">Limit Reached</span>
+                                {% elif not user_is_pro and challenge_count >= max_challenges * 0.8 %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis ms-2">Nearing Limit</span>
+                                {% endif %}
+                            </p>
+                            {% if not user_is_pro and challenge_count >= max_challenges %}
+                                <small class="form-text text-secondary">
+                                    <a href="{{ url_for('main.subscribe') }}">Upgrade to Pro</a> for more challenges.
+                                </small>
+                            {% elif not user_is_pro %}
+                                <small class="form-text text-secondary">
+                                    Pro members can create up to {{ PLAN_LIMITS.pro.max_challenges }} challenges. <a href="{{ url_for('main.subscribe') }}">Learn More</a>.
+                                </small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {# End Challenge Limits Display #}
+
                     </div>
                 </div>
             </div>{# End Col 1.1 #}
@@ -440,7 +467,7 @@
     window.csrfToken = "{{ csrf_token() }}";
     window.generateChallengeUrl = "{{ url_for('challenge_api.generate_challenge') }}";
     window.shareChallengeUrl = "{{ url_for('challenge_api.share_challenge') }}";
-    window.IS_AUTHENTICATED = {{ current_user.is_authenticated | lower }};
+    window.IS_AUTHENTICATED = {% if current_user.is_authenticated %}true{% else %}false{% endif %};
 </script>
 {% endblock %}
 

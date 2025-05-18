@@ -27,6 +27,27 @@
         <i class="bi bi-cloud-check-fill me-2"></i> {# Icon for Account #}
         Saved to Account
     </h3>
+
+    {# Challenge Quota Display - Added Here #}
+    {% if current_user.is_authenticated %}
+    <div class="mb-3 p-3 rounded glass-effect" style="background-color: var(--surface-secondary);">
+        <p class="mb-1 fs-6">
+            Challenges Saved: <strong>{{ challenge_count }} / {{ max_challenges }}</strong>
+            {% if not user_is_pro and challenge_count >= max_challenges %}
+                <span class="badge bg-danger-subtle text-danger-emphasis ms-2">Limit Reached</span>
+            {% elif not user_is_pro and challenge_count >= max_challenges * 0.8 %}
+                <span class="badge bg-warning-subtle text-warning-emphasis ms-2">Nearing Limit</span>
+            {% endif %}
+        </p>
+        {% if not user_is_pro %}
+            <small class="text-secondary">
+                <a href="{{ url_for('main.subscribe') }}">Upgrade to Pro</a> for up to {{ PLAN_LIMITS.pro.max_challenges }} challenges.
+            </small>
+        {% endif %}
+    </div>
+    {% endif %}
+    {# End Challenge Quota Display #}
+
     <div id="myChallengesContainer">
         {% if current_user.is_authenticated and user_challenges %}
         <div class="row">

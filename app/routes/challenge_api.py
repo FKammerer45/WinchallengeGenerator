@@ -22,6 +22,7 @@ from app.sockets import (
 # Import necessary models
 from app.models import SavedPenaltyTab, SharedChallenge, ChallengeGroup, User
 from app.utils.auth_helpers import is_user_authorized
+from app.utils.subscription_helpers import get_user_limit # Import for plan limits
 # Import SQLAlchemy components
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import func
@@ -243,8 +244,6 @@ def share_challenge():
     # Removed the temporary manual login check - @login_required handles it
     logger.info(f"--- Share endpoint called by user {current_user.username} ---")
     
-    MAX_CHALLENGES_PER_USER = current_app.config.get('MAX_CHALLENGES_PER_USER', 10)
-    
     # --- Get and Log Parsed Data ---
     try:
         # force=True can sometimes help if content-type isn't exactly application/json
@@ -298,10 +297,13 @@ def share_challenge():
         return jsonify({"error": "Invalid value for max_groups or num_players_per_group."}), 400
 
     try:
+        # Get the user's challenge limit based on their plan
+        user_max_challenges = get_user_limit(current_user, 'max_challenges')
+        
         current_challenge_count = db.session.query(func.count(SharedChallenge.id)).filter(SharedChallenge.creator_id == current_user.id).scalar()
-        if current_challenge_count >= MAX_CHALLENGES_PER_USER:
-            logger.warning(f"User {current_user.username} reached challenge limit ({MAX_CHALLENGES_PER_USER}).")
-            return jsonify({"error": f"Max challenges ({MAX_CHALLENGES_PER_USER}) reached."}), 403
+        if current_challenge_count >= user_max_challenges:
+            logger.warning(f"User {current_user.username} reached challenge limit ({user_max_challenges}).")
+            return jsonify({"error": f"Max challenges ({user_max_challenges}) reached."}), 403
 
         public_id = str(uuid.uuid4())
         new_challenge = SharedChallenge(

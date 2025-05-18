@@ -27,6 +27,7 @@
     window.isLoggedIn = isLoggedIn;
     window.csrfToken = csrfToken;
     window.SYSTEM_DEFAULT_GAME_TABS = {}; 
+    window.MAX_CUSTOM_TABS = {{ max_custom_tabs | default(0) | tojson }}; // Pass the max limit for custom tabs
   </script>
 
  
@@ -39,7 +40,23 @@
               <i class="bi bi-trash3"></i>Delete Current Tab
           </button>
       </div>
-      <small class="text-secondary">Max 5 custom tabs allowed (excluding system defaults).</small>
+      {% if current_user.is_authenticated %}
+      <div class="text-end">
+          <small class="text-secondary d-block">
+              Custom Tabs: <strong>{{ custom_tab_count }} / {{ max_custom_tabs }}</strong>
+              {% if not user_is_pro and custom_tab_count >= max_custom_tabs %}
+                  <span class="badge bg-danger-subtle text-danger-emphasis ms-1">Limit Reached</span>
+              {% elif not user_is_pro and custom_tab_count >= max_custom_tabs * 0.8 %}
+                  <span class="badge bg-warning-subtle text-warning-emphasis ms-1">Nearing Limit</span>
+              {% endif %}
+          </small>
+          {% if not user_is_pro %}
+          <small class="text-secondary d-block">
+              <a href="{{ url_for('main.subscribe') }}">Upgrade to Pro</a> for up to {{ PLAN_LIMITS.pro.max_game_tabs }} custom tabs.
+          </small>
+          {% endif %}
+      </div>
+      {% endif %}
   </div>
 
   {# --- Tabs Navigation --- #}

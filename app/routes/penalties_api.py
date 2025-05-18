@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from app import db 
 # Import necessary models
 from app.models import Penalty, SavedPenaltyTab 
+from app.utils.subscription_helpers import get_user_limit # Import for plan limits
 
 # Import the new default penalty tab definitions
 from app.modules.default_definitions import DEFAULT_PENALTY_TAB_DEFINITIONS
@@ -17,8 +18,7 @@ logger = logging.getLogger(__name__)
 # Define the blueprint
 penalties_api = Blueprint('penalties_api', __name__, url_prefix='/api/penalties') 
 
-# Define limits (consider moving these to config if they vary by environment)
-MAX_SAVED_PENALTY_TABS = 5 # This limit applies to user-created custom tabs
+# MAX_SAVED_PENALTY_TABS is now dynamic per user plan
 MAX_PENALTIES_PER_TAB = 100
 
 @penalties_api.route("/default_definitions", methods=["GET"])
@@ -154,9 +154,12 @@ def save_penalty_tab():
                     SavedPenaltyTab.user_id == current_user.id,
                     ~SavedPenaltyTab.client_tab_id.in_(DEFAULT_PENALTY_TAB_DEFINITIONS.keys()) # Exclude system default IDs from count
                 ).count()
-                if current_custom_tab_count >= MAX_SAVED_PENALTY_TABS:
-                    logger.warning("User %s: Reached max saved custom penalty tabs limit (%d).", current_user.id, MAX_SAVED_PENALTY_TABS)
-                    return jsonify({"error": f"Max custom penalty tabs limit ({MAX_SAVED_PENALTY_TABS}) reached."}), 400
+                
+                user_max_penalty_tabs = get_user_limit(current_user, 'max_penalty_tabs')
+
+                if current_custom_tab_count >= user_max_penalty_tabs:
+                    logger.warning("User %s: Reached max saved custom penalty tabs limit (%d).", current_user.id, user_max_penalty_tabs)
+                    return jsonify({"error": f"Max custom penalty tabs limit ({user_max_penalty_tabs}) reached."}), 400
 
             logger.debug("User %s: Creating new SavedPenaltyTab for client_tab_id %s", current_user.id, client_tab_id)
             new_tab = SavedPenaltyTab(

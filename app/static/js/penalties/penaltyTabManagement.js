@@ -184,7 +184,7 @@ export function createTabFromLocalData(tabId, tabName, isSystemDefault) {
 export async function createNewTab() { // For Penalties
   const isLoggedIn = window.isLoggedIn === true;
   const currentTabsData = isLoggedIn ? (window.userPenaltyTabsData?.tabs || {}) : getLocalOnlyPenaltyTabs();
-  const MAX_CUSTOM_TABS = 5;
+  const MAX_CUSTOM_TABS = window.MAX_CUSTOM_TABS || 5; // Use global or fallback
 
   let customTabCount = 0;
   const systemDefaultClientTabIds = window.SYSTEM_DEFAULT_PENALTY_TABS

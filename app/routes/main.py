@@ -6,14 +6,17 @@ from flask_login import current_user, login_required
 # Import db instance and csrf from app
 from app import db, csrf
 # Import necessary models
-from app.models import SharedChallenge, ChallengeGroup, User
+from app.models import SharedChallenge, ChallengeGroup, User, SavedGameTab, SavedPenaltyTab
 # Removed: from app.database import SessionLocal # No longer needed
 import os
 # Import SQLAlchemy functions/helpers if needed (like desc, selectinload, etc.)
 from sqlalchemy.orm import joinedload, selectinload
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 # Import subscription helpers
-from app.utils.subscription_helpers import grant_pro_plan
+from app.utils.subscription_helpers import grant_pro_plan, get_user_limit, is_pro_plan_active
+# Import default definitions for tab counting
+from app.modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS, DEFAULT_PENALTY_TAB_DEFINITIONS
+from app.plan_config import PLAN_LIMITS # Import PLAN_LIMITS
 
 logger = logging.getLogger(__name__)
 # Rename blueprint to 'main' for consistency with common registration patterns
@@ -23,8 +26,23 @@ main = Blueprint('main', __name__)
 @main.route("/")
 def index():
     """Renders the main page (challenge generation form)."""
-    # Pass any necessary context for the template
-    return render_template("index.html", game_vars={}) # Assuming game_vars might be used
+    challenge_count = 0
+    max_challenges = get_user_limit(None, 'max_challenges') # Default for anonymous
+    user_is_pro = False
+
+    if current_user.is_authenticated:
+        challenge_count = db.session.query(func.count(SharedChallenge.id)).filter(SharedChallenge.creator_id == current_user.id).scalar()
+        max_challenges = get_user_limit(current_user, 'max_challenges')
+        user_is_pro = is_pro_plan_active(current_user)
+
+    return render_template(
+        "index.html",
+        game_vars={},
+        challenge_count=challenge_count,
+        max_challenges=max_challenges,
+        user_is_pro=user_is_pro,
+        PLAN_LIMITS=PLAN_LIMITS  # Pass PLAN_LIMITS to the template
+    )
 
 @main.route('/sitemap.xml')
 def sitemap():
@@ -45,16 +63,57 @@ def robots_txt():
     return send_from_directory(static_folder, 'robots.txt')
 
 @main.route("/games")
+@login_required # This page likely requires login to manage user-specific tabs
 def games_config():
     """Renders the games configuration page."""
-    # Pass empty lists/dicts initially, JS will populate from localStorage/API
-    return render_template("games/games.html", games=[], existing_games=[], game_vars={})
+    custom_game_tab_count = 0
+    max_game_tabs = get_user_limit(None, 'max_game_tabs') # Default for anonymous, though login is required
+    user_is_pro = False
+
+    if current_user.is_authenticated:
+        system_default_game_tab_client_ids = [details['client_tab_id'] for details in DEFAULT_GAME_TAB_DEFINITIONS.values()]
+        custom_game_tab_count = db.session.query(func.count(SavedGameTab.id)).filter(
+            SavedGameTab.user_id == current_user.id,
+            ~SavedGameTab.client_tab_id.in_(system_default_game_tab_client_ids)
+        ).scalar()
+        max_game_tabs = get_user_limit(current_user, 'max_game_tabs')
+        user_is_pro = is_pro_plan_active(current_user)
+
+    return render_template(
+        "games/games.html",
+        games=[],
+        existing_games=[],
+        game_vars={},
+        custom_tab_count=custom_game_tab_count,
+        max_custom_tabs=max_game_tabs,
+        user_is_pro=user_is_pro,
+        PLAN_LIMITS=PLAN_LIMITS  # Pass PLAN_LIMITS to the template
+    )
 
 @main.route("/penalties")
+@login_required # This page likely requires login to manage user-specific tabs
 def penalties_config():
     """Renders the penalties configuration page."""
-    # Pass any necessary context for the template
-    return render_template("penalties/penalties.html")
+    custom_penalty_tab_count = 0
+    max_penalty_tabs = get_user_limit(None, 'max_penalty_tabs') # Default for anonymous
+    user_is_pro = False
+
+    if current_user.is_authenticated:
+        system_default_penalty_tab_client_ids = [details['client_tab_id'] for details in DEFAULT_PENALTY_TAB_DEFINITIONS.values()]
+        custom_penalty_tab_count = db.session.query(func.count(SavedPenaltyTab.id)).filter(
+            SavedPenaltyTab.user_id == current_user.id,
+            ~SavedPenaltyTab.client_tab_id.in_(system_default_penalty_tab_client_ids)
+        ).scalar()
+        max_penalty_tabs = get_user_limit(current_user, 'max_penalty_tabs')
+        user_is_pro = is_pro_plan_active(current_user)
+        
+    return render_template(
+        "penalties/penalties.html",
+        custom_tab_count=custom_penalty_tab_count,
+        max_custom_tabs=max_penalty_tabs,
+        user_is_pro=user_is_pro,
+        PLAN_LIMITS=PLAN_LIMITS  # Pass PLAN_LIMITS to the template
+    )
 
 @main.route('/impressum')
 def impressum():
@@ -84,41 +143,48 @@ def termsofservice():
 @main.route("/my_challenges")
 def my_challenges_view():
     """Displays DB challenges for logged-in users OR prepares shell for JS local view."""
-    user_challenges = []
+    user_challenges_list = []
+    challenge_count = 0
+    max_challenges = get_user_limit(None, 'max_challenges') # Default for anonymous
+    user_is_pro = False
     is_authenticated = current_user.is_authenticated
 
     if is_authenticated:
+        user_is_pro = is_pro_plan_active(current_user)
+        max_challenges = get_user_limit(current_user, 'max_challenges')
         try:
             # Use db.session directly for database operations
-            user_challenges = db.session.query(SharedChallenge)\
+            user_challenges_list = db.session.query(SharedChallenge)\
                 .filter(SharedChallenge.creator_id == current_user.id)\
                 .order_by(desc(SharedChallenge.created_at))\
                 .options(selectinload(SharedChallenge.groups))\
                 .all()
-            logger.info(f"Found {len(user_challenges)} DB challenges for user {current_user.username}")
-
-            # Note: No explicit commit needed for read operations.
-            # Flask-SQLAlchemy typically handles session lifecycle per request.
+            challenge_count = len(user_challenges_list) # Get count from the fetched list
+            logger.info(f"Found {challenge_count} DB challenges for user {current_user.username}")
 
         except Exception as e:
-            # Rollback in case of error during query/processing
             db.session.rollback()
             logger.exception(f"Error fetching DB challenges for user {current_user.username}")
             flash("Could not load your saved challenges due to a server error.", "danger")
-            user_challenges = [] # Ensure it's an empty list on error
+            user_challenges_list = [] # Ensure it's an empty list on error
+            challenge_count = 0
 
 
     return render_template(
         "my_challenges.html",
-        user_challenges=user_challenges,
-        is_authenticated=is_authenticated
+        user_challenges=user_challenges_list,
+        is_authenticated=is_authenticated,
+        challenge_count=challenge_count,
+        max_challenges=max_challenges,
+        user_is_pro=user_is_pro,
+        PLAN_LIMITS=PLAN_LIMITS
         )
 
 @main.route('/subscribe')
 def subscribe():
     """Renders the subscription pricing page."""
     # You might pass additional data if needed, e.g., user's current plan status
-    return render_template('pricing/pricing_section.html')
+    return render_template('pricing/pricing_section.html', PLAN_LIMITS=PLAN_LIMITS)
 
 # --- Unified Challenge View Route ---
 @main.route("/challenge/<string:challenge_id>")

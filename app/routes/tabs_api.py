@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from app import db
 # Import necessary models
 from app.models import SavedGameTab # Assuming this is your model for saved game tabs
+from app.utils.subscription_helpers import get_user_limit # Import for plan limits
 
 # Import the default game tab definitions to identify system default tabs
 from app.modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS
@@ -18,8 +19,7 @@ logger = logging.getLogger(__name__)
 # Define the blueprint for game tabs API
 tabs_api = Blueprint('tabs_api', __name__, url_prefix='/api/tabs')
 
-# Define limits (consider moving these to config if they vary by environment)
-MAX_SAVED_TABS = 5  # Max number of *custom* tabs a user can save
+# MAX_SAVED_TABS is now dynamic per user plan
 MAX_ENTRIES_PER_TAB = 100 # Max entries per any single tab
 
 @tabs_api.route("/save", methods=["POST"])
@@ -116,10 +116,12 @@ def save_tab():
                     SavedGameTab.user_id == current_user.id,
                     ~SavedGameTab.client_tab_id.in_(system_default_client_ids) # Exclude system defaults
                 ).count()
+                
+                user_max_game_tabs = get_user_limit(current_user, 'max_game_tabs')
 
-                if current_custom_tab_count_in_db >= MAX_SAVED_TABS:
-                    logger.warning(f"User {current_user.id}: Reached max saved custom game tabs limit ({MAX_SAVED_TABS}). Attempted to create {client_tab_id_from_request}.")
-                    return jsonify({"error": f"You have reached the maximum number of custom saved tabs ({MAX_SAVED_TABS})."}), 400
+                if current_custom_tab_count_in_db >= user_max_game_tabs:
+                    logger.warning(f"User {current_user.id}: Reached max saved custom game tabs limit ({user_max_game_tabs}). Attempted to create {client_tab_id_from_request}.")
+                    return jsonify({"error": f"You have reached the maximum number of custom saved tabs ({user_max_game_tabs})."}), 400
             # --- END MODIFICATION ---
 
             logger.debug("User %s: Creating new SavedGameTab for client_tab_id %s", current_user.id, client_tab_id_from_request)

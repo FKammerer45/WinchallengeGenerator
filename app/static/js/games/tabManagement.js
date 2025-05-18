@@ -180,7 +180,7 @@ export function createTabFromLocalData(tabId, tabName, referenceNodeForInsertion
 export async function createNewTab() {
   const isLoggedIn = window.isLoggedIn === true;
   const currentTabsData = isLoggedIn ? (window.userTabsData?.tabs || {}) : getLocalOnlyTabs();
-  const MAX_CUSTOM_TABS = 5;
+  const MAX_CUSTOM_TABS = window.MAX_CUSTOM_TABS || 5; // Use global or fallback
 
 
   let customTabCount = 0;
