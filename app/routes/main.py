@@ -385,3 +385,13 @@ def overlay_view(challenge_public_id):
     logger.info(f"Serving overlay page for challenge ID: {challenge_public_id}")
     # We don't need to validate the API key here; the WebSocket connection will do that.
     return render_template("overlay/overlay.html", challenge_public_id=challenge_public_id)
+
+@main.route('/widerrufsbelehrung')
+def widerrufsbelehrung_de():
+    """Renders the German Right of Withdrawal page."""
+    return render_template('legal/widerrufsbelehrung_de.html')
+
+@main.route('/right_of_withdrawal')
+def widerrufsbelehrung_en():
+    """Renders the English Right of Withdrawal page."""
+    return render_template('legal/widerrufsbelehrung_en.html')

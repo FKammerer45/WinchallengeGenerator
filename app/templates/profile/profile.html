@@ -225,6 +225,23 @@
     </div>
     {# --- End Account Security Card --- #}
 
+    {# --- Legal Information Card --- #}
+    <div class="card profile-card">
+        <div class="card-header">
+            <i class="bi bi-file-earmark-text-fill"></i> Legal Information
+        </div>
+        <div class="card-body">
+            <ul class="list-unstyled">
+                <li><a href="{{ url_for('main.termsofservice') }}">Terms of Service</a></li>
+                <li><a href="{{ url_for('main.datenschutz') }}">Privacy Policy (Datenschutz)</a></li>
+                <li><a href="{{ url_for('main.impressum') }}">Impressum (Legal Notice)</a></li>
+                <li><a href="{{ url_for('main.widerrufsbelehrung_de') }}">Widerrufsbelehrung (DE)</a></li>
+                <li><a href="{{ url_for('main.widerrufsbelehrung_en') }}">Right of Withdrawal (EN)</a></li>
+            </ul>
+        </div>
+    </div>
+    {# --- End Legal Information Card --- #}
+
 </div> {# End container #}
 
 {# --- Change Email Modal (remains the same) --- #}

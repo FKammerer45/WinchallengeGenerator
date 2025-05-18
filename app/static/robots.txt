@@ -1,19 +1,23 @@
 # robots.txt for Win Challenge Generator
 
 User-agent: *
-# Disallow access to authentication-related paths
+
+# Allow essential public-facing pages
+Allow: /$
+Allow: /subscribe
+Allow: /challenge/ # Assuming shared challenges are meant to be public/indexed
+Allow: /sitemap.xml # Sitemap itself should be accessible
+
+# Disallow access to authentication, user-specific, API, payment, legal, and internal paths
 Disallow: /auth/
 Disallow: /profile
 Disallow: /my_challenges
-Disallow: /unconfirmed
-Disallow: /resend
-Disallow: /forgot-password
-Disallow: /reset-password/
-Disallow: /impressum
-Disallow: /datenschutz
-Disallow: /termsofservice
+Disallow: /unconfirmed # If this is a top-level route for unconfirmed users
+Disallow: /resend # If this is a top-level route
+Disallow: /forgot-password # If this is a top-level route
+Disallow: /reset-password/ # Note: Flask routes usually don't need trailing slash unless defined that way
 
-# Disallow configuration pages
+# Disallow user-specific configuration pages
 Disallow: /games
 Disallow: /penalties
 
@@ -23,18 +27,19 @@ Disallow: /api/
 # Disallow payment process
 Disallow: /payment/
 
-# Disallow specific challenge view pages and the overlay
-Disallow: /challenge/
+# Disallow OBS overlay pages (typically not for public indexing)
 Disallow: /overlay/
 
-# Allow legal pages (if they are not under a disallowed path)
+# Disallow test routes
+Disallow: /test_acquire_pro
+Disallow: /test_remove_pro
 
-
-Allow: /sitemap.xml
-
-# Allow the homepage
-Allow: /$
+# Disallow legal pages as requested
+Disallow: /impressum
+Disallow: /datenschutz
+Disallow: /termsofservice
+Disallow: /widerrufsbelehrung
+Disallow: /right_of_withdrawal
 
 # Sitemap location 
 Sitemap: https://www.winchallenge.me/sitemap.xml
-
