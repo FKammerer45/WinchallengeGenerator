@@ -13,8 +13,12 @@
     {# --- Page Header --- #}
     <div class="text-center mb-5">
         <h1 class="display-4 page-title mb-3">Choose Your Plan</h1>
-        <p class="lead text-secondary col-lg-8 mx-auto">Unlock enhanced features and support the platform by upgrading
-            to Pro.</p>
+        <p class="lead text-secondary col-lg-8 mx-auto">Unlock enhanced features and support the platform by upgrading to Pro.</p>
+        {% if not current_user.is_authenticated %}
+        <div class="alert alert-info mt-3 col-lg-6 mx-auto">
+            <i class="bi bi-info-circle-fill me-2"></i>You need to <a href="{{ url_for('auth.login', next=url_for('main.subscribe')) }}" class="alert-link">login</a> or <a href="{{ url_for('auth.register', next=url_for('main.subscribe')) }}" class="alert-link">register</a> to select a plan.
+        </div>
+        {% endif %}
     </div>
 
     {# --- Pricing Section --- #}
@@ -36,33 +40,20 @@
                         </p>
                         <hr class="feature-divider">
                         <ul class="features-list list-unstyled mb-4">
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to {{ PLAN_LIMITS.free.max_challenges }} challenges</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to {{ PLAN_LIMITS.free.max_game_tabs }} custom game tabs</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to {{ PLAN_LIMITS.free.max_penalty_tabs }} custom penalty tabs</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Basic
-                                overlay customization</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Adjustable
-                                Timer</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Countdown
-                                Timer</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Moderator
-                                control link</li>
-                            <li class="feature-item disabled"><i class="bi bi-x-circle text-secondary me-2"></i>Custom
-                                Title</li>
-                            <li class="feature-item disabled"><i class="bi bi-x-circle text-secondary me-2"></i>Pinned
-                                Challenges</li>
-                            <li class="feature-item disabled"><i
-                                    class="bi bi-x-circle text-secondary me-2"></i>Commercial Usage</li>
+                            {% for feature in FREE_PLAN_DISPLAY_FEATURES %}
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>{{ feature }}</li>
+                            {% endfor %}
                         </ul>
                     </div>
-                    <div class="card-footer p-4 p-lg-5 mt-auto text-center"> {# Added text-center #}
-                        {# Logic for Free plan button (adjust as needed) #}
-                        {% if current_user.is_authenticated and not current_user.is_pro %} {# Example check #}
-                        <button class="btn btn-secondary w-100 disabled" aria-disabled="true">Your Current Plan</button>
-                        {% elif current_user.is_authenticated and current_user.is_pro %}
-                        <span class="text-muted">You are Pro!</span>
+                    <div class="card-footer p-4 p-lg-5 mt-auto text-center">
+                        {% if current_user.is_authenticated %}
+                            {% if user_is_pro %} {# user_is_pro is passed from the route #}
+                                <button class="btn btn-secondary w-100 disabled" aria-disabled="true">Currently Pro</button>
+                            {% else %}
+                                <button class="btn btn-secondary w-100 disabled" aria-disabled="true">Your Current Plan</button>
+                            {% endif %}
                         {% else %}
-                        <a href="{{ url_for('auth.register') }}" class="btn btn-secondary w-100">Get Started Free</a>
+                            <a href="{{ url_for('auth.register', next=url_for('main.subscribe')) }}" class="btn btn-outline-primary w-100">Login to use</a>
                         {% endif %}
                     </div>
                 </div>
@@ -84,50 +75,24 @@
                         </p>
                         <hr class="feature-divider">
                         <ul class="features-list list-unstyled mb-4">
-                            <li class="feature-item"><i
-                                    class="bi bi-check-circle-fill text-success me-2"></i><strong>Everything from Free
-                                    Plan, plus:</strong></li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to {{ PLAN_LIMITS.pro.max_challenges }} challenges</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to {{ PLAN_LIMITS.pro.max_game_tabs }} custom game tabs</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Up to {{ PLAN_LIMITS.pro.max_penalty_tabs }} custom penalty tabs</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Custom
-                                title</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Custom
-                                font</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Timer per
-                                challenge</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Pinned
-                                challenges</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Control
-                                link permissions</li>
-                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>Commercial
-                                Usage License</li>
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Everything from Free Plan, plus:</strong></li>
+                            {% for feature in PRO_PLAN_DISPLAY_FEATURES %}
+                            <li class="feature-item"><i class="bi bi-check-circle-fill text-success me-2"></i>{{ feature }}</li>
+                            {% endfor %}
                         </ul>
                     </div>
-                    <div class="card-footer p-4 p-lg-5 mt-auto text-center"> {# Added text-center #}
-                        {# --- MODIFICATION START --- #}
+                    <div class="card-footer p-4 p-lg-5 mt-auto text-center">
                         {% if current_user.is_authenticated %}
-                        {# User is logged in #}
-                        {% if current_user.is_pro %} {# Example check for existing Pro user #}
-                        <button class="btn btn-primary w-100 disabled" aria-disabled="true">Your Current Plan</button>
+                            {% if user_is_pro %} {# user_is_pro is passed from the route #}
+                                <button class="btn btn-success w-100 disabled" aria-disabled="true">
+                                    <i class="bi bi-heart-fill"></i> Thank You!
+                                </button>
+                            {% else %}
+                                <a href="{{ url_for('payment.checkout') }}" class="btn btn-primary w-100 cta-button">Upgrade to Pro</a>
+                            {% endif %}
                         {% else %}
-                        {# Logged in, not Pro -> Show actual checkout link #}
-                        <a href="{{ url_for('payment.checkout') }}" class="btn btn-primary w-100 cta-button">Upgrade to
-                            Pro</a>
+                            <a href="{{ url_for('auth.register', next=url_for('main.subscribe')) }}" class="btn btn-primary w-100 cta-button">Login to use</a>
                         {% endif %}
-                        {% else %}
-                        {# User is NOT logged in -> Show button that triggers JS #}
-                        <button type="button" id="upgrade-login-prompt" class="btn btn-primary w-100 cta-button">Upgrade
-                            to Pro</button>
-                        {# Add a placeholder for the message #}
-                        <div id="login-prompt-message" class="text-warning small mt-2" style="display: none;">
-                            Please <a href="{{ url_for('auth.login', next=url_for('main.subscribe')) }}"
-                                class="alert-link">login</a> or <a
-                                href="{{ url_for('auth.register', next=url_for('main.subscribe')) }}"
-                                class="alert-link">register</a> to upgrade.
-                        </div>
-                        {% endif %}
-                        {# --- MODIFICATION END --- #}
                     </div>
                 </div>
 

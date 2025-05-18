@@ -16,7 +16,7 @@ from sqlalchemy import desc, func
 from app.utils.subscription_helpers import grant_pro_plan, get_user_limit, is_pro_plan_active
 # Import default definitions for tab counting
 from app.modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS, DEFAULT_PENALTY_TAB_DEFINITIONS
-from app.plan_config import PLAN_LIMITS # Import PLAN_LIMITS
+from app.plan_config import PLAN_LIMITS, FREE_PLAN_DISPLAY_FEATURES, PRO_PLAN_DISPLAY_FEATURES # Import new feature lists
 
 logger = logging.getLogger(__name__)
 # Rename blueprint to 'main' for consistency with common registration patterns
@@ -183,8 +183,17 @@ def my_challenges_view():
 @main.route('/subscribe')
 def subscribe():
     """Renders the subscription pricing page."""
-    # You might pass additional data if needed, e.g., user's current plan status
-    return render_template('pricing/pricing_section.html', PLAN_LIMITS=PLAN_LIMITS)
+    user_is_pro = False
+    if current_user.is_authenticated:
+        user_is_pro = is_pro_plan_active(current_user)
+        
+    return render_template(
+        'pricing/pricing_section.html',
+        PLAN_LIMITS=PLAN_LIMITS,
+        FREE_PLAN_DISPLAY_FEATURES=FREE_PLAN_DISPLAY_FEATURES,
+        PRO_PLAN_DISPLAY_FEATURES=PRO_PLAN_DISPLAY_FEATURES,
+        user_is_pro=user_is_pro 
+    )
 
 # --- Unified Challenge View Route ---
 @main.route("/challenge/<string:challenge_id>")

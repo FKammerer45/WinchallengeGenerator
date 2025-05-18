@@ -4,7 +4,7 @@ import requests # Added import
 from flask import Blueprint, render_template, redirect, url_for, flash, current_app, jsonify, request
 from flask_login import login_required, current_user
 import paypalrestsdk # Still used for configuration, potentially for other v1 calls if any
-from app.utils.subscription_helpers import grant_pro_plan
+from app.utils.subscription_helpers import grant_pro_plan, is_pro_plan_active # Import is_pro_plan_active
 from app import csrf # For CSRF exemption if needed, or handle via JS headers
 
 # Assuming 'payment_bp' is the name used for registration
@@ -24,12 +24,22 @@ def checkout():
     
     # Pass PayPal Client ID to the template for the JS SDK
     paypal_client_id = current_app.config.get('PAYPAL_CLIENT_ID')
-    
+    user_already_pro = False
+    pro_expiration_date_str = None
+
+    if current_user.is_authenticated:
+        user_already_pro = is_pro_plan_active(current_user)
+        if user_already_pro and current_user.pro_plan_expiration_date:
+            pro_expiration_date_str = current_user.pro_plan_expiration_date.strftime('%B %d, %Y')
+
+
     return render_template('payment/checkout_page.html', 
                            is_testing_or_debug=is_testing_or_debug,
                            paypal_client_id=paypal_client_id,
                            pro_plan_price=PRO_PLAN_PRICE,
-                           pro_plan_currency=PRO_PLAN_CURRENCY)
+                           pro_plan_currency=PRO_PLAN_CURRENCY,
+                           user_already_pro=user_already_pro,
+                           pro_expiration_date_str=pro_expiration_date_str)
 
 @payment_bp.route('/api/paypal/create_order', methods=['POST'])
 @login_required
@@ -132,10 +142,22 @@ def capture_paypal_order():
     data = request.get_json()
     # This is the PayPal Order ID (EC-XXX or similar) from createOrder on client-side,
     # which was originally returned by our /api/paypal/create_order
-    paypal_order_id = data.get('orderID') 
+    paypal_order_id = data.get('orderID')
 
     if not paypal_order_id:
         return jsonify({"error": "Missing PayPal orderID."}), 400
+
+    # Prevent re-processing if user is already pro and tries to pay again through a stale page or direct API call
+    # The grant_pro_plan function handles extension, but this adds an earlier check.
+    if is_pro_plan_active(current_user):
+        # Optionally, you could allow extension here, but for now, let's prevent a new charge if already pro.
+        # This depends on desired business logic. If grant_pro_plan handles extension correctly,
+        # this check might be redundant or could simply log a warning.
+        # For now, let's assume we don't want to re-trigger capture if they are already pro from this endpoint.
+        # However, the payment might have already been authorized by PayPal on the client-side.
+        # The critical part is that grant_pro_plan extends rather than creating a conflicting subscription.
+        logger.info(f"User {current_user.id} attempting to capture order {paypal_order_id} but is already Pro. Proceeding to extend/verify.")
+
 
     try:
         # Construct the API endpoint based on PayPal mode

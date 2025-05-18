@@ -90,6 +90,15 @@
             Payment Details
          </div>
         <div class="card-body p-4 p-lg-5">
+            {% if user_already_pro %}
+            <div class="alert alert-success text-center">
+                <h4 class="alert-heading"><i class="bi bi-patch-check-fill me-2"></i>You are already a Pro Member!</h4>
+                <p>Your current Pro Plan is active{% if pro_expiration_date_str %} until <strong>{{ pro_expiration_date_str }}</strong>{% endif %}.</p>
+                <p>You can manage your subscription from your <a href="{{ url_for('profile.profile_view') }}" class="alert-link">profile page</a>.</p>
+                <hr>
+                <p class="mb-0">If you believe this is an error, please contact support.</p>
+            </div>
+            {% else %}
             {# --- Payment Provider Integration Placeholder --- #}
             {# This is where you would integrate Stripe Elements, PayPal button, etc. #}
             {# --- PayPal Button Container --- #}
@@ -102,6 +111,7 @@
             </div>
             <div id="payment-message" class="mt-3 text-center"></div> 
             {# --- End PayPal Button Container --- #}
+            {% endif %}
         </div>
     </div>
 
@@ -110,7 +120,8 @@
 
 {% block scripts %}
 {{ super() }}
-{% if paypal_client_id %}
+{# Only render PayPal button script if user is NOT already pro AND paypal_client_id exists #}
+{% if not user_already_pro and paypal_client_id %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const paypalButtonContainer = document.getElementById('paypal-button-container');
