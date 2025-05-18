@@ -122,6 +122,8 @@ class User(db.Model, UserMixin):
     email = Column(String(120), unique=True, nullable=False, index=True)
     confirmed = Column(Boolean, nullable=False, default=False)
     confirmed_on = Column(DateTime(timezone=True), nullable=True)
+    pro_plan_active = Column(Boolean, nullable=False, default=False)
+    pro_plan_expiration_date = Column(DateTime(timezone=True), nullable=True)
 
     # Relationship to challenges created by this user
     created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select", cascade="all, delete-orphan")

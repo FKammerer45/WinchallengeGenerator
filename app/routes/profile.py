@@ -55,8 +55,13 @@ def profile_view():
             return render_template("profile/profile.html", change_email_form=change_email_form)
 
     # Handle GET request (or failed POST validation)
-    # Pass the form instance to the template for rendering
-    return render_template("profile/profile.html", change_email_form=change_email_form)
+    # Pass the form instance and pro plan info to the template for rendering
+    return render_template(
+        "profile/profile.html",
+        change_email_form=change_email_form,
+        pro_plan_active=current_user.pro_plan_active,
+        pro_plan_expiration_date=current_user.pro_plan_expiration_date
+    )
 
 
 @profile_bp.route("/profile/regenerate_key", methods=["POST"])

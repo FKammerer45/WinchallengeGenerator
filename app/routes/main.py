@@ -2,16 +2,18 @@
 import logging
 import uuid
 from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app, send_from_directory
-from flask_login import current_user
-# Import db instance from app
-from app import db 
+from flask_login import current_user, login_required
+# Import db instance and csrf from app
+from app import db, csrf
 # Import necessary models
-from app.models import SharedChallenge, ChallengeGroup, User 
+from app.models import SharedChallenge, ChallengeGroup, User
 # Removed: from app.database import SessionLocal # No longer needed
 import os
 # Import SQLAlchemy functions/helpers if needed (like desc, selectinload, etc.)
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import desc
+# Import subscription helpers
+from app.utils.subscription_helpers import grant_pro_plan
 
 logger = logging.getLogger(__name__)
 # Rename blueprint to 'main' for consistency with common registration patterns
@@ -24,7 +26,7 @@ def index():
     # Pass any necessary context for the template
     return render_template("index.html", game_vars={}) # Assuming game_vars might be used
 
-@main.route('/sitemap.xml') 
+@main.route('/sitemap.xml')
 def sitemap():
     # Construct the path to the static folder relative to the app instance
     static_folder = current_app.static_folder
@@ -71,7 +73,7 @@ def datenschutz():
 @main.route('/termsofservice')
 def termsofservice():
     """Rendert die Terms of Service Seite."""
-    # Passe den Pfad an, falls du einen Unterordner (z.B. 'legal/') verwendet hast:
+    # Passe den Pfad an, falls du einen Unterordner (z.g. 'legal/') verwendet hast:
     # return render_template('legal/datenschutz.html')
     return render_template('legal/termsofservice.html')
 
@@ -94,17 +96,17 @@ def my_challenges_view():
                 .options(selectinload(SharedChallenge.groups))\
                 .all()
             logger.info(f"Found {len(user_challenges)} DB challenges for user {current_user.username}")
-            
+
             # Note: No explicit commit needed for read operations.
             # Flask-SQLAlchemy typically handles session lifecycle per request.
 
         except Exception as e:
             # Rollback in case of error during query/processing
-            db.session.rollback() 
+            db.session.rollback()
             logger.exception(f"Error fetching DB challenges for user {current_user.username}")
             flash("Could not load your saved challenges due to a server error.", "danger")
             user_challenges = [] # Ensure it's an empty list on error
-   
+
 
     return render_template(
         "my_challenges.html",
@@ -125,7 +127,7 @@ def challenge_view(challenge_id):
     Renders the view for DB or Local challenges.
     Ensures fresh group data is loaded for DB challenges.
     """
-    
+
     is_local = False
     shared_challenge = None
     initial_groups_data = None # Will hold data prepared for template
@@ -135,7 +137,7 @@ def challenge_view(challenge_id):
     is_creator = False
     is_authorized = False
     authorized_user_list_for_template = []
-    
+
     if challenge_id.startswith("local_"):
         is_local = True
         # For local challenges, JS handles loading data and rendering
@@ -163,8 +165,8 @@ def challenge_view(challenge_id):
             if not shared_challenge:
                 logger.warning(f"DB Challenge {challenge_id} not found.")
                 abort(404)
-            
-           
+
+
             if current_user.is_authenticated:
                 # Use the helper function (ensure it's accessible or redefined here)
                 from .challenge_api import is_user_authorized # Assuming helper is in challenge_api.py
@@ -185,7 +187,7 @@ def challenge_view(challenge_id):
             # Refresh group objects to ensure latest state within this session
             # This is useful if other requests might have modified groups concurrently
             # although less critical if you just loaded them. Can be intensive.
-            
+
             refreshed_groups = []
             for group in shared_challenge.groups:
                 try:
@@ -199,7 +201,7 @@ def challenge_view(challenge_id):
 
             # Update the challenge's groups attribute to the list of (potentially) refreshed objects
             # This ensures subsequent code uses the most up-to-date objects available in the session
-            shared_challenge.groups = refreshed_groups 
+            shared_challenge.groups = refreshed_groups
 
             # Get challenge config values from the loaded object
             is_multigroup = shared_challenge.max_groups > 1
@@ -224,12 +226,12 @@ def challenge_view(challenge_id):
                     "active_penalty_text": g.active_penalty_text or ""
                 }
                 # Iterate over the refreshed groups list
-                for g in shared_challenge.groups 
+                for g in shared_challenge.groups
             ]
 
         except Exception as db_err:
             # Rollback in case of any error during DB operations or processing
-            db.session.rollback() 
+            db.session.rollback()
             import sys, traceback
             print(f"--- ERROR IN challenge_view (DB_ERR) FOR {challenge_id} ---", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
@@ -242,7 +244,7 @@ def challenge_view(challenge_id):
         return render_template(
             "challenge.html",
             # Pass the main challenge object (needed for some template logic)
-            shared_challenge=shared_challenge, 
+            shared_challenge=shared_challenge,
             # Pass specific variables needed by template/JS data attributes
             challenge_id=challenge_id,
             is_local=is_local,
@@ -250,8 +252,8 @@ def challenge_view(challenge_id):
             user_joined_group_id=user_joined_group_id,
             initial_groups=initial_groups_data, # Pass the prepared list
             num_players_per_group=num_players_per_group,
-            is_creator=is_creator, 
-            is_authorized=is_authorized, 
+            is_creator=is_creator,
+            is_authorized=is_authorized,
             authorized_user_list=authorized_user_list_for_template
         )
     except Exception as render_error:
@@ -260,6 +262,43 @@ def challenge_view(challenge_id):
         traceback.print_exc(file=sys.stderr)
         logger.exception(f"Error rendering challenge.html for challenge_id {challenge_id}")
         abort(500)
+
+# --- Test Pro Plan Acquisition Route (Development Only) ---
+@main.route("/test_acquire_pro", methods=['POST'])
+@login_required
+@csrf.exempt # Exempt from CSRF for testing convenience
+def test_acquire_pro():
+    """Grants the pro plan to the current user for testing purposes."""
+    if current_app.config['TESTING'] or current_app.config['DEBUG']:
+        if grant_pro_plan(current_user):
+            flash("Pro plan acquired successfully for testing!", "success")
+        else:
+            flash("Failed to acquire pro plan for testing.", "danger")
+        return redirect(url_for('payment.checkout')) # Redirect back to checkout page
+    else:
+        abort(404) # Not found in production
+
+# --- Test Pro Plan Removal Route (Development Only) ---
+@main.route("/test_remove_pro", methods=['POST'])
+@login_required
+@csrf.exempt # Exempt from CSRF for testing convenience
+def test_remove_pro():
+    """Removes the pro plan from the current user for testing purposes."""
+    if current_app.config['TESTING'] or current_app.config['DEBUG']:
+        if current_user:
+            current_user.pro_plan_active = False
+            current_user.pro_plan_expiration_date = None
+            db.session.commit()
+            flash("Pro plan removed successfully for testing.", "success")
+        else:
+            flash("Failed to remove pro plan for testing.", "danger")
+        return redirect(url_for('payment.checkout')) # Redirect back to checkout page
+    else:
+        abort(404) # Not found in production
+
+# --- Test Pro Plan Page Route (Development Only) ---
+# This route is no longer needed and has been removed.
+
 
 @main.route("/overlay/<string:challenge_public_id>")
 def overlay_view(challenge_public_id):
