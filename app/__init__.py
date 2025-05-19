@@ -16,6 +16,7 @@ from flask_admin.menu import MenuLink # Import MenuLink
 from config import config # Keep importing config for other settings
 import logging
 import paypalrestsdk # Moved import to top
+import redis # Import redis for manual connection test
 
 # Initialize extensions globally
 db = SQLAlchemy()
@@ -30,7 +31,7 @@ admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4') # Initializ
 # storage_uri will be picked up from app.config during init_app
 # Default limits and headers will also be read from app config via init_app
 limiter = Limiter(
-    key_func=get_remote_address  # Reverted to get_remote_address
+    key_func=get_remote_address
 )
 # --- End Limiter Init ---
 
@@ -41,7 +42,6 @@ login_manager.login_message_category = 'info'
 
 # Custom Jinja Filter
 def redact_email_filter(email):
-    # ... (filter code remains the same) ...
     if not email or '@' not in email: return email
     try:
         local_part, domain = email.split('@')
@@ -53,7 +53,6 @@ def redact_email_filter(email):
 # User loader callback
 @login_manager.user_loader
 def load_user(user_id):
-    # ... (user loader remains the same) ...
     from .models import User
     try: return db.session.get(User, int(user_id))
     except (TypeError, ValueError): return None
@@ -77,27 +76,60 @@ def create_app(config_name=None):
         config_name = 'default'
         app.config.from_object(config[config_name])
 
-    # Initialize extensions with the app instance
-    # --- Configure the *global* limiter instance with the app FIRST ---
-    # It will read other settings like default limits from app.config now
-    limiter.init_app(app)
-    # --- End Limiter Config ---
+    # --- Manual Redis Connection Test for Production ---
+    if config_name == 'production':
+        redis_url_to_test = app.config.get('RATELIMIT_STORAGE_URL')
+        # Use app.logger if app's logger is configured, otherwise print for early stage
+        log_message = f"--- [REDIS TEST] Attempting manual connection to: {redis_url_to_test}"
+        if hasattr(app, 'logger') and app.logger.hasHandlers():
+            app.logger.warning(log_message)
+        else:
+            print(log_message)
+            
+        if redis_url_to_test:
+            try:
+                r = redis.from_url(redis_url_to_test, socket_connect_timeout=2, socket_timeout=2)
+                r.ping()
+                log_message_success = "--- [REDIS TEST] Manual Redis ping successful! ---"
+                if hasattr(app, 'logger') and app.logger.hasHandlers():
+                    app.logger.warning(log_message_success)
+                else:
+                    print(log_message_success)
+            except redis.exceptions.ConnectionError as e:
+                log_message_error = f"--- [REDIS TEST] Manual Redis connection failed: {e}"
+                if hasattr(app, 'logger') and app.logger.hasHandlers():
+                    app.logger.error(log_message_error)
+                else:
+                    print(log_message_error)
+            except Exception as e:
+                log_message_other_error = f"--- [REDIS TEST] Manual Redis connection failed with other error: {e}"
+                if hasattr(app, 'logger') and app.logger.hasHandlers():
+                    app.logger.error(log_message_other_error)
+                else:
+                    print(log_message_other_error)
+        else:
+            log_message_not_found = "--- [REDIS TEST] RATELIMIT_STORAGE_URL not found in app.config for manual test."
+            if hasattr(app, 'logger') and app.logger.hasHandlers():
+                app.logger.warning(log_message_not_found)
+            else:
+                print(log_message_not_found)
+    # --- End Manual Redis Connection Test ---
 
+    # Initialize extensions with the app instance
+    limiter.init_app(app)
     db.init_app(app)
 
-    if app.config.get('DEBUG'):  # Only for debug mode, which development config enables
-        # Basic logging configuration for flask_limiter
-        logging.basicConfig(level=logging.DEBUG) # Configure root logger to DEBUG
+    if app.config.get('DEBUG'):
+        logging.basicConfig(level=logging.DEBUG) 
         limiter_logger = logging.getLogger('flask_limiter')
-        limiter_logger.setLevel(logging.DEBUG) # Ensure flask_limiter's logger is also DEBUG
-        # Add a handler if none are configured for flask_limiter, to ensure output
+        limiter_logger.setLevel(logging.DEBUG) 
         if not limiter_logger.handlers:
             ch = logging.StreamHandler()
             ch.setLevel(logging.DEBUG)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             ch.setFormatter(formatter)
             limiter_logger.addHandler(ch)
-        limiter_logger.info("Flask-Limiter DEBUG logging attempted with basicConfig.") # Use limiter_logger to confirm it works
+        limiter_logger.info("Flask-Limiter DEBUG logging attempted with basicConfig.")
 
     login_manager.init_app(app)
     csrf.init_app(app)
@@ -105,60 +137,55 @@ def create_app(config_name=None):
     socketio.init_app(app)
     mail.init_app(app)
 
-    # Import admin views here, inside create_app, just before use
     from .admin_views import AuthenticatedAdminIndexView
-    admin.init_app(app, index_view=AuthenticatedAdminIndexView(url='/admin')) # Use custom index view
+    admin.init_app(app, index_view=AuthenticatedAdminIndexView(url='/admin'))
 
-    # --- PayPal SDK Initialization ---
-    # import paypalrestsdk # Removed from here
     if app.config.get('PAYPAL_CLIENT_ID') and app.config.get('PAYPAL_CLIENT_SECRET'):
         try:
             paypalrestsdk.configure({
-                "mode": app.config.get('PAYPAL_MODE', 'sandbox'), # Default to sandbox if not set
+                "mode": app.config.get('PAYPAL_MODE', 'sandbox'),
                 "client_id": app.config['PAYPAL_CLIENT_ID'],
                 "client_secret": app.config['PAYPAL_CLIENT_SECRET']
             })
-            app.logger.info(f"PayPal SDK initialized in {app.config.get('PAYPAL_MODE', 'sandbox')} mode.")
+            # Use app.logger if available and configured
+            log_paypal_init = f"PayPal SDK initialized in {app.config.get('PAYPAL_MODE', 'sandbox')} mode."
+            if hasattr(app, 'logger') and app.logger.hasHandlers():
+                 app.logger.info(log_paypal_init)
+            else:
+                print(log_paypal_init)
         except Exception as e:
-            app.logger.error(f"Failed to initialize PayPal SDK: {e}")
+            log_paypal_error = f"Failed to initialize PayPal SDK: {e}"
+            if hasattr(app, 'logger') and app.logger.hasHandlers():
+                app.logger.error(log_paypal_error)
+            else:
+                print(log_paypal_error)
     else:
-        app.logger.warning("PayPal Client ID or Secret not configured. PayPal integration will be disabled.")
-    # --- End PayPal SDK Initialization ---
+        log_paypal_warning = "PayPal Client ID or Secret not configured. PayPal integration will be disabled."
+        if hasattr(app, 'logger') and app.logger.hasHandlers():
+            app.logger.warning(log_paypal_warning)
+        else:
+            print(log_paypal_warning)
 
-    # Explicitly configure logging for the 'testing' environment
     if config_name == 'testing':
-        # logging module is already imported at the top of the file
-        # from logging.handlers import RotatingFileHandler # Not used in Option B
-        import sys # For StreamHandler's default stream
-
-        stream_handler = logging.StreamHandler(sys.stderr) # Explicitly use sys.stderr
+        import sys 
+        stream_handler = logging.StreamHandler(sys.stderr) 
         stream_handler.setFormatter(logging.Formatter(
              '%(asctime)s %(levelname)s: %(name)s: %(message)s [in %(pathname)s:%(lineno)d]'
         ))
         stream_handler.setLevel(logging.DEBUG)
-        app.logger.addHandler(stream_handler)
-        app.logger.setLevel(logging.DEBUG)
-
-        # Ensure loggers used in blueprints (e.g., logging.getLogger('app.routes.main'))
-        # propagate to the app.logger and have their level set.
-        logging.getLogger('app').setLevel(logging.DEBUG)
-
-        app.logger.info("--- Testing environment: Flask logger explicitly configured to DEBUG level (app.logger) ---")
-        # The print statement might be useful for seeing if this block is hit during Gunicorn startup,
-        # though Gunicorn might handle stdout/stderr differently. app.logger is more reliable.
+        if hasattr(app, 'logger'): # Check if app.logger exists
+            app.logger.addHandler(stream_handler)
+            app.logger.setLevel(logging.DEBUG)
+            logging.getLogger('app').setLevel(logging.DEBUG)
+            app.logger.info("--- Testing environment: Flask logger explicitly configured to DEBUG level (app.logger) ---")
         print("--- Testing environment: Flask logger explicitly configured to DEBUG level (print statement) ---")
 
-    # Register the custom filter
     app.jinja_env.filters['redact_email'] = redact_email_filter
 
-    # Import and register blueprints
-    # ... (blueprint registrations remain the same) ...
     from .routes.main import main
-    # Explicitly apply default limits to the main blueprint
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(main)
     app.register_blueprint(main)
     from .routes.auth import auth as auth_blueprint
-    # Explicitly apply default limits to the auth blueprint (example, adjust as needed)
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(auth_blueprint)
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
     from .routes.auth_twitch import auth_twitch
@@ -182,46 +209,25 @@ def create_app(config_name=None):
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(profile_bp)
     app.register_blueprint(profile_bp)
     from .routes.admin_auth import admin_auth_bp
-    # Note: admin_auth_bp has specific limits on its routes, so applying a default here might be redundant
-    # or could be added if there are routes within it that need a default.
-    # For now, let's assume its specific decorators are sufficient.
-    app.register_blueprint(admin_auth_bp) # No url_prefix here, it's in the blueprint
-    # REMOVED: csrf.exempt(admin_auth_bp) # Remove temporary exemption
+    app.register_blueprint(admin_auth_bp)
 
-
-    # Import and register SocketIO event handlers
     from . import sockets
     print("--- SocketIO event handlers registered (imported sockets.py) ---")
 
-    # Import and register CLI commands
     from .commands import register_commands
     register_commands(app)
 
-    # --- Flask-Admin Views ---
-    from .admin_views import UserAdminView, SavedGameTabAdminView, SavedPenaltyTabAdminView, SharedChallengeAdminView # Import new views
-    from .models import User, SavedGameTab, SavedPenaltyTab, SharedChallenge # Import new models
+    from .admin_views import UserAdminView, SavedGameTabAdminView, SavedPenaltyTabAdminView, SharedChallengeAdminView
+    from .models import User, SavedGameTab, SavedPenaltyTab, SharedChallenge
     admin.add_view(UserAdminView(User, db.session, name='Users'))
-    # Register these views so url_for can find them, but they won't be in main menu if not desired
-    # (or can be hidden with menu_icon_type=None or category tricks if needed)
     admin.add_view(SavedGameTabAdminView(SavedGameTab, db.session, name='Saved Game Tabs', category='User Related Data'))
     admin.add_view(SavedPenaltyTabAdminView(SavedPenaltyTab, db.session, name='Saved Penalty Tabs', category='User Related Data'))
     admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges', category='User Related Data'))
-    # Add other model views to the admin panel (e.g., for GameEntry, Penalty if desired as top-level)
-
-    # Add Admin Logout link
     admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout'))
 
-
-    # --- Custom Error Handlers ---
     @app.errorhandler(404)
     def page_not_found(e):
         return render_template('errors/404.html'), 404
-    
-    # You can add other error handlers here, e.g., for 500 errors
-    # @app.errorhandler(500)
-    # def internal_server_error(e):
-    #     return render_template('errors/500.html'), 500
-    # --- End Custom Error Handlers ---
 
     print("--- Application creation complete ---")
     return app
