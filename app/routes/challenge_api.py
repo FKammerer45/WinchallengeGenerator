@@ -497,7 +497,6 @@ def update_group_progress(public_id, group_id):
             group.progress_data = progress 
             flag_modified(group, "progress_data") 
             db.session.commit() 
-            logger.info(f"Progress updated for group {group_id} by user {current_user.username}. Key: {progress_key}, Complete: {is_complete}")
             emit_progress_update(public_id, group_id, group.progress_data)
 
         return jsonify({"status": "success", "message": "Progress updated."}), 200

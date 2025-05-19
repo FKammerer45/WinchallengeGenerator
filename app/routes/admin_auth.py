@@ -16,7 +16,7 @@ def admin_required(f):
     return decorated_function
 
 @admin_auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("1 per 5 minutes") # Apply rate limiting
+@limiter.limit("2 per minute") # Apply rate limiting
 def login():
     if session.get('admin_logged_in'):
         return redirect(url_for('admin.index')) # Redirect to Flask-Admin index if already logged in

@@ -112,7 +112,7 @@ class ProductionConfig(Config):
     # Use Redis for rate limiting storage in production if available
     RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0") # Example Redis URL
     # Keep the default limits from base Config unless overridden by env var
-    RATELIMIT_DEFAULT_LIMITS = os.environ.get("RATELIMIT_DEFAULT_LIMITS", "120 per minute")
+    RATELIMIT_DEFAULT_LIMITS = os.environ.get("RATELIMIT_DEFAULT_LIMITS", Config.RATELIMIT_DEFAULT_LIMITS)
 
     # ... (rest of ProductionConfig checks for reCAPTCHA, Twitch, Mailgun) ...
     RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY')

@@ -3,7 +3,7 @@ import os
 import re
 from flask import Flask, render_template, url_for # Add url_for here
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
+from flask_login import LoginManager # Removed current_user import
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_limiter import Limiter
@@ -26,14 +26,11 @@ socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 mail = Mail()
 admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4') # Initialize Admin
 
-# --- Initialize Limiter globally - Reading storage URI directly ---
-# Read directly from environment variable here, providing a default
-limiter_storage_uri = os.environ.get("RATELIMIT_STORAGE_URL", "memory://")
-print(f"--- [INIT DEBUG] Initializing Limiter with storage_uri: {limiter_storage_uri} ---") # Debug print
+# --- Initialize Limiter globally WITHOUT storage_uri yet ---
+# storage_uri will be picked up from app.config during init_app
+# Default limits and headers will also be read from app config via init_app
 limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=limiter_storage_uri, # Set storage directly
-    # Default limits and headers will still be read from app config via init_app
+    key_func=get_remote_address  # Reverted to get_remote_address
 )
 # --- End Limiter Init ---
 
@@ -81,16 +78,32 @@ def create_app(config_name=None):
         app.config.from_object(config[config_name])
 
     # Initialize extensions with the app instance
+    # --- Configure the *global* limiter instance with the app FIRST ---
+    # It will read other settings like default limits from app.config now
+    limiter.init_app(app)
+    # --- End Limiter Config ---
+
     db.init_app(app)
+
+    if app.config.get('DEBUG'):  # Only for debug mode, which development config enables
+        # Basic logging configuration for flask_limiter
+        logging.basicConfig(level=logging.DEBUG) # Configure root logger to DEBUG
+        limiter_logger = logging.getLogger('flask_limiter')
+        limiter_logger.setLevel(logging.DEBUG) # Ensure flask_limiter's logger is also DEBUG
+        # Add a handler if none are configured for flask_limiter, to ensure output
+        if not limiter_logger.handlers:
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            ch.setFormatter(formatter)
+            limiter_logger.addHandler(ch)
+        limiter_logger.info("Flask-Limiter DEBUG logging attempted with basicConfig.") # Use limiter_logger to confirm it works
+
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
     socketio.init_app(app)
     mail.init_app(app)
-    # --- Configure the *global* limiter instance with the app ---
-    # It will read other settings like default limits from app.config now
-    limiter.init_app(app)
-    # --- End Limiter Config ---
 
     # Import admin views here, inside create_app, just before use
     from .admin_views import AuthenticatedAdminIndexView
@@ -114,7 +127,7 @@ def create_app(config_name=None):
 
     # Explicitly configure logging for the 'testing' environment
     if config_name == 'testing':
-        import logging # Already imported at the top, but good for clarity here
+        # logging module is already imported at the top of the file
         # from logging.handlers import RotatingFileHandler # Not used in Option B
         import sys # For StreamHandler's default stream
 
@@ -141,24 +154,37 @@ def create_app(config_name=None):
     # Import and register blueprints
     # ... (blueprint registrations remain the same) ...
     from .routes.main import main
+    # Explicitly apply default limits to the main blueprint
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(main)
     app.register_blueprint(main)
     from .routes.auth import auth as auth_blueprint
+    # Explicitly apply default limits to the auth blueprint (example, adjust as needed)
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(auth_blueprint)
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
     from .routes.auth_twitch import auth_twitch
     app.register_blueprint(auth_twitch, url_prefix='/auth/twitch')
     from .routes.challenge_api import challenge_api
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(challenge_api)
     app.register_blueprint(challenge_api, url_prefix='/api/challenge')
     from .routes.games_api import games_api
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(games_api)
     app.register_blueprint(games_api, url_prefix='/api/games')
     from .routes.penalties_api import penalties_api
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(penalties_api)
     app.register_blueprint(penalties_api, url_prefix='/api/penalties')
     from .routes.tabs_api import tabs_api
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(tabs_api)
     app.register_blueprint(tabs_api, url_prefix='/api/tabs')
     from .routes.payment import payment_bp
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(payment_bp)
     app.register_blueprint(payment_bp, url_prefix='/payment')
     from .routes.profile import profile_bp
+    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(profile_bp)
     app.register_blueprint(profile_bp)
     from .routes.admin_auth import admin_auth_bp
+    # Note: admin_auth_bp has specific limits on its routes, so applying a default here might be redundant
+    # or could be added if there are routes within it that need a default.
+    # For now, let's assume its specific decorators are sufficient.
     app.register_blueprint(admin_auth_bp) # No url_prefix here, it's in the blueprint
     # REMOVED: csrf.exempt(admin_auth_bp) # Remove temporary exemption
 
