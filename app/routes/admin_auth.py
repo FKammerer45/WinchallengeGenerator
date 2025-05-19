@@ -15,8 +15,12 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+@admin_auth_bp.route('/gotcha')
+def troll_page():
+    return render_template('admin/troll_page.html')
+
 @admin_auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("2 per minute") # Apply rate limiting
+@limiter.limit("5 per minute") # Apply rate limiting
 def login():
     if session.get('admin_logged_in'):
         return redirect(url_for('admin.index')) # Redirect to Flask-Admin index if already logged in
@@ -24,6 +28,13 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+
+        # --- Easter Egg Check ---
+        if username == 'admin' and password == 'admin':
+            # Optionally flash a message, or just redirect
+            # flash('Trying the ol\' admin/admin, eh? Gotcha!', 'info') 
+            return redirect(url_for('admin_auth.troll_page'))
+        # --- End Easter Egg Check ---
 
         admin_username = current_app.config.get('ADMIN_USERNAME')
         admin_password_hash = current_app.config.get('ADMIN_PASSWORD_HASH')

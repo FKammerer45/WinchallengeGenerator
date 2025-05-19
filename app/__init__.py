@@ -198,11 +198,15 @@ def create_app(config_name=None):
     register_commands(app)
 
     # --- Flask-Admin Views ---
-    from .admin_views import UserAdminView # Import UserAdminView here
-    from .models import User # Import User model here for admin view
+    from .admin_views import UserAdminView, SavedGameTabAdminView, SavedPenaltyTabAdminView, SharedChallengeAdminView # Import new views
+    from .models import User, SavedGameTab, SavedPenaltyTab, SharedChallenge # Import new models
     admin.add_view(UserAdminView(User, db.session, name='Users'))
-    # admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges'))
-    # Add other model views to the admin panel
+    # Register these views so url_for can find them, but they won't be in main menu if not desired
+    # (or can be hidden with menu_icon_type=None or category tricks if needed)
+    admin.add_view(SavedGameTabAdminView(SavedGameTab, db.session, name='Saved Game Tabs', category='User Related Data'))
+    admin.add_view(SavedPenaltyTabAdminView(SavedPenaltyTab, db.session, name='Saved Penalty Tabs', category='User Related Data'))
+    admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges', category='User Related Data'))
+    # Add other model views to the admin panel (e.g., for GameEntry, Penalty if desired as top-level)
 
     # Add Admin Logout link
     admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout'))

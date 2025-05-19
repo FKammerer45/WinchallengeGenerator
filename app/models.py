@@ -37,7 +37,7 @@ class SavedPenaltyTab(db.Model):
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
     
     # Relationships (Optional but good practice)
-    user = relationship("User", backref=db.backref("saved_penalty_tabs", lazy=True))
+    user = relationship("User", back_populates="saved_penalty_tabs")
 
     def to_dict(self) -> Dict[str, Any]: 
         return { 
@@ -58,7 +58,7 @@ class SavedGameTab(db.Model):
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships (Optional but good practice)
-    user = relationship("User", backref=db.backref("saved_game_tabs", lazy=True))
+    user = relationship("User", back_populates="saved_game_tabs")
 
     def to_dict(self) -> Dict[str, Any]: 
         return { 
@@ -127,8 +127,12 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False, nullable=False) # Added is_admin field
     created_at = db.Column(db.DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc), nullable=False)
 
+    # Relationship to SavedGameTabs
+    saved_game_tabs = relationship("SavedGameTab", foreign_keys="[SavedGameTab.user_id]", back_populates="user", cascade="all, delete-orphan", lazy="select")
+    # Relationship to SavedPenaltyTabs
+    saved_penalty_tabs = relationship("SavedPenaltyTab", foreign_keys="[SavedPenaltyTab.user_id]", back_populates="user", cascade="all, delete-orphan", lazy="select")
     # Relationship to challenges created by this user
-    created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select", cascade="all, delete-orphan")
+    created_challenges = relationship("SharedChallenge", back_populates="creator", cascade="all, delete-orphan", lazy="select")
     
     # Relationship to groups this user is a member of
     joined_groups = db.relationship(

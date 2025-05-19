@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOTCHA!</title>
+    <style>
+        body, html {
+            height: 100vh; /* Full viewport height */
+            width: 100vw; /* Full viewport width */
+            margin: 0;
+            display: flex; /* Use flex to center content */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #000; /* Black background */
+            overflow: hidden; /* Hide scrollbars */
+            /* position: relative; */ /* Not needed if body is flex container */
+        }
+        #trollImage {
+            /* position: absolute; */ /* Not needed if body is flex container */
+            /* top: 0; */
+            /* left: 0; */
+            max-width: 90vw; /* Make it large but not necessarily full screen width */
+            max-height: 75vh; /* Make it large but leave space for slider */
+            object-fit: contain; /* Maintain aspect ratio, fit within bounds */
+        }
+        .volume-container {
+            /* position: absolute; */ /* Not needed if body is flex container */
+            /* bottom: 50px; */ /* Adjust as needed */
+            /* left: 50%; */
+            /* transform: translateX(-50%); */
+            margin-top: 20px; /* Space between image and slider */
+            width: 80%;
+            max-width: 500px;
+            position: absolute; /* Position over the image */
+            bottom: 50px; /* Adjust as needed */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 500px;
+            color: #fff;
+            text-align: center;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive; /* Funky font */
+            background-color: rgba(0,0,0,0.5); /* Semi-transparent background for readability */
+            padding: 15px;
+            border-radius: 10px;
+        }
+        input[type="range"] {
+            width: 100%; /* Full width of container */
+            /* cursor: pointer; */ /* Remove pointer if disabled */
+        }
+        #volumeValue {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #ffcc00; /* Funky color */
+            text-shadow: 1px 1px 2px black;
+        }
+        label {
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <img id="trollImage" src="{{ url_for('static', filename='images/cat-laughing.jpg') }}" alt="Surprise!">
+    
+    <div class="volume-container" id="volumeContainer">
+        <label for="volumeSlider">VOLUME:</label>
+        <input type="range" id="volumeSlider" min="0" max="1000" value="0" disabled> 
+        <p>Current Volume: <span id="volumeValue">0%</span></p>
+    </div>
+
+    <audio id="trollAudio" src="{{ url_for('static', filename='sounds/cat-laughing.mp3') }}" loop>
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        const audio = document.getElementById('trollAudio');
+        const slider = document.getElementById('volumeSlider');
+        const volumeValueDisplay = document.getElementById('volumeValue');
+        const animationDuration = 5000; // 5 seconds to reach max
+        const targetMax = parseInt(slider.max); // 1000 or 10000 based on your HTML
+
+        function updateVolumeText(currentValue) {
+            if (currentValue <= 100) {
+                volumeValueDisplay.textContent = currentValue + "%";
+            } else if (currentValue <= 500) {
+                volumeValueDisplay.textContent = currentValue + "%! LOUDER!";
+            } else {
+                volumeValueDisplay.textContent = currentValue + "%!! EVEN LOUDER!!";
+            }
+        }
+        
+        function animateSlider(startTime) {
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - startTime;
+            const progress = Math.min(elapsedTime / animationDuration, 1);
+            const sliderValue = Math.round(progress * targetMax);
+            
+            slider.value = sliderValue;
+            updateVolumeText(sliderValue);
+            audio.volume = Math.min(sliderValue / 100, 1.0); // Update actual audio volume
+
+            if (progress < 1) {
+                requestAnimationFrame(() => animateSlider(startTime));
+            } else {
+                slider.value = targetMax; // Ensure it ends at max
+                updateVolumeText(targetMax);
+            }
+        }
+
+        function startTheShow() {
+            let animationStarted = false;
+            const startAnimation = () => {
+                if (!animationStarted) {
+                    animationStarted = true;
+                    const startTime = Date.now();
+                    animateSlider(startTime);
+                }
+            };
+
+            if (audio.paused) {
+                audio.play().then(() => {
+                    audio.volume = 1.0; // Set to max once playing
+                    startAnimation();
+                }).catch(error => {
+                    console.log("Audio playback initially prevented:", error);
+                    // If autoplay is blocked, set up listeners for first interaction
+                    // to try playing audio then.
+                    const playOnClick = () => {
+                        if(audio.paused){
+                            audio.play().then(() => {
+                                // audio.volume is now handled by animateSlider or initial play
+                            }).catch(e => console.log("Audio play on click failed:", e));
+                        }
+                        // Remove listeners after first interaction
+                        document.body.removeEventListener('click', playOnClick);
+                        document.body.removeEventListener('touchstart', playOnClick);
+                    };
+                    document.body.addEventListener('click', playOnClick, { once: true });
+                    document.body.addEventListener('touchstart', playOnClick, { once: true });
+                    // Start animation even if audio is initially blocked
+                    // The animateSlider will set initial audio.volume based on slider value
+                    startAnimation(); 
+                });
+            } else { // Potentially already playing if user interacted very fast
+                 // audio.volume is now handled by animateSlider or initial play
+                 startAnimation();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(startTheShow, 1000); // Attempt to start after 1 second
+        });
+
+        // Initial display and audio volume
+        updateVolumeText(slider.value);
+        audio.volume = Math.min(parseInt(slider.value) / 100, 1.0);
+    </script>
+</body>
+</html>
