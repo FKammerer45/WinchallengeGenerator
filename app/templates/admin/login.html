@@ -33,6 +33,13 @@
                             <label for="password">Password</label>
                             <input type="password" class="form-control" id="password" name="password" required>
                         </div>
+
+                        {% if config.RECAPTCHA_ENABLED %}
+                        <div class="form-group mb-3">
+                            <div class="g-recaptcha" data-sitekey="{{ config.RECAPTCHA_PUBLIC_KEY }}"></div>
+                        </div>
+                        {% endif %}
+
                         <button type="submit" class="btn btn-primary btn-block">Login</button>
                     </form>
                 </div>
@@ -40,4 +47,8 @@
         </div>
     </div>
 </div>
+
+{% if config.RECAPTCHA_ENABLED %}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endif %}
 {% endblock %}

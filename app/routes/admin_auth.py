@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from werkzeug.security import check_password_hash
 from functools import wraps
 from app import limiter # Import the limiter instance
+import requests # For reCAPTCHA verification
 
 admin_auth_bp = Blueprint('admin_auth', __name__, url_prefix='/admin')
 
@@ -28,8 +29,37 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        recaptcha_response = request.form.get('g-recaptcha-response')
 
-        # --- Easter Egg Check ---
+        if current_app.config.get('RECAPTCHA_ENABLED', False):
+            if not recaptcha_response:
+                flash('Please complete the reCAPTCHA.', 'danger')
+                return render_template('admin/login.html')
+
+            secret_key = current_app.config.get('RECAPTCHA_PRIVATE_KEY')
+            verification_url = f"https://www.google.com/recaptcha/api/siteverify"
+            payload = {
+                'secret': secret_key,
+                'response': recaptcha_response,
+                'remoteip': request.remote_addr
+            }
+            
+            try:
+                verify_response = requests.post(verification_url, data=payload, timeout=5)
+                verify_response.raise_for_status() # Raise an exception for HTTP errors
+                response_data = verify_response.json()
+            except requests.exceptions.RequestException as e:
+                current_app.logger.error(f"reCAPTCHA verification request failed: {e}")
+                flash('reCAPTCHA verification failed. Please try again.', 'danger')
+                return render_template('admin/login.html')
+
+            if not response_data.get('success'):
+                flash('Invalid reCAPTCHA. Please try again.', 'danger')
+                # Log error codes if available: response_data.get('error-codes')
+                current_app.logger.warning(f"reCAPTCHA verification failed with error codes: {response_data.get('error-codes')}")
+                return render_template('admin/login.html')
+        
+        # --- Easter Egg Check (after reCAPTCHA if enabled) ---
         if username == 'admin' and password == 'admin':
             # Optionally flash a message, or just redirect
             # flash('Trying the ol\' admin/admin, eh? Gotcha!', 'info') 
