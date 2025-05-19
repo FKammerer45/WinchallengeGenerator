@@ -33,6 +33,7 @@ class Config:
     # --- Rate Limiting Settings ---
     RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "memory://") # Keep this
     RATELIMIT_DEFAULT_LIMITS = "120 per minute" # Add the default limit setting here
+    # logging.warning(f"--- [BASE CONFIG] Config.RATELIMIT_DEFAULT_LIMITS initialized to: '{RATELIMIT_DEFAULT_LIMITS}'") # Removed
     RATELIMIT_HEADERS_ENABLED = True # Keep header setting if desired
     # --- End Rate Limiting ---
 
@@ -72,6 +73,9 @@ class DevelopmentConfig(Config):
     RECAPTCHA_ENABLED = False # Often disabled for local dev
     # Development email settings might differ or use MAIL_SUPPRESS_SEND = True if not testing emails
     RATELIMIT_STORAGE_URL = "memory://" # Explicitly use in-memory storage for development
+    # Explicitly inherit and log default limits for clarity during debugging
+    RATELIMIT_DEFAULT_LIMITS = Config.RATELIMIT_DEFAULT_LIMITS 
+    # logging.warning(f"--- [DEV CONFIG] DevelopmentConfig.RATELIMIT_DEFAULT_LIMITS set to: '{RATELIMIT_DEFAULT_LIMITS}'") # Removed
 
 
 class TestingConfig(Config):
@@ -122,7 +126,12 @@ class ProductionConfig(Config):
     # logging.warning(f"--- [PROD CONFIG DEBUG] Final RATELIMIT_STORAGE_URL for Flask-Limiter: {RATELIMIT_STORAGE_URL}")
 
     # Keep the default limits from base Config unless overridden by env var
-    RATELIMIT_DEFAULT_LIMITS = os.environ.get("RATELIMIT_DEFAULT_LIMITS")
+    # Add detailed logging for ProductionConfig as well
+    _prod_ratelimit_env = os.environ.get("RATELIMIT_DEFAULT_LIMITS")
+    # logging.warning(f"--- [PROD CONFIG] RATELIMIT_DEFAULT_LIMITS from env: '{_prod_ratelimit_env}'") # Removed
+    RATELIMIT_DEFAULT_LIMITS = _prod_ratelimit_env or Config.RATELIMIT_DEFAULT_LIMITS
+    # logging.warning(f"--- [PROD CONFIG] Final ProductionConfig.RATELIMIT_DEFAULT_LIMITS: '{RATELIMIT_DEFAULT_LIMITS}'") # Removed
+
 
     # ... (rest of ProductionConfig checks for reCAPTCHA, Twitch, Mailgun) ...
     RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY')

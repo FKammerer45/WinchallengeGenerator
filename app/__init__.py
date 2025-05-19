@@ -79,13 +79,16 @@ def create_app(config_name=None):
     # Optional: Add strategy from config if you set it there
     # limiter_strategy = app.config.get("RATELIMIT_STRATEGY", "fixed-window") 
 
-    # Removed diagnostic log for limiter init params
+    # Set RATELIMIT_DEFAULTS in app.config for Limiter to pick up
+    if limiter_default_limits: # Ensure it's not None or empty before creating a list
+        app.config['RATELIMIT_DEFAULTS'] = [limiter_default_limits]
+    # If limiter_default_limits is None or empty, Limiter will use its own defaults or raise an error if none are configured.
 
     limiter = Limiter(
         get_remote_address,
         app=app, # Initialize with app directly
         storage_uri=limiter_storage_uri,
-        default_limits=limiter_default_limits,
+        # default_limits parameter removed, will use RATELIMIT_DEFAULTS from app.config
         headers_enabled=limiter_headers_enabled
         # storage_options={"socket_connect_timeout": 30}, # Example, add if needed
         # strategy=limiter_strategy, # Example
@@ -149,42 +152,38 @@ def create_app(config_name=None):
     app.jinja_env.filters['redact_email'] = redact_email_filter
 
     # Import and register blueprints AFTER limiter is initialized with app
+    # The Limiter instance itself has default_limits, so explicit per-blueprint application
+    # of the same default is not necessary unless a blueprint needs a *different* default.
+
     from .routes.main import main
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(main)
     app.register_blueprint(main)
     
     from .routes.auth import auth as auth_blueprint
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(auth_blueprint)
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
     
     from .routes.auth_twitch import auth_twitch
     app.register_blueprint(auth_twitch, url_prefix='/auth/twitch')
     
     from .routes.challenge_api import challenge_api
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(challenge_api)
     app.register_blueprint(challenge_api, url_prefix='/api/challenge')
     
     from .routes.games_api import games_api
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(games_api)
     app.register_blueprint(games_api, url_prefix='/api/games')
     
     from .routes.penalties_api import penalties_api
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(penalties_api)
     app.register_blueprint(penalties_api, url_prefix='/api/penalties')
     
     from .routes.tabs_api import tabs_api
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(tabs_api)
     app.register_blueprint(tabs_api, url_prefix='/api/tabs')
     
     from .routes.payment import payment_bp
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(payment_bp)
     app.register_blueprint(payment_bp, url_prefix='/payment')
     
     from .routes.profile import profile_bp
-    limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(profile_bp)
     app.register_blueprint(profile_bp)
     
     from .routes.admin_auth import admin_auth_bp
+    # admin_auth_bp has its own @limiter.limit decorators on specific routes
     app.register_blueprint(admin_auth_bp)
 
     from . import sockets 
