@@ -124,6 +124,8 @@ class User(db.Model, UserMixin):
     confirmed_on = Column(DateTime(timezone=True), nullable=True)
     pro_plan_active = Column(Boolean, nullable=False, default=False)
     pro_plan_expiration_date = Column(DateTime(timezone=True), nullable=True)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False) # Added is_admin field
+    created_at = db.Column(db.DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc), nullable=False)
 
     # Relationship to challenges created by this user
     created_challenges = db.relationship("SharedChallenge", back_populates="creator", lazy="select", cascade="all, delete-orphan")

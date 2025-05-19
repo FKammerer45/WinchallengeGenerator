@@ -1,5 +1,6 @@
 # config.py
 import os
+from datetime import timedelta # Import timedelta
 from dotenv import load_dotenv
 
 # Load environment variables from .env file, if it exists
@@ -51,7 +52,15 @@ class Config:
     PAYPAL_MODE = os.environ.get('PAYPAL_MODE') or 'sandbox' # 'sandbox' or 'live'
     PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID')
     PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET')
+
+    # --- Admin Panel Settings ---
+    # For a single admin user, credentials stored in environment variables
+    # IMPORTANT: ADMIN_PASSWORD_HASH should be a strong hash (e.g., Werkzeug's generate_password_hash)
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME') or 'admin'
+    ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH') or 'default_hash_please_change' # User MUST change this
     
+    # Session timeout for 'permanent' sessions (like admin login)
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=4) # e.g., 4 hours
 
 class DevelopmentConfig(Config):
     """Development configuration."""
@@ -61,6 +70,7 @@ class DevelopmentConfig(Config):
         'sqlite:///' + os.path.join(basedir, 'dev.db')
     RECAPTCHA_ENABLED = False # Often disabled for local dev
     # Development email settings might differ or use MAIL_SUPPRESS_SEND = True if not testing emails
+    RATELIMIT_STORAGE_URL = "memory://" # Explicitly use in-memory storage for development
 
 
 class TestingConfig(Config):

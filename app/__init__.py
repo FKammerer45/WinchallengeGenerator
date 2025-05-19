@@ -1,7 +1,7 @@
 # app/__init__.py
 import os
 import re
-from flask import Flask, render_template # Add render_template here
+from flask import Flask, render_template, url_for # Add url_for here
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -10,6 +10,9 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO
 from flask_mail import Mail
+from flask_admin import Admin # Import Admin
+from flask_admin.menu import MenuLink # Import MenuLink
+# Models and admin_views will be imported inside create_app to avoid circular dependencies
 from config import config # Keep importing config for other settings
 import logging
 import paypalrestsdk # Moved import to top
@@ -21,6 +24,7 @@ csrf = CSRFProtect()
 migrate = Migrate()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 mail = Mail()
+admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4') # Initialize Admin
 
 # --- Initialize Limiter globally - Reading storage URI directly ---
 # Read directly from environment variable here, providing a default
@@ -88,6 +92,10 @@ def create_app(config_name=None):
     limiter.init_app(app)
     # --- End Limiter Config ---
 
+    # Import admin views here, inside create_app, just before use
+    from .admin_views import AuthenticatedAdminIndexView
+    admin.init_app(app, index_view=AuthenticatedAdminIndexView(url='/admin')) # Use custom index view
+
     # --- PayPal SDK Initialization ---
     # import paypalrestsdk # Removed from here
     if app.config.get('PAYPAL_CLIENT_ID') and app.config.get('PAYPAL_CLIENT_SECRET'):
@@ -150,6 +158,9 @@ def create_app(config_name=None):
     app.register_blueprint(payment_bp, url_prefix='/payment')
     from .routes.profile import profile_bp
     app.register_blueprint(profile_bp)
+    from .routes.admin_auth import admin_auth_bp
+    app.register_blueprint(admin_auth_bp) # No url_prefix here, it's in the blueprint
+    # REMOVED: csrf.exempt(admin_auth_bp) # Remove temporary exemption
 
 
     # Import and register SocketIO event handlers
@@ -159,6 +170,17 @@ def create_app(config_name=None):
     # Import and register CLI commands
     from .commands import register_commands
     register_commands(app)
+
+    # --- Flask-Admin Views ---
+    from .admin_views import UserAdminView # Import UserAdminView here
+    from .models import User # Import User model here for admin view
+    admin.add_view(UserAdminView(User, db.session, name='Users'))
+    # admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges'))
+    # Add other model views to the admin panel
+
+    # Add Admin Logout link
+    admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout'))
+
 
     # --- Custom Error Handlers ---
     @app.errorhandler(404)
