@@ -39,7 +39,7 @@
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Username</th>
+                        <th>User / Submitted As</th> {# Updated Header #}
                         <th>Timestamp</th>
                         <th>Site Area</th>
                         <th>Type</th>
@@ -52,23 +52,19 @@
                     {% for item in active_feedback_list %}
                     <tr>
                         <td>{{ item.id }}</td>
-                        <td>{{ item.username }} {% if item.user %}(User ID: {{item.user.id}}){% endif %}</td>
+                        <td>
+                            {% if item.user %}
+                                {{ item.user.username }} (ID: {{ item.user.id }})<br><small>Submitted as: {{ item.username }}</small>
+                            {% else %}
+                                {{ item.username }}
+                            {% endif %}
+                        </td>
                         <td>{{ item.timestamp.strftime('%Y-%m-%d %H:%M:%S') if item.timestamp else '' }}</td>
                         <td>{{ item.site_area }}</td>
                         <td>{{ item.feedback_type }}</td>
                         <td><div class="message-content">{{ item.message }}</div></td>
                         <td>{{ item.archived }}</td>
-                        <td>
-                            <a href="{{ url_for('.archive_single_item', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-warning">
-                                <i class="bi bi-archive-fill"></i> Archive
-                            </a>
-                            <a href="{{ url_for('.edit_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-primary">
-                                <i class="bi bi-pencil-fill"></i> Edit
-                            </a>
-                             <a href="{{ url_for('.delete_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-danger list-delete-button" data-id="{{ item.id }}" title="Delete item">
-                                <i class="bi bi-trash-fill"></i> Delete
-                            </a>
-                        </td>
+                        <td>{{ admin_view.column_formatters.actions(admin_view, none, item, 'actions') | safe }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -100,7 +96,7 @@
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Username</th>
+                        <th>User / Submitted As</th> {# Updated Header #}
                         <th>Timestamp</th>
                         <th>Site Area</th>
                         <th>Type</th>
@@ -113,23 +109,19 @@
                     {% for item in archived_feedback_list %}
                     <tr>
                         <td>{{ item.id }}</td>
-                        <td>{{ item.username }} {% if item.user %}(User ID: {{item.user.id}}){% endif %}</td>
+                        <td>
+                            {% if item.user %}
+                                {{ item.user.username }} (ID: {{ item.user.id }})<br><small>Submitted as: {{ item.username }}</small>
+                            {% else %}
+                                {{ item.username }}
+                            {% endif %}
+                        </td>
                         <td>{{ item.timestamp.strftime('%Y-%m-%d %H:%M:%S') if item.timestamp else '' }}</td>
                         <td>{{ item.site_area }}</td>
                         <td>{{ item.feedback_type }}</td>
                         <td><div class="message-content">{{ item.message }}</div></td>
                         <td>{{ item.archived }}</td>
-                        <td>
-                            <a href="{{ url_for('.unarchive_single_item', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-success">
-                                <i class="bi bi-box-arrow-up"></i> Unarchive
-                            </a>
-                             <a href="{{ url_for('.edit_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-primary">
-                                <i class="bi bi-pencil-fill"></i> Edit
-                            </a>
-                             <a href="{{ url_for('.delete_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-danger list-delete-button" data-id="{{ item.id }}" title="Delete item">
-                                <i class="bi bi-trash-fill"></i> Delete
-                            </a>
-                        </td>
+                        <td>{{ admin_view.column_formatters.actions(admin_view, none, item, 'actions') | safe }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

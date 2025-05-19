@@ -5,6 +5,7 @@ from flask_admin.helpers import get_redirect_target
 from flask_admin.model.helpers import get_mdict_item_or_list
 from markupsafe import Markup
 from flask_wtf import FlaskForm # Import FlaskForm
+from flask_wtf.csrf import generate_csrf # Import generate_csrf
 from wtforms.fields import StringField, IntegerField, BooleanField, DateTimeField, TextAreaField # Import necessary fields
 from wtforms.validators import DataRequired, Email, Optional # Import Optional validator
 from wtforms.widgets import CheckboxInput, DateTimeInput, TextInput, TextArea # Import necessary widgets
@@ -243,10 +244,10 @@ class SharedChallengeAdminView(AuthenticatedModelView):
 # --- Feedback Admin View ---
 class FeedbackAdminView(AuthenticatedModelView):
     # Columns to display in the list view
-    column_list = ('id', 'username', 'user', 'timestamp', 'site_area', 'feedback_type', 'message', 'archived')
+    # column_list = ('id', 'username', 'user', 'timestamp', 'site_area', 'feedback_type', 'message', 'archived') # Original
     
     # Columns that can be searched
-    column_searchable_list = ('username', 'user.username', 'user.email', 'site_area', 'feedback_type', 'message')
+    column_searchable_list = ('username', 'user.username', 'user.email', 'site_area', 'feedback_type', 'message') # Keep user.username for search
     
     # Columns that can be filtered
     column_filters = ('archived', 'timestamp', 'site_area', 'feedback_type', 'user.username')
@@ -257,22 +258,61 @@ class FeedbackAdminView(AuthenticatedModelView):
     # Custom action (archive/unarchive) formatter
     def _action_formatter(view, context, model, name):
         action_url_archive = url_for('.archive_single_item', id=model.id, url=get_redirect_target())
-        action_url_unarchive = url_for('.unarchive_single_item', id=model.id, url=get_redirect_target())
+        action_url_unarchive = url_for('.unarchive_single_item', id=model.id, url=get_redirect_target()) # Corrected: added ()
         
-        buttons_html = ''
+        # For delete, we need a form to make it a POST request
+        # Flask-Admin's delete_form macro could be used if accessible, or a simple form:
+        delete_url = url_for('.delete_view', id=model.id, url=get_redirect_target())
+        
+        buttons_html = '<div class="action-buttons" style="display: flex; gap: 5px;">' # Use flex for spacing
+        
+        # Edit button (standard GET link)
+        edit_url = url_for('.edit_view', id=model.id, url=get_redirect_target())
+        buttons_html += f'<a href="{edit_url}" class="btn btn-xs btn-outline-primary"><i class="bi bi-pencil-fill"></i> Edit</a>'
+
         if not model.archived:
-            buttons_html += f'<a href="{action_url_archive}" class="btn btn-xs btn-outline-warning"><i class="bi bi-archive-fill"></i> Archive</a> '
+            buttons_html += f'<a href="{action_url_archive}" class="btn btn-xs btn-outline-warning"><i class="bi bi-archive-fill"></i> Archive</a>'
         else:
-            buttons_html += f'<a href="{action_url_unarchive}" class="btn btn-xs btn-outline-success"><i class="bi bi-box-arrow-up"></i> Unarchive</a> '
+            buttons_html += f'<a href="{action_url_unarchive}" class="btn btn-xs btn-outline-success"><i class="bi bi-box-arrow-up"></i> Unarchive</a>'
         
+        # Delete button with a form
+        # Note: Flask-Admin's default delete confirmation JS might expect specific classes/structure.
+        # This is a simplified form. For full modal confirmation, more JS/HTML might be needed.
+        csrf_token_value = generate_csrf()
+        buttons_html += f'''
+            <form method="POST" action="{delete_url}" style="display: inline-block; margin: 0;">
+                <input type="hidden" name="csrf_token" value="{csrf_token_value}">
+                <input type="hidden" name="id" value="{model.id}">
+                <button type="submit" class="btn btn-xs btn-outline-danger"
+                        onclick="return confirm('Are you sure you want to delete this item?');">
+                    <i class="bi bi-trash-fill"></i> Delete
+                </button>
+            </form>
+        '''
+        buttons_html += '</div>'
         return Markup(buttons_html)
+
+    def _user_info_formatter(view, context, model, name):
+        if model.user: # If linked to a User object
+            return Markup(f"{model.user.username} (ID: {model.user.id})<br><small>Submitted as: {model.username}</small>")
+        return model.username # Fallback to the name entered in the form
 
     column_formatters = {
         'message': lambda v, c, m, p: (Markup(f'<div style="max-width: 300px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{m.message}</div>') if m.message else ''),
-        'actions': _action_formatter
+        'actions': _action_formatter,
+        'user_info': _user_info_formatter
     }
     
-    column_list = ('id', 'username', 'timestamp', 'site_area', 'feedback_type', 'message', 'archived', 'actions')
+    # Updated column_list to use 'user_info'
+    column_list = ('id', 'user_info', 'timestamp', 'site_area', 'feedback_type', 'message', 'archived', 'actions')
+    # Remove 'user' and 'username' from here if 'user_info' replaces them for display.
+    # Keep them in column_searchable_list if you want to search by actual user.username or submitted name.
+
+    column_labels = {
+        'user_info': 'User / Submitted As',
+        'username': 'Name in Form' # This won't be shown if not in column_list, but good for clarity
+    }
+
     column_extra_widget_kwargs = {
         'message': {'style': 'word-wrap: break-word; white-space: pre-wrap;'}
     }
