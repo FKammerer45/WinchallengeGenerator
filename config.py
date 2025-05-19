@@ -122,7 +122,7 @@ class ProductionConfig(Config):
     # logging.warning(f"--- [PROD CONFIG DEBUG] Final RATELIMIT_STORAGE_URL for Flask-Limiter: {RATELIMIT_STORAGE_URL}")
 
     # Keep the default limits from base Config unless overridden by env var
-    RATELIMIT_DEFAULT_LIMITS = os.environ.get("RATELIMIT_DEFAULT_LIMITS", Config.RATELIMIT_DEFAULT_LIMITS)
+    RATELIMIT_DEFAULT_LIMITS = os.environ.get("RATELIMIT_DEFAULT_LIMITS")
 
     # ... (rest of ProductionConfig checks for reCAPTCHA, Twitch, Mailgun) ...
     RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY')
