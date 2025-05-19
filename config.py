@@ -110,7 +110,14 @@ class ProductionConfig(Config):
         raise ValueError("No DATABASE_URL set for production environment")
 
     # Use Redis for rate limiting storage in production if available
-    RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL") 
+    RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0") 
+ # In config.py, inside ProductionConfig
+    RATELIMIT_STORAGE_URL_FROM_ENV = os.environ.get("RATELIMIT_STORAGE_URL")
+    print(f"--- [PROD CONFIG DEBUG] RATELIMIT_STORAGE_URL from env: {RATELIMIT_STORAGE_URL_FROM_ENV}")
+    RATELIMIT_STORAGE_URL = RATELIMIT_STORAGE_URL_FROM_ENV or "redis://localhost:6379/0"
+    print(f"--- [PROD CONFIG DEBUG] Final RATELIMIT_STORAGE_URL for Flask-Limiter: {RATELIMIT_STORAGE_URL}")
+
+
     # Keep the default limits from base Config unless overridden by env var
     RATELIMIT_DEFAULT_LIMITS = os.environ.get("RATELIMIT_DEFAULT_LIMITS", Config.RATELIMIT_DEFAULT_LIMITS)
 
