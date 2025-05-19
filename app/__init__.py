@@ -2,6 +2,7 @@
 import os
 import re
 from flask import Flask, render_template, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix # Import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -59,6 +60,14 @@ def create_app(config_name=None):
 
     print(f"--- Loading configuration: '{config_name}' ---")
     app = Flask(__name__)
+
+    # Apply ProxyFix to handle headers from reverse proxy (e.g., Nginx)
+    # x_for=1: trust one hop for X-Forwarded-For
+    # x_proto=1: trust X-Forwarded-Proto
+    # x_host=1: trust X-Forwarded-Host
+    # x_port=1: trust X-Forwarded-Port
+    # x_prefix=1: trust X-Forwarded-Prefix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     try:
         app.config.from_object(config[config_name])
