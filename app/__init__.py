@@ -1,45 +1,35 @@
 # app/__init__.py
 import os
 import re
-from flask import Flask, render_template, url_for # Add url_for here
+from flask import Flask, render_template, url_for
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager # Removed current_user import
+from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-# from flask_limiter.storage import RedisStorage # No longer explicitly used with simplified init
+# RedisStorage and redis client import removed as Limiter will handle it or we rely on URL
 from flask_socketio import SocketIO
 from flask_mail import Mail
-from flask_admin import Admin # Import Admin
-from flask_admin.menu import MenuLink # Import MenuLink
-# Models and admin_views will be imported inside create_app to avoid circular dependencies
-from config import config # Keep importing config for other settings
+from flask_admin import Admin
+from flask_admin.menu import MenuLink
+from config import config
 import logging
-import paypalrestsdk # Moved import to top
-import redis # Import redis for manual connection test
+import paypalrestsdk
 
-# Initialize extensions globally
+# Initialize extensions globally (except Limiter)
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 migrate = Migrate()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 mail = Mail()
-admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4') # Initialize Admin
-
-# --- Initialize Limiter globally WITHOUT storage_uri yet ---
-# storage_uri will be picked up from app.config during init_app
-# Default limits and headers will also be read from app config via init_app
-limiter = Limiter(
-    key_func=get_remote_address
-)
-# --- End Limiter Init ---
+admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4')
+limiter = None # Will be initialized in create_app
 
 # Configure login manager
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
-
 
 # Custom Jinja Filter
 def redact_email_filter(email):
@@ -60,6 +50,8 @@ def load_user(user_id):
 
 # App Factory
 def create_app(config_name=None):
+    global limiter # Make sure we're assigning to the global limiter instance
+
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
         if config_name not in config:
@@ -77,64 +69,53 @@ def create_app(config_name=None):
         config_name = 'default'
         app.config.from_object(config[config_name])
 
-    # --- Manual Redis Connection Test for Production ---
-    if config_name == 'production':
-        redis_url_to_test = app.config.get('RATELIMIT_STORAGE_URL')
-        # Use app.logger if app's logger is configured, otherwise print for early stage
-        log_message = f"--- [REDIS TEST] Attempting manual connection to: {redis_url_to_test}"
-        if hasattr(app, 'logger') and app.logger.hasHandlers():
-            app.logger.warning(log_message)
-        else:
-            print(log_message)
-            
-        if redis_url_to_test:
-            try:
-                r = redis.from_url(redis_url_to_test, socket_connect_timeout=2, socket_timeout=2)
-                r.ping()
-                log_message_success = "--- [REDIS TEST] Manual Redis ping successful! ---"
-                if hasattr(app, 'logger') and app.logger.hasHandlers():
-                    app.logger.warning(log_message_success)
-                else:
-                    print(log_message_success)
-            except redis.exceptions.ConnectionError as e:
-                log_message_error = f"--- [REDIS TEST] Manual Redis connection failed: {e}"
-                if hasattr(app, 'logger') and app.logger.hasHandlers():
-                    app.logger.error(log_message_error)
-                else:
-                    print(log_message_error)
-            except Exception as e:
-                log_message_other_error = f"--- [REDIS TEST] Manual Redis connection failed with other error: {e}"
-                if hasattr(app, 'logger') and app.logger.hasHandlers():
-                    app.logger.error(log_message_other_error)
-                else:
-                    print(log_message_other_error)
-        else:
-            log_message_not_found = "--- [REDIS TEST] RATELIMIT_STORAGE_URL not found in app.config for manual test."
-            if hasattr(app, 'logger') and app.logger.hasHandlers():
-                app.logger.warning(log_message_not_found)
-            else:
-                print(log_message_not_found)
-    # --- End Manual Redis Connection Test ---
+    # Initialize extensions that need the app context
+    db.init_app(app)
 
-    # Initialize extensions with the app instance
-    db.init_app(app) # Ensure DB is initialized before Migrate and Limiter that might use it
-    limiter.init_app(app) # Standard initialization, reads from app.config
+    # --- Flask-Limiter Initialization (Directly with app, as per docs suggestion) ---
+    limiter_storage_uri = app.config.get("RATELIMIT_STORAGE_URL")
+    limiter_default_limits = app.config.get("RATELIMIT_DEFAULT_LIMITS")
+    limiter_headers_enabled = app.config.get("RATELIMIT_HEADERS_ENABLED", True)
+    # Optional: Add strategy from config if you set it there
+    # limiter_strategy = app.config.get("RATELIMIT_STRATEGY", "fixed-window") 
+    
+    log_limiter_init_params = (
+        f"--- [LIMITER INIT ATTEMPT] Initializing Limiter with: "
+        f"storage_uri='{limiter_storage_uri}', "
+        f"default_limits='{limiter_default_limits}', "
+        f"headers_enabled={limiter_headers_enabled}"
+    )
+    if hasattr(app, 'logger') and app.logger.hasHandlers():
+        app.logger.warning(log_limiter_init_params)
+    else:
+        print(log_limiter_init_params)
+
+    limiter = Limiter(
+        get_remote_address,
+        app=app, # Initialize with app directly
+        storage_uri=limiter_storage_uri,
+        default_limits=limiter_default_limits,
+        headers_enabled=limiter_headers_enabled
+        # storage_options={"socket_connect_timeout": 30}, # Example, add if needed
+        # strategy=limiter_strategy, # Example
+    )
+    # --- End Flask-Limiter Initialization ---
 
     if app.config.get('DEBUG'):
-        logging.basicConfig(level=logging.DEBUG) 
-        limiter_logger = logging.getLogger('flask_limiter')
-        limiter_logger.setLevel(logging.DEBUG) 
-        if not limiter_logger.handlers:
+        # This logging setup is for Flask-Limiter's own logger
+        limiter_debug_logger = logging.getLogger('flask_limiter')
+        if not limiter_debug_logger.handlers: # Avoid adding multiple handlers on reloads
             ch = logging.StreamHandler()
             ch.setLevel(logging.DEBUG)
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             ch.setFormatter(formatter)
-            limiter_logger.addHandler(ch)
-        limiter_logger.info("Flask-Limiter DEBUG logging attempted with basicConfig.")
+            limiter_debug_logger.addHandler(ch)
+        limiter_debug_logger.setLevel(logging.DEBUG)
+        limiter_debug_logger.info("Flask-Limiter DEBUG logging enabled.")
 
     login_manager.init_app(app)
     csrf.init_app(app)
-    migrate.init_app(app, db)
+    migrate.init_app(app, db) # Migrate needs db
     socketio.init_app(app)
     mail.init_app(app)
 
@@ -148,24 +129,17 @@ def create_app(config_name=None):
                 "client_id": app.config['PAYPAL_CLIENT_ID'],
                 "client_secret": app.config['PAYPAL_CLIENT_SECRET']
             })
-            # Use app.logger if available and configured
             log_paypal_init = f"PayPal SDK initialized in {app.config.get('PAYPAL_MODE', 'sandbox')} mode."
-            if hasattr(app, 'logger') and app.logger.hasHandlers():
-                 app.logger.info(log_paypal_init)
-            else:
-                print(log_paypal_init)
+            if hasattr(app, 'logger') and app.logger.hasHandlers(): app.logger.info(log_paypal_init)
+            else: print(log_paypal_init)
         except Exception as e:
             log_paypal_error = f"Failed to initialize PayPal SDK: {e}"
-            if hasattr(app, 'logger') and app.logger.hasHandlers():
-                app.logger.error(log_paypal_error)
-            else:
-                print(log_paypal_error)
+            if hasattr(app, 'logger') and app.logger.hasHandlers(): app.logger.error(log_paypal_error)
+            else: print(log_paypal_error)
     else:
         log_paypal_warning = "PayPal Client ID or Secret not configured. PayPal integration will be disabled."
-        if hasattr(app, 'logger') and app.logger.hasHandlers():
-            app.logger.warning(log_paypal_warning)
-        else:
-            print(log_paypal_warning)
+        if hasattr(app, 'logger') and app.logger.hasHandlers(): app.logger.warning(log_paypal_warning)
+        else: print(log_paypal_warning)
 
     if config_name == 'testing':
         import sys 
@@ -174,7 +148,7 @@ def create_app(config_name=None):
              '%(asctime)s %(levelname)s: %(name)s: %(message)s [in %(pathname)s:%(lineno)d]'
         ))
         stream_handler.setLevel(logging.DEBUG)
-        if hasattr(app, 'logger'): # Check if app.logger exists
+        if hasattr(app, 'logger'):
             app.logger.addHandler(stream_handler)
             app.logger.setLevel(logging.DEBUG)
             logging.getLogger('app').setLevel(logging.DEBUG)
@@ -183,36 +157,47 @@ def create_app(config_name=None):
 
     app.jinja_env.filters['redact_email'] = redact_email_filter
 
+    # Import and register blueprints AFTER limiter is initialized with app
     from .routes.main import main
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(main)
     app.register_blueprint(main)
+    
     from .routes.auth import auth as auth_blueprint
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(auth_blueprint)
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
+    
     from .routes.auth_twitch import auth_twitch
-    app.register_blueprint(auth_twitch, url_prefix='/auth/twitch')
+    app.register_blueprint(auth_twitch, url_prefix='/auth/twitch') # Assuming no global limit needed here
+    
     from .routes.challenge_api import challenge_api
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(challenge_api)
     app.register_blueprint(challenge_api, url_prefix='/api/challenge')
+    
     from .routes.games_api import games_api
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(games_api)
     app.register_blueprint(games_api, url_prefix='/api/games')
+    
     from .routes.penalties_api import penalties_api
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(penalties_api)
     app.register_blueprint(penalties_api, url_prefix='/api/penalties')
+    
     from .routes.tabs_api import tabs_api
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(tabs_api)
     app.register_blueprint(tabs_api, url_prefix='/api/tabs')
+    
     from .routes.payment import payment_bp
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(payment_bp)
     app.register_blueprint(payment_bp, url_prefix='/payment')
+    
     from .routes.profile import profile_bp
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(profile_bp)
     app.register_blueprint(profile_bp)
+    
     from .routes.admin_auth import admin_auth_bp
+    # admin_auth_bp has its own @limiter.limit decorators on routes
     app.register_blueprint(admin_auth_bp)
 
-    from . import sockets
+    from . import sockets # Ensure sockets are imported so handlers are registered
     print("--- SocketIO event handlers registered (imported sockets.py) ---")
 
     from .commands import register_commands
