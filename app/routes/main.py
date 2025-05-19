@@ -1,7 +1,7 @@
 # app/routes/main.py
 import logging
 import uuid
-from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app, send_from_directory
+from flask import Blueprint, render_template, request, abort, flash, redirect, url_for, current_app, send_from_directory, jsonify
 from flask_login import current_user, login_required
 # Import db instance and csrf from app
 from app import db, csrf
@@ -18,6 +18,10 @@ from app.utils.subscription_helpers import grant_pro_plan, get_user_limit, is_pr
 # Import default definitions for tab counting
 from app.modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS, DEFAULT_PENALTY_TAB_DEFINITIONS
 from app.plan_config import PLAN_LIMITS, FREE_PLAN_DISPLAY_FEATURES, PRO_PLAN_DISPLAY_FEATURES # Import new feature lists
+# Import Feedback model and form
+from app.models import Feedback
+from app.forms import FeedbackForm
+
 
 logger = logging.getLogger(__name__)
 # Rename blueprint to 'main' for consistency with common registration patterns
@@ -398,3 +402,50 @@ def widerrufsbelehrung_de():
 def widerrufsbelehrung_en():
     """Renders the English Right of Withdrawal page."""
     return render_template('legal/widerrufsbelehrung_en.html')
+
+
+# --- Feedback Form Route ---
+@main.route('/feedback', methods=['POST']) # Changed to only accept POST for AJAX submission
+# Removed @csrf.exempt to let Flask-WTF handle CSRF from JSON payload
+def feedback_form_ajax():
+    """Processes AJAX feedback submissions."""
+    json_data = request.get_json()
+    if not json_data:
+        logger.warning("Feedback AJAX: Empty JSON payload received.")
+        return jsonify({'status': 'error', 'message': 'Invalid request: No data received.'}), 400
+        
+    form = FeedbackForm(data=json_data) # Populate form from JSON data
+
+    if form.validate():
+        try:
+            user_id = current_user.id if current_user.is_authenticated else None
+            
+            # Determine username:
+            # 1. If logged in and name field in form is empty or whitespace, use current_user.username
+            # 2. If name field has value, use that.
+            # 3. If not logged in and name field is empty, use "Anonymous".
+            username_to_store = form.name.data.strip() if form.name.data else ""
+            if current_user.is_authenticated and not username_to_store:
+                username_to_store = current_user.username
+            elif not username_to_store: # Not logged in and name field empty
+                username_to_store = "Anonymous"
+
+            new_feedback = Feedback(
+                user_id=user_id,
+                username=username_to_store,
+                site_area=form.site_area.data,
+                feedback_type=form.feedback_type.data,
+                message=form.message.data
+            )
+            db.session.add(new_feedback)
+            db.session.commit()
+            logger.info(f"Feedback submitted by '{username_to_store}'. Type: {form.feedback_type.data}, Site: {form.site_area.data}")
+            return jsonify({'status': 'success', 'message': 'Thank you for your feedback!'})
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error saving feedback via AJAX: {e}")
+            return jsonify({'status': 'error', 'message': 'An internal error occurred. Please try again.'}), 500
+    else:
+        # Collect form errors to send back to the client
+        logger.warning(f"Feedback form validation failed (AJAX): {form.errors}")
+        return jsonify({'status': 'error', 'message': 'Please correct the errors below.', 'errors': form.errors}), 400

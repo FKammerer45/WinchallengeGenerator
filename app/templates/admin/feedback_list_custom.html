@@ -1,0 +1,233 @@
+{% extends 'admin/model/list.html' %}
+{# Removed explicit import of list_macros, relying on context #}
+{% import 'admin/static.html' as admin_static %}
+
+{% block head %}
+    {{ super() }}
+    <link href="{{ admin_static.url(filename='bootstrap/bootstrap4/css/bootstrap.min.css', v='4.6.0') }}" rel="stylesheet">
+    <style>
+        .table-responsive { margin-bottom: 20px; }
+        .section-title { margin-top: 20px; margin-bottom: 10px; font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        .action-buttons a { margin-right: 5px; }
+        .message-content {
+            max-width: 300px; /* Or your preferred max-width */
+            max-height: 100px; /* Or your preferred max-height */
+            overflow-y: auto;
+            white-space: pre-wrap; /* Allows wrapping and respects newlines */
+            word-wrap: break-word; /* Breaks long words */
+            border: 1px solid #ddd; /* Optional: to see the boundary */
+            padding: 5px;
+            background-color: #f9f9f9;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    {# This block will now render two tables if data is available #}
+    {# We are not calling super() here as we are fully overriding the list display #}
+    {# Let's try calling super() first to see if it sets up necessary context, though it will render the default table first. #}
+    {# {{ super() }} #} {# Commenting out super() for now as the goal is to replace the table display logic #}
+
+
+    {# Removed list_search and list_filters blocks to simplify and avoid macro errors #}
+    
+    {# Active Feedback Section #}
+    <h3 class="section-title">Active Feedback ({{ active_feedback_count }})</h3>
+    {% if active_feedback_list %}
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Timestamp</th>
+                        <th>Site Area</th>
+                        <th>Type</th>
+                        <th style="width: 30%;">Message</th>
+                        <th>Archived</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in active_feedback_list %}
+                    <tr>
+                        <td>{{ item.id }}</td>
+                        <td>{{ item.username }} {% if item.user %}(User ID: {{item.user.id}}){% endif %}</td>
+                        <td>{{ item.timestamp.strftime('%Y-%m-%d %H:%M:%S') if item.timestamp else '' }}</td>
+                        <td>{{ item.site_area }}</td>
+                        <td>{{ item.feedback_type }}</td>
+                        <td><div class="message-content">{{ item.message }}</div></td>
+                        <td>{{ item.archived }}</td>
+                        <td>
+                            <a href="{{ url_for('.archive_single_item', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-warning">
+                                <i class="bi bi-archive-fill"></i> Archive
+                            </a>
+                            <a href="{{ url_for('.edit_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-primary">
+                                <i class="bi bi-pencil-fill"></i> Edit
+                            </a>
+                             <a href="{{ url_for('.delete_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-danger list-delete-button" data-id="{{ item.id }}" title="Delete item">
+                                <i class="bi bi-trash-fill"></i> Delete
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {# Basic Pagination (Example - Flask-Admin's pagination is more complex) #}
+            {% if active_feedback_count > page_size %}
+                <nav aria-label="Active Feedback Page navigation">
+                    <ul class="pagination">
+                        {% if page > 0 %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('.index_view', page=page-1, page_size=page_size) }}">Previous</a></li>
+                        {% endif %}
+                        <li class="page-item disabled"><span class="page-link">Page {{ page + 1 }}</span></li>
+                        {% if (page + 1) * page_size < active_feedback_count %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('.index_view', page=page+1, page_size=page_size) }}">Next</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    {% else %}
+        <p>No active feedback entries.</p>
+    {% endif %}
+
+    {# Archived Feedback Section #}
+    <h3 class="section-title">Archived Feedback ({{ archived_feedback_count }})</h3>
+    {% if archived_feedback_list %}
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Timestamp</th>
+                        <th>Site Area</th>
+                        <th>Type</th>
+                        <th style="width: 30%;">Message</th>
+                        <th>Archived</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in archived_feedback_list %}
+                    <tr>
+                        <td>{{ item.id }}</td>
+                        <td>{{ item.username }} {% if item.user %}(User ID: {{item.user.id}}){% endif %}</td>
+                        <td>{{ item.timestamp.strftime('%Y-%m-%d %H:%M:%S') if item.timestamp else '' }}</td>
+                        <td>{{ item.site_area }}</td>
+                        <td>{{ item.feedback_type }}</td>
+                        <td><div class="message-content">{{ item.message }}</div></td>
+                        <td>{{ item.archived }}</td>
+                        <td>
+                            <a href="{{ url_for('.unarchive_single_item', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-success">
+                                <i class="bi bi-box-arrow-up"></i> Unarchive
+                            </a>
+                             <a href="{{ url_for('.edit_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-primary">
+                                <i class="bi bi-pencil-fill"></i> Edit
+                            </a>
+                             <a href="{{ url_for('.delete_view', id=item.id, url=request.url) }}" class="btn btn-xs btn-outline-danger list-delete-button" data-id="{{ item.id }}" title="Delete item">
+                                <i class="bi bi-trash-fill"></i> Delete
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {# Basic Pagination for Archived Feedback #}
+            {% if archived_feedback_count > page_size %}
+                <nav aria-label="Archived Feedback Page navigation">
+                    <ul class="pagination">
+                        {% if archived_page > 0 %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('.index_view', archived_page=archived_page-1, page_size=page_size) }}">Previous</a></li>
+                        {% endif %}
+                         <li class="page-item disabled"><span class="page-link">Page {{ archived_page + 1 }}</span></li>
+                        {% if (archived_page + 1) * page_size < archived_feedback_count %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('.index_view', archived_page=archived_page+1, page_size=page_size) }}">Next</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    {% else %}
+        <p>No archived feedback entries.</p>
+    {% endif %}
+{% endblock %}
+
+{% block tail_js %}
+    {{ super() }}
+    <script>
+        function execute_action(action_name, confirm_message) {
+            if (confirm(confirm_message)) {
+                var ids = [];
+                // Ensure checkboxes from BOTH tables are considered if needed, or adjust selector
+                $('input.action-checkbox:checked').each(function() {
+                    ids.push($(this).val());
+                });
+
+                if (ids.length === 0) {
+                    alert('Please select at least one item.');
+                        return false;
+                    }
+
+                    // Construct the URL correctly. action_name will be 'archive' or 'unarchive'.
+                    // The endpoint for these actions is '.action_archive' or '.action_unarchive' relative to the current view's endpoint.
+                    var endpoint_name = '{{ admin_view.endpoint }}' + '.action_' + action_name;
+                    var form_action_url = "{{ url_for('admin.index') }}"; // Placeholder, will be replaced by JS
+                    
+                    // This is tricky because url_for is server-side. We need to generate the correct base or use a trick.
+                    // Let's try to generate the URL for one known action and then replace the action part.
+                    var base_action_url_template = "{{ url_for(admin_view.endpoint + '.action_archive', ids=['PLACEHOLDER']) }}";
+                    var specific_action_url = base_action_url_template.replace('action_archive', 'action_' + action_name).replace('PLACEHOLDER', ids.join(','));
+                    // The above is still not quite right for POST form action.
+
+                    // Correct approach for Flask-Admin bulk actions:
+                    // The form should POST to the view's base URL, and the action is specified by a hidden input.
+                    // However, our @expose routes are specific.
+                    // The endpoint is admin_view.endpoint + '.action_' + action_name
+                    // Example: 'feedback.action_archive'
+
+                    var url_template = "{{ url_for(admin_view.endpoint + '.action_archive') }}"; // Template for one action
+                    var final_url = url_template.replace('action_archive', 'action_' + action_name);
+
+
+                    var form = $('<form method="POST" action="' + final_url + '">');
+                    form.append($('<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">'));
+                    ids.forEach(function(id) {
+                    form.append($('<input type="hidden" name="ids" value="' + id + '">'));
+                });
+                $('body').append(form);
+                form.submit();
+            }
+            return false;
+        }
+    </script>
+{% endblock %}
+
+
+{# Override list_header to place bulk actions appropriately if needed, or remove if not using bulk actions from header #}
+{% block list_header %}
+    {# Call super to get default header elements like create button if can_create is true #}
+    {{ super() }} 
+    {# Bulk actions dropdown - this was in your original file #}
+    {% if admin_view.action_archive or admin_view.action_unarchive %}
+      <div class="btn-group fa_actions" style="margin-bottom: 10px;">
+        <a class="btn btn-default dropdown-toggle" data-toggle="dropdown" href="#">
+            Bulk Actions
+            <span class="caret"></span>
+        </a>
+        <ul class="dropdown-menu">
+          {% if admin_view.action_archive %}
+          <li>
+              <a href="#" onclick="return execute_action('archive', 'Archive selected items?');">Archive Selected</a>
+          </li>
+          {% endif %}
+          {% if admin_view.action_unarchive %}
+          <li>
+              <a href="#" onclick="return execute_action('unarchive', 'Unarchive selected items?');">Unarchive Selected</a>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+    {% endif %}
+{% endblock %}

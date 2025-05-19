@@ -129,3 +129,19 @@ class DeleteAccountForm(FlaskForm):
     # Optional: Add validator to check password correctness
     # Needs current_user, better done in the route.
 
+class FeedbackForm(FlaskForm):
+    """Form for submitting feedback."""
+    name = StringField('Your Name (optional)', 
+                       validators=[Length(max=100)],
+                       render_kw={"placeholder": "Anonymous"})
+    site_area = StringField('Site Area/Page', 
+                            validators=[DataRequired(message="Please specify the site area."), 
+                                        Length(max=100)])
+    feedback_type = StringField('Type of Feedback', 
+                                validators=[DataRequired(message="Please select a feedback type."), 
+                                            Length(max=50)])
+    message = StringField('Feedback Message', # Using StringField for multiline input with CSS
+                          validators=[DataRequired(message="Feedback message cannot be empty."), 
+                                      Length(min=10, max=5000)],
+                          render_kw={"rows": 5, "cols": 40}) # Suggestion for textarea-like appearance
+    submit = SubmitField('Send Feedback')

@@ -259,3 +259,32 @@ class ChallengeGroup(db.Model):
     
     __table_args__ = ( Index('uq_shared_challenge_group_name', 'shared_challenge_id', 'group_name', unique=True), )
     def __repr__(self): return f"<ChallengeGroup id={self.id} name='{self.group_name}' challenge_id={self.shared_challenge_id}>"
+
+# --- Feedback Model ---
+class Feedback(db.Model):
+    __tablename__ = 'feedback'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True) # Nullable for anonymous feedback
+    username = Column(String(100), nullable=False) # Stores username if logged in, or 'anonymous' / provided name
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc), nullable=False)
+    site_area = Column(String(100), nullable=False) # e.g., 'Challenge Generator', 'Profile', 'Games Tab'
+    feedback_type = Column(String(50), nullable=False) # e.g., 'Suggestion', 'Bug', 'General Feedback'
+    message = Column(Text, nullable=False)
+    archived = Column(Boolean, default=False, nullable=False)
+
+    user = relationship("User", backref=db.backref("feedbacks", lazy="dynamic")) # Relationship to User
+
+    def __repr__(self):
+        return f"<Feedback id={self.id} user='{self.username}' type='{self.feedback_type}' site='{self.site_area}'>"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "site_area": self.site_area,
+            "feedback_type": self.feedback_type,
+            "message": self.message,
+            "archived": self.archived
+        }

@@ -1,12 +1,15 @@
 from flask import session, redirect, url_for, request, flash
 from flask_admin.contrib.sqla import ModelView
 from flask_admin import AdminIndexView, expose
+from flask_admin.helpers import get_redirect_target
+from flask_admin.model.helpers import get_mdict_item_or_list
+from markupsafe import Markup
 from flask_wtf import FlaskForm # Import FlaskForm
 from wtforms.fields import StringField, IntegerField, BooleanField, DateTimeField, TextAreaField # Import necessary fields
 from wtforms.validators import DataRequired, Email, Optional # Import Optional validator
 from wtforms.widgets import CheckboxInput, DateTimeInput, TextInput, TextArea # Import necessary widgets
 # Import your User model and db instance
-from .models import User, SharedChallenge, ChallengeGroup, SavedGameTab, SavedPenaltyTab # Add other models as needed
+from .models import User, SharedChallenge, ChallengeGroup, SavedGameTab, SavedPenaltyTab, Feedback # Add other models as needed
 from . import db
 
 # Custom AdminIndexView to protect the main admin page
@@ -236,3 +239,189 @@ class SharedChallengeAdminView(AuthenticatedModelView):
 #     can_delete = True
 
 # Add more views for other models as needed...
+
+# --- Feedback Admin View ---
+class FeedbackAdminView(AuthenticatedModelView):
+    # Columns to display in the list view
+    column_list = ('id', 'username', 'user', 'timestamp', 'site_area', 'feedback_type', 'message', 'archived')
+    
+    # Columns that can be searched
+    column_searchable_list = ('username', 'user.username', 'user.email', 'site_area', 'feedback_type', 'message')
+    
+    # Columns that can be filtered
+    column_filters = ('archived', 'timestamp', 'site_area', 'feedback_type', 'user.username')
+    
+    # Default sort column
+    column_default_sort = ('timestamp', True) # Sort by timestamp descending by default
+
+    # Custom action (archive/unarchive) formatter
+    def _action_formatter(view, context, model, name):
+        action_url_archive = url_for('.archive_single_item', id=model.id, url=get_redirect_target())
+        action_url_unarchive = url_for('.unarchive_single_item', id=model.id, url=get_redirect_target())
+        
+        buttons_html = ''
+        if not model.archived:
+            buttons_html += f'<a href="{action_url_archive}" class="btn btn-xs btn-outline-warning"><i class="bi bi-archive-fill"></i> Archive</a> '
+        else:
+            buttons_html += f'<a href="{action_url_unarchive}" class="btn btn-xs btn-outline-success"><i class="bi bi-box-arrow-up"></i> Unarchive</a> '
+        
+        return Markup(buttons_html)
+
+    column_formatters = {
+        'message': lambda v, c, m, p: (Markup(f'<div style="max-width: 300px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{m.message}</div>') if m.message else ''),
+        'actions': _action_formatter
+    }
+    
+    column_list = ('id', 'username', 'timestamp', 'site_area', 'feedback_type', 'message', 'archived', 'actions')
+    column_extra_widget_kwargs = {
+        'message': {'style': 'word-wrap: break-word; white-space: pre-wrap;'}
+    }
+
+
+    # Fields to display/edit in the form view
+    # For simplicity, we can use default form generation or create a custom one if needed
+    # Let's start with default and customize if necessary.
+    # We might want to make 'message' a TextArea
+    form_overrides = {
+        'message': TextAreaField
+    }
+    form_widget_args = {
+        'message': {
+            'rows': 10,
+            'style': 'width: 100%;' # Make textarea wider
+        },
+        'timestamp': {
+            'readonly': True # Timestamp should not be manually editable
+        },
+        'username': {
+            'readonly': True # Username (captured at submission) should not be editable
+        }
+    }
+    
+    # Control which fields are editable
+    # 'id', 'user_id', 'timestamp' are usually not manually edited.
+    # 'username' is captured, 'user' is a relationship.
+    form_edit_rules = ('site_area', 'feedback_type', 'message', 'archived')
+    form_create_rules = ('user', 'username', 'site_area', 'feedback_type', 'message') # If creation is allowed
+
+    can_create = False # Feedback is created by users, not admins directly
+    can_edit = True    # Admins can edit (e.g., to correct typos, categorize, or archive)
+    can_delete = True  # Admins can delete feedback entries
+
+    # Action to archive selected feedback items
+    @expose('/action/archive', methods=['POST'])
+    def action_archive(self):
+        ids = request.form.getlist('ids')
+        try:
+            if not ids:
+                flash('No feedback items selected for archiving.', 'warning')
+                return redirect(url_for('.index_view'))
+
+            selected_feedback = db.session.query(Feedback).filter(Feedback.id.in_(ids)).all()
+            count = 0
+            for item in selected_feedback:
+                item.archived = True
+                count +=1
+            db.session.commit()
+            flash(f'{count} feedback item(s) archived successfully.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error archiving feedback: {e}', 'danger')
+        return redirect(url_for('.index_view'))
+
+    # Action to unarchive selected feedback items
+    @expose('/action/unarchive', methods=['POST'])
+    def action_unarchive(self):
+        ids = request.form.getlist('ids')
+        try:
+            if not ids:
+                flash('No feedback items selected for unarchiving.', 'warning')
+                return redirect(url_for('.index_view'))
+
+            selected_feedback = db.session.query(Feedback).filter(Feedback.id.in_(ids)).all()
+            count = 0
+            for item in selected_feedback:
+                item.archived = False
+                count += 1
+            db.session.commit()
+            flash(f'{count} feedback item(s) unarchived successfully.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error unarchiving feedback: {e}', 'danger')
+        return redirect(url_for('.index_view'))
+    
+    # Add custom actions to the list view
+    list_template = 'admin/feedback_list_custom.html' # We'll need to create this template
+    
+    # If you want the actions in the dropdown:
+    # action_disallowed_list = [] # Ensure no default actions are disallowed if you want them
+    page_size = 25 # Example: show 25 items per page
+
+    @expose('/')
+    def index_view(self):
+        # store page number and page size to session
+        self._template_args['page'] = page = request.args.get('page', 0, type=int)
+        self._template_args['page_size'] = page_size = request.args.get('page_size', self.page_size, type=int)
+
+        # Fetch active (non-archived) feedback
+        active_query = self.session.query(self.model).filter(self.model.archived == False)
+        active_count, active_data = self._get_list_extra_args(active_query, page, page_size)
+        
+        # Fetch archived feedback (can be on a different page or all on one if not too many)
+        # For simplicity, let's paginate archived feedback as well, or show first N
+        archived_page = request.args.get('archived_page', 0, type=int) # Separate pager for archived
+        archived_query = self.session.query(self.model).filter(self.model.archived == True)
+        archived_count, archived_data = self._get_list_extra_args(archived_query, archived_page, page_size)
+
+        self._template_args['active_feedback_list'] = active_data
+        self._template_args['active_feedback_count'] = active_count
+        self._template_args['archived_feedback_list'] = archived_data
+        self._template_args['archived_feedback_count'] = archived_count
+        self._template_args['archived_page'] = archived_page # Pass archived page number
+
+        return self.render(self.list_template, **self._template_args)
+
+    def _get_list_extra_args(self, query, page, page_size):
+        # Apply sorting
+        sort_column = request.args.get('sort', self.column_default_sort[0] if self.column_default_sort else None)
+        sort_desc = request.args.get('desc', self.column_default_sort[1] if self.column_default_sort else 0, type=int)
+
+        if sort_column and hasattr(self.model, sort_column):
+            col = getattr(self.model, sort_column)
+            query = query.order_by(col.desc() if sort_desc else col.asc())
+        
+        count = query.count()
+        data = query.limit(page_size).offset(page * page_size).all()
+        return count, data
+
+    @expose('/archive_item/<int:id>')
+    def archive_single_item(self, id):
+        return_url = get_redirect_target() or self.get_url('.index_view')
+        item = self.get_one(str(id)) # get_one expects string id
+        if not item:
+            flash('Feedback item not found.', 'error')
+            return redirect(return_url)
+        try:
+            item.archived = True
+            db.session.commit()
+            flash(f'Feedback item {item.id} archived.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Failed to archive feedback item {item.id}: {e}', 'error')
+        return redirect(return_url)
+
+    @expose('/unarchive_item/<int:id>')
+    def unarchive_single_item(self, id):
+        return_url = get_redirect_target() or self.get_url('.index_view')
+        item = self.get_one(str(id))
+        if not item:
+            flash('Feedback item not found.', 'error')
+            return redirect(return_url)
+        try:
+            item.archived = False
+            db.session.commit()
+            flash(f'Feedback item {item.id} unarchived.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Failed to unarchive feedback item {item.id}: {e}', 'error')
+        return redirect(return_url)

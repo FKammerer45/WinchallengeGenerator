@@ -129,6 +129,63 @@
               
           </li>
           {# --- END: Sound Controls --- #}
+
+          {# --- Feedback Dropdown --- #}
+          <li class="nav-item dropdown" id="feedbackDropdownContainer">
+            <a class="nav-link" href="#" id="feedbackDropdownToggle" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Submit Feedback">
+              <i class="bi bi-chat-left-text-fill"></i> <span class="d-lg-none ms-2">Feedback</span>
+            </a>
+            <div class="dropdown-menu dropdown-menu-right p-3" aria-labelledby="feedbackDropdownToggle" id="feedbackPanel" style="min-width: 320px;">
+              <h5>Submit Feedback</h5>
+              <div id="feedbackMessages"></div> {# For success/error messages #}
+              <form id="navbarFeedbackForm" novalidate data-feedback-url="{{ url_for('main.feedback_form_ajax') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-2">
+                  <label for="navbarFeedbackName" class="form-label sr-only">Your Name</label>
+                  <input type="text" class="form-control form-control-sm" id="navbarFeedbackName" name="name" placeholder="Your Name (Optional)">
+                </div>
+                <div class="mb-2">
+                  <label for="navbarFeedbackSiteArea" class="form-label sr-only">Site Area</label>
+                  <select class="form-select form-select-sm" id="navbarFeedbackSiteArea" name="site_area" required>
+                    <option value="" disabled selected>Select Site Area...</option>
+                    <option>General Website</option>
+                    <option>Challenge Generator</option>
+                    <option>My Challenges Page</option>
+                    <option>Challenge View Page</option>
+                    <option>Games Tab</option>
+                    <option>Penalties Tab</option>
+                    <option>Profile Page</option>
+                    <option>Subscription/Pricing</option>
+                    <option>Admin Panel</option>
+                    <option>Other</option>
+                  </select>
+                  <div class="invalid-feedback" id="navbarFeedbackSiteAreaError"></div>
+                </div>
+                <div class="mb-2">
+                  <label for="navbarFeedbackType" class="form-label sr-only">Feedback Type</label>
+                  <select class="form-select form-select-sm" id="navbarFeedbackType" name="feedback_type" required>
+                    <option value="" disabled selected>Select Feedback Type...</option>
+                    <option>Suggestion</option>
+                    <option>Bug Report</option>
+                    <option>General Feedback</option>
+                    <option>Feature Request</option>
+                    <option>Usability Issue</option>
+                    <option>Compliment</option>
+                    <option>Other</option>
+                  </select>
+                  <div class="invalid-feedback" id="navbarFeedbackTypeError"></div>
+                </div>
+                <div class="mb-2">
+                  <label for="navbarFeedbackMessage" class="form-label sr-only">Message</label>
+                  <textarea class="form-control form-control-sm" id="navbarFeedbackMessage" name="message" rows="4" placeholder="Your feedback..." required></textarea>
+                  <div class="invalid-feedback" id="navbarFeedbackMessageError"></div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm w-100">Send Feedback</button>
+              </form>
+            </div>
+          </li>
+          {# --- END: Feedback Dropdown --- #}
+
           {% if current_user.is_authenticated %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-toggle="dropdown"
@@ -273,6 +330,7 @@
 
     });
 </script>
+  <script type="module" src="{{ url_for('static', filename='js/feedback.js') }}"></script> {# Added feedback.js #}
   {# --- Block for page-specific scripts --- #}
   {% block scripts %}{% endblock %}
 

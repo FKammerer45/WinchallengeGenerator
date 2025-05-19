@@ -77,6 +77,10 @@ def create_app(config_name=None):
         config_name = 'default'
         app.config.from_object(config[config_name])
 
+    # Configure CSRF protection to check headers for AJAX
+    app.config['WTF_CSRF_HEADERS'] = ['X-CSRFToken', 'X-CSRF-Token']
+
+
     # Initialize extensions that need the app context
     db.init_app(app)
 
@@ -201,12 +205,13 @@ def create_app(config_name=None):
     from .commands import register_commands
     register_commands(app)
 
-    from .admin_views import UserAdminView, SavedGameTabAdminView, SavedPenaltyTabAdminView, SharedChallengeAdminView
-    from .models import User, SavedGameTab, SavedPenaltyTab, SharedChallenge
-    admin.add_view(UserAdminView(User, db.session, name='Users'))
-    admin.add_view(SavedGameTabAdminView(SavedGameTab, db.session, name='Saved Game Tabs', category='User Related Data'))
-    admin.add_view(SavedPenaltyTabAdminView(SavedPenaltyTab, db.session, name='Saved Penalty Tabs', category='User Related Data'))
-    admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges', category='User Related Data'))
+    from .admin_views import UserAdminView, SavedGameTabAdminView, SavedPenaltyTabAdminView, SharedChallengeAdminView, FeedbackAdminView
+    from .models import User, SavedGameTab, SavedPenaltyTab, SharedChallenge, Feedback # Added Feedback model
+    admin.add_view(UserAdminView(User, db.session, name='Users', category='User Management'))
+    admin.add_view(FeedbackAdminView(Feedback, db.session, name='User Feedback')) # User Feedback as top-level
+    admin.add_view(SavedGameTabAdminView(SavedGameTab, db.session, name='Game Tabs', category='User Data'))
+    admin.add_view(SavedPenaltyTabAdminView(SavedPenaltyTab, db.session, name='Penalty Tabs', category='User Data'))
+    admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges', category='User Data'))
     admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout'))
 
     @app.errorhandler(404)
