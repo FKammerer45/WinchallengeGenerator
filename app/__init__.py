@@ -8,6 +8,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_limiter.storage import RedisStorage # Import RedisStorage
 from flask_socketio import SocketIO
 from flask_mail import Mail
 from flask_admin import Admin # Import Admin
@@ -116,8 +117,56 @@ def create_app(config_name=None):
     # --- End Manual Redis Connection Test ---
 
     # Initialize extensions with the app instance
-    limiter.init_app(app)
-    db.init_app(app)
+    # db.init_app(app) # Moved db.init_app after limiter setup for clarity
+
+    # --- Flask-Limiter Initialization with explicit storage for production ---
+    if config_name == 'production' and app.config.get('RATELIMIT_STORAGE_URL'):
+        redis_url = app.config.get('RATELIMIT_STORAGE_URL')
+        try:
+            # Use the redis client 'r' if it was successfully created in the manual test,
+            # otherwise, create a new one here.
+            # For simplicity and to ensure it's always fresh based on config:
+            redis_client_for_limiter = redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
+            redis_client_for_limiter.ping() # Verify this new client also works
+            
+            # Create RedisStorage instance with the working client
+            custom_redis_storage = RedisStorage(client=redis_client_for_limiter)
+            
+            # Re-initialize or update the global limiter instance
+            # Option 1: If Limiter can be reconfigured (check docs, might not be standard)
+            # limiter.storage = custom_redis_storage 
+            # limiter.app = app 
+            # limiter._initialized = False # Hacky, might not work
+            # limiter.init_app(app) # This might re-read from config, overriding our custom storage
+
+            # Option 2: Create a new Limiter instance if the global one can't be easily updated
+            # This is safer if the global 'limiter' is already used by blueprints before create_app finishes.
+            # However, our global 'limiter' is initialized without app context first.
+            # So, when init_app is called, it configures that global instance.
+            # We need to ensure init_app uses our custom storage.
+            # The init_app method itself reads RATELIMIT_STORAGE_URL.
+            # Let's try to modify the global limiter's internal storage directly BEFORE init_app if possible,
+            # or pass it to init_app if there's a parameter.
+            # Flask-Limiter's init_app doesn't directly take a storage instance.
+            # The Limiter constructor itself takes 'storage_uri' or 'storage_options'.
+            #
+            # Let's try setting app.config['RATELIMIT_STORAGE'] to our custom_redis_storage instance.
+            # Flask-Limiter checks for 'RATELIMIT_STORAGE' in config.
+            # https://flask-limiter.readthedocs.io/en/stable/configuration.html#RATELIMIT_STORAGE
+            
+            app.config['RATELIMIT_STORAGE'] = custom_redis_storage
+            app.logger.warning(f"--- [LIMITER INIT] Set app.config['RATELIMIT_STORAGE'] to custom RedisStorage instance.")
+            limiter.init_app(app) # This should now pick up the custom storage instance
+
+        except Exception as e:
+            app.logger.error(f"--- [LIMITER INIT] Failed to set up custom RedisStorage for Flask-Limiter: {e}. Falling back.")
+            # Fallback to default init_app behavior which will likely use memory and warn
+            limiter.init_app(app)
+    else:
+        # For non-production or if no RATELIMIT_STORAGE_URL, use default init_app
+        limiter.init_app(app)
+    
+    db.init_app(app) # Initialize db after potential limiter reconfig
 
     if app.config.get('DEBUG'):
         logging.basicConfig(level=logging.DEBUG) 
