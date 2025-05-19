@@ -8,7 +8,6 @@ from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-# RedisStorage and redis client import removed as Limiter will handle it or we rely on URL
 from flask_socketio import SocketIO
 from flask_mail import Mail
 from flask_admin import Admin
@@ -76,19 +75,11 @@ def create_app(config_name=None):
     limiter_storage_uri = app.config.get("RATELIMIT_STORAGE_URL")
     limiter_default_limits = app.config.get("RATELIMIT_DEFAULT_LIMITS")
     limiter_headers_enabled = app.config.get("RATELIMIT_HEADERS_ENABLED", True)
+    
     # Optional: Add strategy from config if you set it there
     # limiter_strategy = app.config.get("RATELIMIT_STRATEGY", "fixed-window") 
-    
-    log_limiter_init_params = (
-        f"--- [LIMITER INIT ATTEMPT] Initializing Limiter with: "
-        f"storage_uri='{limiter_storage_uri}', "
-        f"default_limits='{limiter_default_limits}', "
-        f"headers_enabled={limiter_headers_enabled}"
-    )
-    if hasattr(app, 'logger') and app.logger.hasHandlers():
-        app.logger.warning(log_limiter_init_params)
-    else:
-        print(log_limiter_init_params)
+
+    # Removed diagnostic log for limiter init params
 
     limiter = Limiter(
         get_remote_address,
@@ -167,7 +158,7 @@ def create_app(config_name=None):
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
     
     from .routes.auth_twitch import auth_twitch
-    app.register_blueprint(auth_twitch, url_prefix='/auth/twitch') # Assuming no global limit needed here
+    app.register_blueprint(auth_twitch, url_prefix='/auth/twitch')
     
     from .routes.challenge_api import challenge_api
     limiter.limit(app.config.get("RATELIMIT_DEFAULT_LIMITS"))(challenge_api)
@@ -194,10 +185,9 @@ def create_app(config_name=None):
     app.register_blueprint(profile_bp)
     
     from .routes.admin_auth import admin_auth_bp
-    # admin_auth_bp has its own @limiter.limit decorators on routes
     app.register_blueprint(admin_auth_bp)
 
-    from . import sockets # Ensure sockets are imported so handlers are registered
+    from . import sockets 
     print("--- SocketIO event handlers registered (imported sockets.py) ---")
 
     from .commands import register_commands
