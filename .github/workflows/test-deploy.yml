@@ -52,7 +52,7 @@ jobs:
             cd /srv/myflaskapp/WinchallengeGenerator_Test/
 
             echo "Pulling latest changes from Git..."
-            git pull origin your-testing-branch-name # Replace with your actual test branch name
+            git pull origin website # Replace with your actual test branch name
 
             echo "Activating virtual environment and installing dependencies..."
             source venv_test/bin/activate
