@@ -1,6 +1,7 @@
 # app/commands.py
 import click
 import logging
+import datetime # Added for datetime operations
 from flask.cli import with_appcontext
 
 # Import db instance and models from your app package
@@ -125,11 +126,39 @@ def generate_key_command(username):
     except Exception as e:
         db.session.rollback()
         print(f"Error generating key for user '{username}': {e}")
-        logger.exception(f"Error generating key for user '{username}'")
+    logger.exception(f"Error generating key for user '{username}'")
 
+
+@click.command("backfill-created-at")
+@with_appcontext
+def backfill_created_at_command():
+    """Sets the created_at field to the current UTC time for all users where it is NULL."""
+    users_to_update = User.query.filter(User.created_at.is_(None)).all()
+    
+    if not users_to_update:
+        print("No users found with NULL created_at field.")
+        logger.info("No users found with NULL created_at field.")
+        return
+
+    current_time_utc = datetime.datetime.now(datetime.timezone.utc)
+    updated_count = 0
+    
+    try:
+        for user in users_to_update:
+            user.created_at = current_time_utc
+            updated_count += 1
+        
+        db.session.commit()
+        print(f"Successfully updated created_at for {updated_count} user(s).")
+        logger.info(f"Successfully updated created_at for {updated_count} user(s).")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating created_at for users: {e}")
+        logger.error(f"Error updating created_at for users: {e}", exc_info=True)
 
 # Function to register command(s) with the Flask app
 def register_commands(app):
     app.cli.add_command(seed_db_command)
     app.cli.add_command(generate_key_command)
+    app.cli.add_command(backfill_created_at_command) # Register new command
     # Add other custom commands here if you create more
