@@ -29,7 +29,7 @@ def generate_filtered_file_list(startpath, outfile, extensions, ignore_dirs, ign
             if filename.endswith(tuple(extensions)) and filename not in ignore_files:
                 relevant_files_in_current_dir.append(filename)
 
-        # If relevant files were found, store them
+        # If relevant files were found, store themr
         if relevant_files_in_current_dir:
             # Get path relative to the starting directory
             relative_dir_path = os.path.relpath(root, startpath)
