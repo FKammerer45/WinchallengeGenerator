@@ -293,10 +293,10 @@ function updateGameSelectionCard() {
         console.warn(`Data for tab '${selectedTab}' is not an array.`);
       }
     } else {
-      console.warn(`No data found for tab '${selectedTab}'.`);
+      console.warn("No data found for tab '%s'.", selectedTab);
     }
   } catch (e) {
-    console.error(`Error getting/parsing entries for tab '${selectedTab}':`, e);
+    console.error("Error getting/parsing entries for tab '%s':", selectedTab, e);
     tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Error loading games.</td></tr>`;
     return;
   }
@@ -813,7 +813,7 @@ function handleChallengeFormSubmit(event) {
       }
     })
     .catch((error) => {
-      console.error("Challenge Generation Fetch Error:", error);
+      console.error("Challenge Generation Fetch Error:", error); // error object is fine here
       if (resultWrapper) resultWrapper.style.display = "block";
       requestAnimationFrame(() => {
         if (resultWrapper) resultWrapper.classList.add("visible");
@@ -827,13 +827,13 @@ function handleChallengeFormSubmit(event) {
           userMessage = `Challenge generation failed: You selected ${playerCount} players, but none of the selected games/modes support this player count. Please select games that fit your player count or reduce the player count.`;
       } else {
           // Use the generic error message from the backend if available, otherwise the default
-          userMessage = `Failed to generate challenge: ${escapeHtml(error.message)}`;
+          userMessage = `Failed to generate challenge: ${error.message}`; // Raw error message for showError
       }
 
 
       if (resultDiv)
-        resultDiv.innerHTML = `<p class="text-danger text-center p-3">${userMessage}</p>`;
-      showError(errorDisplay, userMessage);
+        resultDiv.innerHTML = `<p class="text-danger text-center p-3">${escapeHtml(userMessage)}</p>`; // Escape for innerHTML
+      showError(errorDisplay, userMessage); // showError likely handles its own escaping or is textContent based
     })
     .finally(() => {
       if (submitButton) setLoading(submitButton, false, "Generate Challenge");

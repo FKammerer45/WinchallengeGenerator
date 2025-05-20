@@ -73,7 +73,7 @@ export function getLocalChallengeById(localId) {
         return challenges.find(c => c.localId === localId) || null;
     } catch (e) {
         // getLocalChallenges already handles read errors, but catch just in case.
-        console.error(`Error retrieving challenge ${localId} by ID:`, e);
+        console.error("Error retrieving challenge %s by ID:", localId, e);
         return null;
     }
 }

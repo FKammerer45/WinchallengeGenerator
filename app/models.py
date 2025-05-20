@@ -161,9 +161,9 @@ class User(db.Model, UserMixin):
     @property
     def is_twitch_user(self) -> bool:
         return self.twitch_id is not None
-    def set_password(self, password: str): 
-        self.password_hash = generate_password_hash(password)
-    def check_password(self, password: str) -> bool: 
+    def set_password(self, password: str):
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256:600000')
+    def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
     def generate_overlay_key(self) -> str:
         new_key = secrets.token_urlsafe(32) 

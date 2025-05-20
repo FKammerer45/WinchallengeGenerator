@@ -54,7 +54,7 @@ function updateTimerDisplay() {
                 displaySeconds = serverData.currentValueSeconds + elapsedSinceStart;
             }
         } catch (e) {
-            console.error(`[TimerHandler - ${timerIdSuffix}] Error parsing lastStartedAtUTC for display:`, e);
+            console.error("[TimerHandler - %s] Error parsing lastStartedAtUTC for display:", timerIdSuffix, e);
         }
     }
     timerDisplayEl.textContent = formatTime(displaySeconds);
@@ -135,12 +135,12 @@ async function sendTimerAction(actionType) {
             // manageDisplayInterval("sendTimerAction_reset_optimistic");
             break;
         default:
-            console.error(`[TimerHandler - ${timerIdSuffix}] Unknown timer action: ${actionType}`);
+            console.error("[TimerHandler - %s] Unknown timer action: %s", timerIdSuffix, actionType);
             return;
     }
 
     if (!url) {
-        showError(document.getElementById('pageStatusDisplay') || document.body, `Timer ${actionType} URL not configured.`, "danger");
+        showError(document.getElementById('pageStatusDisplay') || document.body, `Timer ${actionType} URL not configured.`, "danger"); // User-facing, template literal is fine
         if(buttonToLock) setLoading(buttonToLock, false);
         return;
     }
@@ -150,8 +150,8 @@ async function sendTimerAction(actionType) {
         // Backend will emit WebSocket event.
     } catch (error) {
         if (error.name !== 'AbortError') {
-            console.error(`[TimerHandler - ${timerIdSuffix}] API Error for ${actionType}:`, error);
-            showError(document.getElementById('pageStatusDisplay') || document.body, `Error ${actionType} timer: ${error.message}`, "danger");
+            console.error("[TimerHandler - %s] API Error for %s:", timerIdSuffix, actionType, error);
+            showError(document.getElementById('pageStatusDisplay') || document.body, `Error ${actionType} timer: ${error.message}`, "danger"); // User-facing, template literal is fine
             // Revert optimistic UI if necessary, or wait for a full state sync from server
             // For simplicity, we'll rely on the next initial_state or a manual refresh if things get out of sync.
             // Or, explicitly call updateTimerStateFromServer with the PREVIOUS state if you stored it.

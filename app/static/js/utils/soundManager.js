@@ -101,7 +101,7 @@ window.soundManager = (function() { // Start of IIFE
                         }, { once: true });
                     }
                  }).catch(error => {
-                    console.error(`SoundManager: Error playing sound "${soundUrl}":`, error);
+                    console.error("SoundManager: Error playing sound \"%s\":", soundUrl, error);
                  });
             } else {
                  // Fallback for older browsers - play might not throw error immediately
@@ -115,7 +115,7 @@ window.soundManager = (function() { // Start of IIFE
             }
             return audio;
         } catch (e) {
-            console.error(`SoundManager: Failed to create or play sound "${soundUrl}":`, e);
+            console.error("SoundManager: Failed to create or play sound \"%s\":", soundUrl, e);
             return null;
         }
     }

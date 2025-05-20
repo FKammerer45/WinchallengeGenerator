@@ -64,6 +64,13 @@ class Config:
     # Session timeout for 'permanent' sessions (like admin login)
     PERMANENT_SESSION_LIFETIME = timedelta(hours=4) # e.g., 4 hours
 
+    SERVER_NAME = os.environ.get('SERVER_NAME') # Add to base Config
+
+    # Cookie Security Settings
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False # Default to False, override in Production
+
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
@@ -74,8 +81,10 @@ class DevelopmentConfig(Config):
     # Development email settings might differ or use MAIL_SUPPRESS_SEND = True if not testing emails
     RATELIMIT_STORAGE_URL = "memory://" # Explicitly use in-memory storage for development
     # Explicitly inherit and log default limits for clarity during debugging
-    RATELIMIT_DEFAULT_LIMITS = Config.RATELIMIT_DEFAULT_LIMITS 
+    RATELIMIT_DEFAULT_LIMITS = Config.RATELIMIT_DEFAULT_LIMITS
     # logging.warning(f"--- [DEV CONFIG] DevelopmentConfig.RATELIMIT_DEFAULT_LIMITS set to: '{RATELIMIT_DEFAULT_LIMITS}'") # Removed
+    SESSION_COOKIE_SECURE = False
+    SERVER_NAME = os.environ.get('DEV_SERVER_NAME') or Config.SERVER_NAME or 'localhost:5000'
 
 
 class TestingConfig(Config):
@@ -98,6 +107,8 @@ class TestingConfig(Config):
     # APPLICATION_ROOT = '/myapp'
     # If it's at the root (http://147.93.63.202:8081/), then APPLICATION_ROOT = '/' or can be omitted.
     APPLICATION_ROOT = '/'
+    SESSION_COOKIE_SECURE = False
+    # SERVER_NAME is already set in TestingConfig from environment or default
 
 
 class ProductionConfig(Config):
@@ -107,52 +118,24 @@ class ProductionConfig(Config):
     SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT')
     SECURITY_PASSWORD_RESET_SALT = os.environ.get('SECURITY_PASSWORD_RESET_SALT')
     SECURITY_EMAIL_CHANGE_SALT = os.environ.get('SECURITY_EMAIL_CHANGE_SALT')
-    if not SECRET_KEY or not SECURITY_PASSWORD_SALT or not SECURITY_PASSWORD_RESET_SALT:
-        raise ValueError("SECRET_KEY, SECURITY_PASSWORD_SALT, and SECURITY_PASSWORD_RESET_SALT must be set for production")
-
+    SERVER_NAME = os.environ.get('SERVER_NAME') # Explicitly get for production
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-    if not SQLALCHEMY_DATABASE_URI:
-        raise ValueError("No DATABASE_URL set for production environment")
-
-    # Use Redis for rate limiting storage in production if available
-    # Use Redis for rate limiting storage in production if available
-    # The next line was the corrected one, the debug lines were added by you after it.
-    # RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0") 
-
-    # Your debug lines, changed to use logging: # Removing these debug lines
-    # RATELIMIT_STORAGE_URL_FROM_ENV = os.environ.get("RATELIMIT_STORAGE_URL")
-    # logging.warning(f"--- [PROD CONFIG DEBUG] RATELIMIT_STORAGE_URL from env: {RATELIMIT_STORAGE_URL_FROM_ENV}")
-    RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0") # Keep the corrected line
-    # logging.warning(f"--- [PROD CONFIG DEBUG] Final RATELIMIT_STORAGE_URL for Flask-Limiter: {RATELIMIT_STORAGE_URL}")
-
-    # Keep the default limits from base Config unless overridden by env var
-    # Add detailed logging for ProductionConfig as well
+    
+    # Production rate limiting should ideally use a persistent store like Redis
+    RATELIMIT_STORAGE_URL = os.environ.get("RATELIMIT_STORAGE_URL", "redis://localhost:6379/0") 
     _prod_ratelimit_env = os.environ.get("RATELIMIT_DEFAULT_LIMITS")
-    # logging.warning(f"--- [PROD CONFIG] RATELIMIT_DEFAULT_LIMITS from env: '{_prod_ratelimit_env}'") # Removed
     RATELIMIT_DEFAULT_LIMITS = _prod_ratelimit_env or Config.RATELIMIT_DEFAULT_LIMITS
-    # logging.warning(f"--- [PROD CONFIG] Final ProductionConfig.RATELIMIT_DEFAULT_LIMITS: '{RATELIMIT_DEFAULT_LIMITS}'") # Removed
+    SESSION_COOKIE_SECURE = True
 
-
-    # ... (rest of ProductionConfig checks for reCAPTCHA, Twitch, Mailgun) ...
+    # reCAPTCHA, Twitch, Mailgun, PayPal settings are read from environment.
+    # Checks for their presence will be done in app factory if config_name is 'production'.
     RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY')
     RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY')
-    if not RECAPTCHA_PUBLIC_KEY or not RECAPTCHA_PRIVATE_KEY:
-        print("Warning: reCAPTCHA keys not set for production environment.")
-        RECAPTCHA_ENABLED = False
-    else:
-        RECAPTCHA_ENABLED = True
-    if not (os.environ.get('TWITCH_CLIENT_ID') and os.environ.get('TWITCH_CLIENT_SECRET') and os.environ.get('TWITCH_REDIRECT_URI')):
-        raise ValueError("Twitch OAuth settings missing in production")
-    if not (os.environ.get('MAILGUN_SMTP_SERVER') and os.environ.get('MAILGUN_SMTP_LOGIN') and os.environ.get('MAILGUN_SMTP_PASSWORD') and os.environ.get('MAIL_DEFAULT_SENDER')):
-         raise ValueError("Mailgun SMTP settings (SERVER, LOGIN, PASSWORD, DEFAULT_SENDER) must be set for production")
-    
-    # PayPal checks for production
-    if not (Config.PAYPAL_CLIENT_ID and Config.PAYPAL_CLIENT_SECRET):
-        print("Warning: PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET not set for production. PayPal integration will not work.")
-        # If credentials are not set, PAYPAL_MODE being 'sandbox' is less critical than if it were 'live' with no creds.
-        # However, it's still an issue if PayPal is intended to be functional.
-    elif Config.PAYPAL_MODE != 'live': # Credentials are set, but mode is not 'live'
-        print("Warning: PAYPAL_MODE is configured as '{}' in production, but credentials are set. It should typically be 'live'.".format(Config.PAYPAL_MODE))
+    # RECAPTCHA_ENABLED will be determined in app factory based on key presence for production.
+    # For other configs, it defaults or is set explicitly.
+    # TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI are read from env by base Config.
+    # MAIL_SERVER, MAIL_PORT, etc. are read from env by base Config.
+    # PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE are read from env by base Config.
     # If PAYPAL_MODE is 'live' but credentials are NOT set, the first 'if' block already covers this.
 
 

@@ -176,8 +176,8 @@ function displayPenaltyResultUI(idx, groupIdToUpdate, chosenEntity, chosenPenalt
 function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelType = 'Penalty', customStopAngle = null) {
     if (!winwheelLoaded) return null;
     if (!Array.isArray(segments) || segments.length === 0 || winningIndex <= 0 || winningIndex > segments.length) {
-        console.error(`Cannot configure ${wheelType} wheel: invalid segments or winningIndex. Segments:`, segments, `Winning Index:`, winningIndex);
-        throw new Error(`Cannot configure ${wheelType} wheel: invalid segments or winningIndex.`);
+        console.error("Cannot configure %s wheel: invalid segments or winningIndex. Segments:", wheelType, segments, "Winning Index:", winningIndex);
+        throw new Error(`Cannot configure ${wheelType} wheel: invalid segments or winningIndex.`); // User-facing, template literal is fine
     }
     const numSegments = segments.length;
     const stopAngle = customStopAngle !== null ? customStopAngle : calculateStopAngle(numSegments, winningIndex);
@@ -254,7 +254,7 @@ async function handleLostGameClick(event) {
             console.log('[PenaltyHandler] Using embedded penalties for local challenge:', JSON.parse(JSON.stringify(penaltyList)));
         } else if (penaltyTabId) {
             penaltyList = (getLocalPenalties()[penaltyTabId] || []);
-            console.log(`[PenaltyHandler] Using local penalties from tab ${penaltyTabId} for local challenge:`, JSON.parse(JSON.stringify(penaltyList)));
+            console.log("[PenaltyHandler] Using local penalties from tab %s for local challenge:", penaltyTabId, JSON.parse(JSON.stringify(penaltyList)));
         }
     } else {
         const embedded = penaltyPageConfig.challengeConfigData?.penaltyInfo;
@@ -263,9 +263,9 @@ async function handleLostGameClick(event) {
             console.log('[PenaltyHandler] Using embedded penalties for shared challenge:', JSON.parse(JSON.stringify(penaltyList)));
         } else if (penaltyPageConfig.challengeConfigData?.isLoggedIn && penaltyPageConfig.challengeConfigData?.userPenaltyTabsData?.entries?.[penaltyTabId]) {
             penaltyList = penaltyPageConfig.challengeConfigData.userPenaltyTabsData.entries[penaltyTabId];
-            console.log(`[PenaltyHandler] Using user's saved penalties from tab ${penaltyTabId} for shared challenge:`, JSON.parse(JSON.stringify(penaltyList)));
+            console.log("[PenaltyHandler] Using user's saved penalties from tab %s for shared challenge:", penaltyTabId, JSON.parse(JSON.stringify(penaltyList)));
         } else {
-            console.log(`[PenaltyHandler] No specific penalty list found for shared challenge with tabId ${penaltyTabId}. Defaulting to empty list.`);
+            console.log("[PenaltyHandler] No specific penalty list found for shared challenge with tabId %s. Defaulting to empty list.", penaltyTabId);
         }
     }
     if (!Array.isArray(penaltyList)) {

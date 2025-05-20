@@ -56,10 +56,10 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
     });
 
     socket.on("disconnect", (reason) => {
-        console.warn(`[SocketHandler] Disconnected from WebSocket. Reason: ${reason}`);
+        console.warn("[SocketHandler] Disconnected from WebSocket. Reason: %s", reason);
         listenersAttached = false;
         if (statusDisplayElement) {
-            const message = reason === "io server disconnect" ? "Lost real-time connection (server)." : `Real-time connection lost: ${reason}. Reconnecting...`;
+            const message = reason === "io server disconnect" ? "Lost real-time connection (server)." : `Real-time connection lost: ${reason}. Reconnecting...`; // User-facing, template literal is fine
             if (reason !== "io client disconnect") { // Avoid error on manual/programmatic disconnect
                 showError(statusDisplayElement, message, "warning");
             }
@@ -67,27 +67,27 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
     });
 
     socket.on("connect_error", (error) => {
-        console.error(`[SocketHandler] WebSocket Connection Error: ${error.message}`, error);
+        console.error("[SocketHandler] WebSocket Connection Error: %s", error.message, error);
         listenersAttached = false;
         if (statusDisplayElement) {
-            showError(statusDisplayElement, `Connection Error: ${error.message}. Updates may be unavailable.`, "danger");
+            showError(statusDisplayElement, `Connection Error: ${error.message}. Updates may be unavailable.`, "danger"); // User-facing, template literal is fine
         }
     });
 
     // Manager events for reconnection attempts
-    socket.io.on("reconnect_attempt", (attempt) => console.info(`[SocketHandler] Reconnect attempt ${attempt}`));
+    socket.io.on("reconnect_attempt", (attempt) => console.info("[SocketHandler] Reconnect attempt %s", attempt));
     socket.io.on("reconnect_failed", () => {
         console.error("[SocketHandler] Reconnection failed permanently.");
         if (statusDisplayElement) showError(statusDisplayElement, "Failed to reconnect to real-time updates. Please refresh.", "danger");
     });
-    socket.io.on("reconnect_error", (error) => console.error("[SocketHandler] Reconnection error:", error.message));
-    socket.io.on("error", (error) => console.error("[SocketHandler Manager Error]:", error.message, error));
+    socket.io.on("reconnect_error", (error) => console.error("[SocketHandler] Reconnection error:", error.message)); // error.message is usually safe
+    socket.io.on("error", (error) => console.error("[SocketHandler Manager Error]:", error.message, error)); // error.message is usually safe
 
 
     // --- Application-Specific Event Handlers ---
     // These are only attached ONCE after a successful room join.
     socket.on("room_joined", (data) => {
-        console.info(`[SocketHandler] Successfully joined room: ${data.room}. SID: ${socket.id}.`);
+        console.info("[SocketHandler] Successfully joined room: %s. SID: %s.", data.room, socket.id);
         if (statusDisplayElement) showError(statusDisplayElement, null); // Clear any previous errors
 
         if (!listenersAttached) {
@@ -169,8 +169,8 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
     });
 
     socket.on("room_join_error", (data) => {
-        console.error(`[SocketHandler] Room Join Error: ${data.error}. SID: ${socket?.id}`);
-        if (statusDisplayElement) showError(statusDisplayElement, `Could not join challenge updates: ${data.error}`, "danger");
+        console.error("[SocketHandler] Room Join Error: %s. SID: %s", data.error, socket?.id);
+        if (statusDisplayElement) showError(statusDisplayElement, `Could not join challenge updates: ${data.error}`, "danger"); // User-facing, template literal is fine
     });
 }
 

@@ -7,6 +7,7 @@ from flask_login import login_user
 from werkzeug.security import generate_password_hash
 from app import db
 from app.models import User
+from app.utils.auth_helpers import is_safe_url # Import the helper
 logger = logging.getLogger(__name__)
 auth_twitch = Blueprint('auth_twitch', __name__, template_folder='../templates/auth')
 
@@ -29,7 +30,7 @@ def twitch_login():
 def twitch_callback():
     # 1) error/state check (Unchanged)
     if err := request.args.get('error'):
-        flash(f"Twitch OAuth error: {err}", 'danger')
+        flash(f"Twitch OAuth error: {err}", 'danger') # User-facing, f-string is okay here
         return redirect(url_for('auth.login'))
     if request.args.get('state') != session.pop('twitch_oauth_state', None):
         flash("OAuth state mismatch.", 'danger')
@@ -50,7 +51,7 @@ def twitch_callback():
     access = tok.get('access_token')
     if not access:
         flash("Failed to get token from Twitch.", 'danger')
-        logger.error("Twitch token error: %s", tok)
+        logger.error("Twitch token error: %s", tok) # tok is a dict, %s is fine
         return redirect(url_for('auth.login'))
 
     # 3) fetch profile (Unchanged)
@@ -75,7 +76,7 @@ def twitch_callback():
         user = User.query.filter_by(twitch_id=twitch_user_id).first()
 
         if user:
-            logger.info(f"Twitch user {user.username} (Twitch ID: {twitch_user_id}) found by twitch_id.")
+            logger.info("Twitch user %s (Twitch ID: %s) found by twitch_id.", user.username, twitch_user_id)
             # User already linked, proceed to login
         else:
             # Check 2: No user with this twitch_id found.
@@ -88,24 +89,24 @@ def twitch_callback():
                 if existing_user_with_tag.twitch_id is None:
                     # Found Username#0000 but it's not linked to ANY twitch ID.
                     # This implies it might be an old account or manually created. Link it.
-                    logger.warning(f"Found existing user '{target_username}' with no twitch_id. Linking Twitch ID {twitch_user_id}.")
+                    logger.warning("Found existing user '%s' with no twitch_id. Linking Twitch ID %s.", target_username, twitch_user_id)
                     existing_user_with_tag.twitch_id = twitch_user_id
                     user = existing_user_with_tag # Use this existing user
                     db.session.commit() # Commit the linking
                 elif existing_user_with_tag.twitch_id == twitch_user_id:
                     # Found Username#0000 and it's ALREADY linked to the correct twitch_id.
                     # This scenario is unlikely if Check 1 was done correctly, but safe to handle.
-                    logger.info(f"Found existing user '{target_username}' already correctly linked to Twitch ID {twitch_user_id}.")
+                    logger.info("Found existing user '%s' already correctly linked to Twitch ID %s.", target_username, twitch_user_id)
                     user = existing_user_with_tag
                 else:
                     # Found Username#0000 but it's linked to a DIFFERENT twitch_id!
                     # This is a conflict that needs manual resolution.
-                    logger.error(f"CRITICAL CONFLICT: User '{target_username}' exists but is linked to a different Twitch ID ({existing_user_with_tag.twitch_id}) than the current login ({twitch_user_id}).")
+                    logger.error("CRITICAL CONFLICT: User '%s' exists but is linked to a different Twitch ID (%s) than the current login (%s).", target_username, existing_user_with_tag.twitch_id, twitch_user_id)
                     flash("Username conflict detected. Please contact support.", "danger")
                     return redirect(url_for('auth.login'))
             else:
                 # Username#0000 does NOT exist. Create the new user.
-                logger.info(f"Creating new Twitch user: {target_username} (Twitch ID: {twitch_user_id})")
+                logger.info("Creating new Twitch user: %s (Twitch ID: %s)", target_username, twitch_user_id)
                 user = User(
                     username=target_username,
                     twitch_id=twitch_user_id,
@@ -117,20 +118,23 @@ def twitch_callback():
 
     except IntegrityError:
         db.session.rollback()
-        logger.exception(f"IntegrityError during Twitch user find/create for {twitch_base_username}")
+        logger.exception("IntegrityError during Twitch user find/create for %s", twitch_base_username)
         flash("A database error occurred while linking your Twitch account. Please try again.", "danger")
         return redirect(url_for('auth.login'))
     except Exception as e:
-        db.session.rollback()
-        logger.exception(f"Unexpected error during Twitch user find/create for {twitch_base_username}")
-        flash("An unexpected error occurred. Please try again.", "danger")
+        # Log the full error for debugging, but be cautious in production
+        logger.error("Twitch token error for user. Error: %s", str(e)) # Avoid logging the full token dictionary
+        flash(f"Error obtaining Twitch token: {str(e)}. Please try again.", "danger")
         return redirect(url_for('auth.login'))
 
     # --- Step 5: Log In and Redirect ---
     if user:
         login_user(user) # Log in the found or newly created user
         flash("Logged in with Twitch!", 'success')
-        return redirect(request.args.get('next') or url_for('main.index'))
+        next_page = request.args.get('next')
+        if next_page and is_safe_url(next_page):
+            return redirect(next_page)
+        return redirect(url_for('main.index'))
     else:
         # Should not happen if logic above is correct, but as a fallback
         flash("Could not log you in after Twitch authentication.", "danger")

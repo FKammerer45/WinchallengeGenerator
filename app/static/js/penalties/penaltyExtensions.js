@@ -84,8 +84,8 @@ async function performPenaltySave(tabId) {
             throw new Error(response.error || 'Unknown server error during penalty save.');
         }
     } catch (error) {
-        console.error(`[Penalty Autosave] Error saving tab ${tabId}:`, error);
-        showFlash(`Penalty autosave failed: ${error.message}`, 'danger', 5000);
+        console.error("[Penalty Autosave] Error saving tab %s:", tabId, error);
+        showFlash(`Penalty autosave failed: ${error.message}`, 'danger', 5000); // User-facing, template literal is fine
     } finally {
         isCurrentlySavingPenalties = false;
     }
@@ -409,8 +409,8 @@ export async function ensureUserDefaultPenaltyTabs() {
                 try {
                     const savePayload = { tabId: clientTabId, tabName: sysDef.name, penalties: sysDef.penalties || [] };
                     const savedTabResponse = await apiFetch(USER_PENALTY_TABS_SAVE_URL, { method: 'POST', body: savePayload }, csrfToken);
-                    if (savedTabResponse.status !== 'ok') console.error(`[ensureUserDefaultPenaltyTabs] Failed to save default penalty tab ${sysDef.name}:`, savedTabResponse.error);
-                } catch (saveError) { console.error(`[ensureUserDefaultPenaltyTabs] Exception saving default penalty tab ${clientTabId}:`, saveError); }
+                    if (savedTabResponse.status !== 'ok') console.error("[ensureUserDefaultPenaltyTabs] Failed to save default penalty tab %s:", sysDef.name, savedTabResponse.error);
+                } catch (saveError) { console.error("[ensureUserDefaultPenaltyTabs] Exception saving default penalty tab %s:", clientTabId, saveError); }
             }
         }
     } else {

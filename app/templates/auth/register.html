@@ -84,6 +84,7 @@
 {% block scripts %}
   {{ super() }}
   {% if recaptcha_enabled and recaptcha_public_key %}
+    {# Google reCAPTCHA Script - SRI not provided by Google due to dynamic script content. #}
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   {% endif %}
 {% endblock %}

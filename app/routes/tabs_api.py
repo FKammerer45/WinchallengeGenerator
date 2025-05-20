@@ -62,7 +62,7 @@ def save_tab():
         logger.warning("User %s: Invalid 'entries' format for tab ID: %s", current_user.id, client_tab_id_from_request)
         return jsonify({"error": "'entries' field must be a list."}), 400
     if len(entries_list_from_client) > MAX_ENTRIES_PER_TAB:
-        logger.warning("User %s: Exceeded max entries per tab (%d) for tab ID: %s", current_user.id, MAX_ENTRIES_PER_TAB, client_tab_id_from_request)
+        logger.warning("User %s: Exceeded max entries per tab (%s) for tab ID: %s", current_user.id, MAX_ENTRIES_PER_TAB, client_tab_id_from_request)
         return jsonify({"error": f"Cannot save tab with more than {MAX_ENTRIES_PER_TAB} entries."}), 400
     
     try:
@@ -83,7 +83,7 @@ def save_tab():
                     # Add other expected fields with defaults if necessary
                 })
             else:
-                logger.warning(f"User {current_user.id}: Skipping invalid entry object during save for tab {client_tab_id_from_request}: {entry}")
+                logger.warning("User %s: Skipping invalid entry object during save for tab %s: %s", current_user.id, client_tab_id_from_request, entry)
         
         entries_json_string = json.dumps(validated_entries)
 

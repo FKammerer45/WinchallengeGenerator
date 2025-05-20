@@ -27,15 +27,15 @@ export async function apiFetch(url, options = {}, csrfToken = null) {
             responseData = await response.json();
          }
         if (!response.ok) {
-            const errorMessage = responseData?.error || responseData?.message || response.statusText || `HTTP error ${response.status}`;
-            console.error(`API Error ${response.status} for ${url}:`, errorMessage, responseData);
+            const errorMessage = responseData?.error || responseData?.message || response.statusText || `HTTP error ${response.status}`; // User-facing, template literal is fine
+            console.error("API Error %s for %s:", response.status, url, errorMessage, responseData);
             throw new Error(errorMessage);
         }
         if (response.status === 204) return { status: 'success', message: 'Success (no content).' };
         if (responseData) return responseData;
         return { status: 'success', message: 'Success (non-JSON response).' };
     } catch (networkError) {
-        console.error(`Workspace error for ${url}:`, networkError);
+        console.error("Workspace error for %s:", url, networkError);
         throw new Error(networkError.message || 'Network error during API call.');
     }
 }

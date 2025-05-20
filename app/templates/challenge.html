@@ -523,9 +523,9 @@ Challenge Not Found
 {# --- Conditionally Load Penalty-Related Scripts --- #}
 
 <script src="{{ url_for('static', filename='js/libs/Winwheel.min.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/latest/TweenMax.min.js" integrity="sha512-8Wy4GMSRkJy8QYIZdQ5T8PFI5uK-_PmH+G1NWjuKcabUB8bZaP/f/themeRpPP5fSMAcJZ3QO4K5l2krT2cQLzUoQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
-<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79AgkvSYFFM4GZUTctIdZWsCdBSSsvV42Wm9O2vQuXPMLolVtMnTjqSzyVJIHvs" crossorigin="anonymous"></script>
 
 {# Core Challenge View Modules - Order can matter for dependencies #}
 <script type="module" src="{{ url_for('static', filename='js/challenge_view/config.js') }}"></script>

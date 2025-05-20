@@ -5,14 +5,15 @@ from flask import Flask, render_template, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix # Import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO
 from flask_mail import Mail
 from flask_admin import Admin
-from flask_admin.menu import MenuLink
+from flask_admin.menu import MenuLink # Removed BaseMenuLink, will inherit from MenuLink
+from markupsafe import Markup
 from config import config
 import logging
 import paypalrestsdk
@@ -24,7 +25,7 @@ csrf = CSRFProtect()
 migrate = Migrate()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 mail = Mail()
-admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4')
+admin = Admin(name='WinChallenge Admin', template_mode='bootstrap4', base_template='admin/custom_base.html')
 limiter = None # Will be initialized in create_app
 
 # Configure login manager
@@ -77,8 +78,58 @@ def create_app(config_name=None):
         config_name = 'default'
         app.config.from_object(config[config_name])
 
+    # --- Production Environment Checks ---
+    if config_name == 'production':
+        # Check essential secrets
+        if not app.config.get('SECRET_KEY') or \
+           not app.config.get('SECURITY_PASSWORD_SALT') or \
+           not app.config.get('SECURITY_PASSWORD_RESET_SALT'):
+            raise ValueError("ProductionConfig: SECRET_KEY, SECURITY_PASSWORD_SALT, and SECURITY_PASSWORD_RESET_SALT must be set.")
+        
+        # Check SERVER_NAME
+        if not app.config.get('SERVER_NAME'):
+            raise ValueError("ProductionConfig: SERVER_NAME must be set (e.g., 'yourdomain.com').")
+
+        # Check Database URL
+        if not app.config.get('SQLALCHEMY_DATABASE_URI') or 'sqlite' in app.config.get('SQLALCHEMY_DATABASE_URI').lower():
+            # Also warn if it looks like SQLite is being used in production
+            raise ValueError("ProductionConfig: A non-SQLite DATABASE_URL must be set.")
+
+        # Check reCAPTCHA (optional, but warn if enabled in config but keys missing)
+        if app.config.get('RECAPTCHA_ENABLED') and \
+           (not app.config.get('RECAPTCHA_PUBLIC_KEY') or not app.config.get('RECAPTCHA_PRIVATE_KEY')):
+            print("Warning: ProductionConfig: RECAPTCHA_ENABLED is True, but keys are missing. Disabling reCAPTCHA.")
+            app.config['RECAPTCHA_ENABLED'] = False
+        elif not app.config.get('RECAPTCHA_PUBLIC_KEY') or not app.config.get('RECAPTCHA_PRIVATE_KEY'):
+             app.config['RECAPTCHA_ENABLED'] = False # Ensure it's off if keys are missing, even if env var was True
+
+        # Check Twitch OAuth
+        if not (app.config.get('TWITCH_CLIENT_ID') and \
+                app.config.get('TWITCH_CLIENT_SECRET') and \
+                app.config.get('TWITCH_REDIRECT_URI')):
+            raise ValueError("ProductionConfig: Twitch OAuth settings (CLIENT_ID, CLIENT_SECRET, REDIRECT_URI) must be set.")
+
+        # Check Mailgun
+        if not (app.config.get('MAIL_SERVER') and \
+                app.config.get('MAIL_USERNAME') and \
+                app.config.get('MAIL_PASSWORD') and \
+                app.config.get('MAIL_DEFAULT_SENDER')):
+            raise ValueError("ProductionConfig: Mailgun SMTP settings (SERVER, LOGIN, PASSWORD, DEFAULT_SENDER) must be set.")
+
+        # Check PayPal
+        if not (app.config.get('PAYPAL_CLIENT_ID') and app.config.get('PAYPAL_CLIENT_SECRET')):
+            print("Warning: ProductionConfig: PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET not set. PayPal integration will be disabled.")
+            # Potentially disable PayPal features or set a flag
+        elif app.config.get('PAYPAL_MODE') != 'live':
+            print(f"Warning: ProductionConfig: PAYPAL_MODE is '{app.config.get('PAYPAL_MODE')}', but credentials are set. It should typically be 'live'.")
+    # --- End Production Environment Checks ---
+
     # Configure CSRF protection to check headers for AJAX
     app.config['WTF_CSRF_HEADERS'] = ['X-CSRFToken', 'X-CSRF-Token']
+
+    # Add custom JS for admin logout to all admin pages
+    # This path is relative to the application's static folder.
+    # app.config['ADMIN_EXTRA_JS'] = ['js/admin_logout.js'] # Temporarily disabled for testing template-based POST logout
 
 
     # Initialize extensions that need the app context
@@ -212,7 +263,8 @@ def create_app(config_name=None):
     admin.add_view(SavedGameTabAdminView(SavedGameTab, db.session, name='Game Tabs', category='User Data'))
     admin.add_view(SavedPenaltyTabAdminView(SavedPenaltyTab, db.session, name='Penalty Tabs', category='User Data'))
     admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges', category='User Data'))
-    admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout'))
+    
+    admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout', class_name='admin-logout-link')) # Added class_name
 
     @app.errorhandler(404)
     def page_not_found(e):

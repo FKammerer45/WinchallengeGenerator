@@ -30,7 +30,7 @@ export function getLocalOnlyTabs() {
     const tabs = localStorage.getItem(LOCAL_PENALTY_TABS_KEY);
     return tabs ? JSON.parse(tabs) : {};
   } catch (e) {
-    console.error(`Error parsing ${LOCAL_PENALTY_TABS_KEY} from localStorage:`, e);
+    console.error("Error parsing %s from localStorage:", LOCAL_PENALTY_TABS_KEY, e);
     return {};
   }
 }
@@ -44,7 +44,7 @@ export function getLocalOnlyEntries() {
     const entries = localStorage.getItem(LOCAL_PENALTY_ENTRIES_KEY);
     return entries ? JSON.parse(entries) : {};
   } catch (e) {
-    console.error(`Error parsing ${LOCAL_PENALTY_ENTRIES_KEY} from localStorage:`, e);
+    console.error("Error parsing %s from localStorage:", LOCAL_PENALTY_ENTRIES_KEY, e);
     return {};
   }
 }
@@ -61,7 +61,7 @@ export function setLocalOnlyTabs(tabs) {
   try {
     localStorage.setItem(LOCAL_PENALTY_TABS_KEY, JSON.stringify(tabs));
   } catch (e) {
-    console.error(`Error setting ${LOCAL_PENALTY_TABS_KEY} in localStorage:`, e);
+    console.error("Error setting %s in localStorage:", LOCAL_PENALTY_TABS_KEY, e);
   }
 }
 
@@ -77,7 +77,7 @@ export function setLocalOnlyEntries(entries) {
   try {
     localStorage.setItem(LOCAL_PENALTY_ENTRIES_KEY, JSON.stringify(entries));
   } catch (e) {
-    console.error(`Error setting ${LOCAL_PENALTY_ENTRIES_KEY} in localStorage:`, e);
+    console.error("Error setting %s in localStorage:", LOCAL_PENALTY_ENTRIES_KEY, e);
   }
 }
 
@@ -101,7 +101,7 @@ export function addLocalOnlyPenaltyEntry(tabId, entry) {
     allEntries[tabId].push(entry);
     setLocalOnlyEntries(allEntries);
   } catch (e) {
-    console.error(`Failed to add local penalty entry for tab ${tabId}:`, e);
+    console.error("Failed to add local penalty entry for tab %s:", tabId, e);
   }
 }
 
@@ -136,10 +136,10 @@ export function updateLocalOnlyPenaltyEntry(tabId, entryId, newEntryData) {
         console.warn(`updateLocalOnlyPenaltyEntry: Entry ID '${entryIdStr}' not found in tab '${tabId}'.`);
       }
     } else {
-      console.warn(`updateLocalOnlyPenaltyEntry: No entries found for tab '${tabId}'.`);
+        console.warn(`updateLocalOnlyPenaltyEntry: No entries found for tab '${tabId}'.`);
     }
   } catch (e) {
-    console.error(`Failed to update local penalty entry for tab ${tabId}, ID ${entryId}:`, e);
+    console.error("Failed to update local penalty entry for tab %s, ID %s:", tabId, entryId, e);
   }
 }
 
@@ -171,11 +171,11 @@ export function removeLocalOnlyPenaltyEntry(tabId, entryId) {
         return false;
       }
     } else {
-      console.warn(`removeLocalOnlyPenaltyEntry: No entries found for tab '${tabId}'.`);
-      return false;
+        console.warn(`removeLocalOnlyPenaltyEntry: No entries found for tab '${tabId}'.`);
+        return false;
     }
   } catch (e) {
-    console.error(`Failed to remove local penalty entry for tab ${tabId}, ID ${entryId}:`, e);
+    console.error("Failed to remove local penalty entry for tab %s, ID %s:", tabId, entryId, e);
     return false;
   }
 }

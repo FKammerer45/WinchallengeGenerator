@@ -207,8 +207,8 @@ export async function handleJoinLeaveGroup(groupId, action, currentChallengeConf
         document.dispatchEvent(new CustomEvent('configGroupMembershipChanged', { detail: { groupId, action, responseData } }));
 
     } catch (err) {
-        console.error(`${action} group failed:`, err);
-        showError(pageStatusDiv, `Error ${action}ing group: ${err.message}`, 'danger');
+        console.error("'%s' group failed:", action, err);
+        showError(pageStatusDiv, `Error ${action}ing group: ${err.message}`, 'danger'); // User-facing, template literal is fine if err.message is escaped by showError
     } finally {
         if(actionButton) setLoading(actionButton, false);
     }

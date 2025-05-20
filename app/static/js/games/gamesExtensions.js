@@ -276,10 +276,10 @@ export async function createNewTab() {
       $(newTabLink).tab('show');
     }
   } catch (e) {
-    console.error(`Failed to create or save new custom game tab ${newTabId}:`, e);
+    console.error("Failed to create or save new custom game tab %s:", newTabId, e);
     newTabItem?.remove();
     newTabPane?.remove();
-    showFlash(`Error creating tab: ${e.message}`, "danger");
+    showFlash(`Error creating tab: ${e.message}`, "danger"); // User-facing, template literal is fine
   }
 }
 // --- Autosave Logic ---
@@ -304,78 +304,78 @@ async function performSave(tabId) {
 
     if (!window.userTabsData || !window.userTabsData.tabs || !window.userTabsData.entries) {
         console.error("[Autosave] Critical data missing in window.userTabsData. Aborting save.");
-        showFlash("Autosave failed: Internal data error.", "danger");
-        return;
-    }
+            showFlash("Autosave failed: Internal data error.", "danger");
+            return;
+        }
 
-    const tabToSave = window.userTabsData.tabs[tabId];
-    const entriesToSave = window.userTabsData.entries[tabId];
+        const tabToSave = window.userTabsData.tabs[tabId];
+        const entriesToSave = window.userTabsData.entries[tabId];
 
-    if (!tabToSave) {
-        console.warn(`[Autosave] Tab data for ${tabId} not found in state. Skipping save.`);
-        return;
-    }
-    if (!Array.isArray(entriesToSave)) {
-        console.warn(`[Autosave] Entries for ${tabId} are not an array or missing. Saving with empty entries.`);
-        window.userTabsData.entries[tabId] = [];
-    }
+        if (!tabToSave) {
+            console.warn("[Autosave] Tab data for %s not found in state. Skipping save.", tabId);
+            return;
+        }
+        if (!Array.isArray(entriesToSave)) {
+            console.warn("[Autosave] Entries for %s are not an array or missing. Saving with empty entries.", tabId);
+            window.userTabsData.entries[tabId] = [];
+        }
 
-    isCurrentlySaving = true;
+        isCurrentlySaving = true;
 
-    try {
-        const payload = {
-            tabId: tabId,
-            tabName: tabToSave.name,
-            entries: entriesToSave || []
-        };
-        const csrfToken = window.csrfToken;
-        const response = await apiFetch('/api/tabs/save', { method: 'POST', body: payload }, csrfToken);
+        try {
+            const payload = {
+                tabId: tabId,
+                tabName: tabToSave.name,
+                entries: entriesToSave || []
+            };
+            const csrfToken = window.csrfToken;
+            const response = await apiFetch('/api/tabs/save', { method: 'POST', body: payload }, csrfToken);
 
-        if (response.status === 'ok') {
-            showFlash("Changes saved ✓", "success", 2000);
+            if (response.status === 'ok') {
+                showFlash("Changes saved ✓", "success", 2000);
 
-            if (response.saved_tab && window.userTabsData) {
-                const savedTabFromServer = response.saved_tab;
-                window.userTabsData.tabs[savedTabFromServer.client_tab_id] = { name: savedTabFromServer.tab_name };
-                window.userTabsData.entries[savedTabFromServer.client_tab_id] = savedTabFromServer.entries || [];
+                if (response.saved_tab && window.userTabsData) {
+                    const savedTabFromServer = response.saved_tab;
+                    window.userTabsData.tabs[savedTabFromServer.client_tab_id] = { name: savedTabFromServer.tab_name };
+                    window.userTabsData.entries[savedTabFromServer.client_tab_id] = savedTabFromServer.entries || [];
 
-                const activeLink = document.querySelector("#gamesTab .nav-link.active");
-                const activeTabId = activeLink?.getAttribute("href")?.substring(1);
-                if (activeTabId === savedTabFromServer.client_tab_id) {
-                    // Import renderGamesForTab locally if it's not already available in this scope
-                    // This is a placeholder, actual import might be different or function might be global
-                    const { renderGamesForTab } = await import('./entryManagement.js');
-                    if (typeof renderGamesForTab === "function") { 
-                        renderGamesForTab(activeTabId);
-                    } else {
-                        console.warn("renderGamesForTab function not available to refresh tab after save.");
+                    const activeLink = document.querySelector("#gamesTab .nav-link.active");
+                    const activeTabId = activeLink?.getAttribute("href")?.substring(1);
+                    if (activeTabId === savedTabFromServer.client_tab_id) {
+                        // Import renderGamesForTab locally if it's not already available in this scope
+                        // This is a placeholder, actual import might be different or function might be global
+                        const { renderGamesForTab } = await import('./entryManagement.js');
+                        if (typeof renderGamesForTab === "function") { 
+                            renderGamesForTab(activeTabId);
+                        } else {
+                            console.warn("renderGamesForTab function not available to refresh tab after save.");
+                        }
                     }
                 }
+            } else {
+                throw new Error(response.error || 'Unknown server error during save.');
             }
-        } else {
-            throw new Error(response.error || 'Unknown server error during save.');
+        } catch (error) {
+            console.error("[Autosave] Error saving tab %s:", tabId, error);
+            showFlash(`Autosave failed: ${error.message}`, 'danger', 5000); // User-facing, template literal is fine
+        } finally {
+            isCurrentlySaving = false;
         }
-    } catch (error) {
-        console.error(`[Autosave] Error saving tab ${tabId}:`, error);
-        showFlash(`Autosave failed: ${error.message}`, 'danger', 5000);
-    } finally {
-        isCurrentlySaving = false;
     }
-}
 
-const debouncedSave = debounce(performSave, 2500);
+    const debouncedSave = debounce(performSave, 2500);
 
-export function triggerAutosave(tabId) {
-    const isLoggedIn = window.isLoggedIn === true;
-    if (!isLoggedIn) return;
-    if (!tabId) {
-        console.warn("[Autosave] Trigger called without tabId.");
-        return;
+    export function triggerAutosave(tabId) {
+        const isLoggedIn = window.isLoggedIn === true;
+        if (!isLoggedIn) return;
+        if (!tabId) {
+            console.warn("[Autosave] Trigger called without tabId.");
+            return;
+        }
+        debouncedSave(tabId);
     }
-    debouncedSave(tabId);
-}
 
-export function attachTabRenameHandler() {
+    export function attachTabRenameHandler() {
     const container = document.getElementById("gamesTab");
     if (!container) {
         console.error("Could not find #gamesTab container for rename listener.");
@@ -748,13 +748,13 @@ export async function handleDuplicateTab() {
             if (newLink && typeof $ !== 'undefined' && $.fn.tab) {
                 $(newLink).tab('show');
             }
-            showFlash(`Tab "${sourceTabName}" duplicated as "${newTabName}".`, "success");
+            showFlash(`Tab "${sourceTabName}" duplicated as "${newTabName}".`, "success"); // User-facing, template literal is fine
         } else {
             throw new Error(response.error || "Server error during tab duplication.");
         }
     } catch (error) {
-        console.error(`[Duplicate Tab] Error duplicating tab ${sourceTabId}:`, error);
-        showFlash(`Error duplicating tab: ${error.message}`, "danger");
+        console.error("[Duplicate Tab] Error duplicating tab %s:", sourceTabId, error);
+        showFlash(`Error duplicating tab: ${error.message}`, "danger"); // User-facing, template literal is fine
         delete window.userTabsData.tabs[newClientTabId];
         delete window.userTabsData.entries[newClientTabId];
     } finally {
@@ -820,10 +820,10 @@ export async function ensureUserDefaultGameTabs() {
                     const savedTabResponse = await apiFetch(USER_GAME_TABS_SAVE_URL_LOCAL, { method: 'POST', body: savePayload }, csrfToken);
 
                     if (savedTabResponse.status !== 'ok') {
-                        console.error(`[ensureUserDefaultGameTabs] Failed to save system default tab ${sysDef.name} for user:`, savedTabResponse.error);
+                        console.error("[ensureUserDefaultGameTabs] Failed to save system default tab %s for user:", sysDef.name, savedTabResponse.error);
                     }
                 } catch (saveError) {
-                    console.error(`[ensureUserDefaultGameTabs] Exception while saving system default game tab ${clientTabId} for user:`, saveError);
+                    console.error("[ensureUserDefaultGameTabs] Exception while saving system default game tab %s for user:", clientTabId, saveError);
                 }
             }
         }

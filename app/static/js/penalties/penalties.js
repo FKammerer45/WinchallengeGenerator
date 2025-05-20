@@ -278,8 +278,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     } catch (error) {
         console.error("Error during Penalties page initialization:", error);
-        showFlash(`Initialization Error: ${error.message}`, "danger");
-        if (penaltiesTabContent) penaltiesTabContent.innerHTML = `<div class="alert alert-danger p-5 text-center">Page failed to load: ${error.message}</div>`;
+        showFlash(`Initialization Error: ${error.message}`, "danger"); // showFlash now escapes
+        if (penaltiesTabContent) penaltiesTabContent.innerHTML = `<div class="alert alert-danger p-5 text-center">Page failed to load: ${escapeHtml(error.message)}</div>`;
     } finally {
         if (loadingSystemPlaceholder) loadingSystemPlaceholder.style.display = 'none';
         if (loadingCustomPlaceholder) loadingCustomPlaceholder.style.display = 'none';

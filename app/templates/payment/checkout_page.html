@@ -10,6 +10,7 @@
 {# --- IMPORTANT: Add Payment Provider JS SDK --- #}
 {# PayPal JavaScript SDK #}
 {% if paypal_client_id %}
+{# PayPal SDK - SRI not provided by PayPal due to dynamic script content. #}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency={{ pro_plan_currency | default('EUR') }}&intent=capture"></script>
 {% else %}
 <!-- PayPal Client ID not configured -->

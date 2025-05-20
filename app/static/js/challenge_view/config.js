@@ -140,7 +140,7 @@ function getLocalChallengeById(localId) {
     try {
         return getLocalChallengeByIdUtil(localId);
     } catch (e) {
-        console.error(`Error calling getLocalChallengeByIdUtil for localId "${localId}":`, e);
+        console.error("Error calling getLocalChallengeByIdUtil for localId \"%s\":", localId, e);
         // Optionally, show an error to the user if this is critical path
         // showError(document.getElementById('pageStatusDisplay'), "Error accessing local challenge data.", "warning");
         return null;

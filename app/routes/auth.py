@@ -27,11 +27,12 @@ import json
 # --- Import Email Utilities ---
 from app.utils.email import (send_email, generate_confirmation_token, confirm_token,
                              generate_password_reset_token, confirm_password_reset_token,
-                             generate_email_change_token, confirm_email_change_token) 
+                             generate_email_change_token, confirm_email_change_token)
+from app.utils.auth_helpers import is_safe_url # Import the helper
 
 logger = logging.getLogger(__name__)
 
-auth = Blueprint('auth', __name__, template_folder='../templates/auth') 
+auth = Blueprint('auth', __name__, template_folder='../templates/auth')
 
 
 @auth.route('/login', methods=['GET', 'POST'])
@@ -58,7 +59,7 @@ def login():
                 flash("Login system configuration error.", "danger")
                 captcha_ok = False
             elif not captcha_response or not verify_recaptcha(captcha_response):
-                logger.warning(f"Login attempt failed reCAPTCHA for identifier '{login_identifier}'.")
+                logger.warning("Login attempt failed reCAPTCHA for identifier '%s'.", login_identifier)
                 flash("Invalid captcha. Please try again.", "danger")
                 captcha_ok = False
 
@@ -86,12 +87,14 @@ def login():
 
                     # --- Login Successful ---
                     login_user(user)
-                    logger.info(f"User '{user.username}' logged in successfully.")
+                    logger.info("User '%s' logged in successfully.", user.username)
                     flash('Logged in successfully!', 'success')
                     next_page = request.args.get('next')
-                    return redirect(next_page or url_for('main.index'))
+                    if next_page and is_safe_url(next_page):
+                        return redirect(next_page)
+                    return redirect(url_for('main.index'))
                 else:
-                    logger.warning(f"Invalid login attempt for identifier '{login_identifier}'.")
+                    logger.warning("Invalid login attempt for identifier '%s'.", login_identifier)
                     flash('Invalid credentials. Please check your Username#Tag/Email and password.', 'danger')
 
             except Exception as e:
@@ -111,11 +114,11 @@ def login():
 @login_required 
 def logout():
     """Handles user logout."""
-    username = current_user.username if current_user.is_authenticated else "Unknown" 
-    logout_user() 
-    logger.info(f"User '{username}' logged out.")
+    username = current_user.username if current_user.is_authenticated else "Unknown"
+    logout_user()
+    logger.info("User '%s' logged out.", username)
     flash('You have been logged out.', 'info')
-    return redirect(url_for('main.index')) 
+    return redirect(url_for('main.index'))
 
 
 @auth.route('/register', methods=['GET', 'POST'])
@@ -145,7 +148,7 @@ def register():
                 flash("Registration system configuration error.", "danger")
                 captcha_ok = False
             elif not captcha_response or not verify_recaptcha(captcha_response):
-                logger.warning(f"Registration attempt failed reCAPTCHA for base user '{base_username}'.")
+                logger.warning("Registration attempt failed reCAPTCHA for base user '%s'.", base_username)
                 flash("Invalid captcha. Please try again.", "danger")
                 captcha_ok = False
 
@@ -193,7 +196,7 @@ def register():
                                     "gameMode": entry.get("Spielmodus"),
                                     "difficulty": str(entry.get("Schwierigkeit", "1.0")),
                                     "numberOfPlayers": entry.get("Spieleranzahl", 1),
-                                    "weight": entry.get("weight", 1.0) 
+                                    "weight": entry.get("weight", 1.0)
                                 })
                             
                             default_game_tab = SavedGameTab(
@@ -203,7 +206,7 @@ def register():
                                 entries_json=json.dumps(transformed_game_entries) # Serialize transformed entries
                             )
                             db.session.add(default_game_tab)
-                            logger.info(f"Assigned default game tab '{default_game_tab.tab_name}' to user '{new_user.username}'.")
+                            logger.info("Assigned default game tab '%s' to user '%s'.", default_game_tab.tab_name, new_user.username)
 
                         # Assign Default Penalty Tab (e.g., "All Penalties")
                         default_penalty_tab_key = "default-all-penalties" # Key from default_definitions.py
@@ -217,12 +220,12 @@ def register():
                                 penalties_json=json.dumps(penalty_tab_def.get("penalties", [])) # Serialize penalties
                             )
                             db.session.add(default_penalty_tab)
-                            logger.info(f"Assigned default penalty tab '{default_penalty_tab.tab_name}' to user '{new_user.username}'.")
+                            logger.info("Assigned default penalty tab '%s' to user '%s'.", default_penalty_tab.tab_name, new_user.username)
                         
                         db.session.commit() # Commit the new default tabs
                     except Exception as e_tabs:
                         db.session.rollback()
-                        logger.error(f"Error assigning default tabs to user {new_user.username}: {e_tabs}", exc_info=True)
+                        logger.error("Error assigning default tabs to user %s: %s", new_user.username, e_tabs, exc_info=True)
                         # Decide if this should prevent registration or just log an error
                         flash("Could not set up default configurations for your account. Please contact support if issues persist.", "warning")
                     # --- END MODIFICATION ---
@@ -241,7 +244,7 @@ def register():
                     )
                     # --- End Email Sending ---
 
-                    logger.info(f"User '{full_username}' registered. Confirmation email sent to '{email}'.")
+                    logger.info("User '%s' registered. Confirmation email sent to '%s'.", full_username, email)
                     flash('Registration successful! A confirmation email has been sent to your address. Please check your inbox (and spam folder).', 'success')
                     # Redirect to login or a dedicated 'check your email' page
                     return redirect(url_for('auth.login', registered_username=full_username)) # MODIFIED: Pass username to prefill login
@@ -254,11 +257,11 @@ def register():
                  elif 'users.email' in str(e.orig):
                       form.email.errors.append("That email address is already registered.")
                  else:
-                      logger.exception(f"IntegrityError during user creation for base {base_username}")
+                      logger.exception("IntegrityError during user creation for base %s", base_username)
                       flash("Username or email already exists, or another database error occurred.", "danger")
             except Exception as e:
                 db.session.rollback()
-                logger.exception(f"Unexpected error during user creation for base {base_username}")
+                logger.exception("Unexpected error during user creation for base %s", base_username)
                 flash("An error occurred during registration. Please try again.", "danger")
 
     # Handle GET or failed validation
@@ -274,7 +277,7 @@ def confirm_email(token):
         expiration = current_app.config.get('EMAIL_CONFIRMATION_EXPIRATION', 3600)
         email = confirm_token(token, expiration=expiration)
     except Exception as e: # Catch potential itsdangerous errors explicitly if needed
-        logger.warning(f"Email confirmation link error: {e}")
+        logger.warning("Email confirmation link error: %s", e)
         flash('The confirmation link is invalid or has expired.', 'danger')
         return redirect(url_for('auth.login')) # Or main.index
 
@@ -292,7 +295,7 @@ def confirm_email(token):
         db.session.add(user)
         db.session.commit()
         flash('You have confirmed your account. Thanks! You can now log in.', 'success')
-        logger.info(f"User '{user.username}' confirmed email '{user.email}'.")
+        logger.info("User '%s' confirmed email '%s'.", user.username, user.email)
 
     return redirect(url_for('auth.login'))
 
@@ -335,9 +338,9 @@ def resend_confirmation():
             template_prefix="auth/email/confirm"
         )
         flash('A new confirmation email has been sent.', 'success')
-        logger.info(f"Resent confirmation email for user '{current_user.username}' to '{current_user.email}'.")
+        logger.info("Resent confirmation email for user '%s' to '%s'.", current_user.username, current_user.email)
     except Exception as e:
-        logger.exception(f"Error resending confirmation email for user '{current_user.username}'")
+        logger.exception("Error resending confirmation email for user '%s'", current_user.username)
         flash('An error occurred while resending the confirmation email. Please try again later.', 'danger')
 
     return redirect(url_for('auth.unconfirmed'))
@@ -349,7 +352,7 @@ def handle_rate_limit_exceeded(e):
     if request.endpoint == 'auth.resend_confirmation':
         # Flash a message (optional, as the template will show a persistent one)
         # flash("Too many resend requests. Please wait 5 minutes.", "warning")
-        logger.warning(f"Rate limit exceeded for resend confirmation by user {current_user.get_id()}")
+        logger.warning("Rate limit exceeded for resend confirmation by user %s", current_user.get_id())
         # Re-render the unconfirmed page with an error flag
         return render_template('auth/unconfirmed.html', rate_limit_error=True), 429
     else:
@@ -381,18 +384,18 @@ def change_password():
                 user_to_update = db.session.get(User, current_user.id)
                 if not user_to_update:
                     flash("Could not find your user account.", "error")
-                    logger.error(f"User ID {current_user.id} not found during password change.")
+                    logger.error("User ID %s not found during password change.", current_user.id)
                     return redirect(url_for('main.index'))
                 user_to_update.set_password(new_password)
                 db.session.commit()
-                logger.info(f"Password updated successfully for user '{current_user.username}'.")
+                logger.info("Password updated successfully for user '%s'.", current_user.username)
                 flash("Your password has been updated successfully.", "success")
                 logout_user()
                 flash("Please log in again with your new password.", "info")
                 return redirect(url_for('auth.login'))
             except Exception as e:
                 db.session.rollback()
-                logger.exception(f"Error updating password for user '{current_user.username}'")
+                logger.exception("Error updating password for user '%s'", current_user.username)
                 flash("An error occurred while updating your password. Please try again.", "danger")
     return render_template('auth/change_password.html', form=form) # Corrected template name
 
@@ -413,27 +416,27 @@ def delete_account():
             # For Twitch users, we bypass the password check after they click confirm.
             # Alternatively, you could add a different confirmation step here.
             password_ok = True
-            logger.info(f"Bypassing password check for Twitch user '{current_user.username}' during account deletion.")
+            logger.info("Bypassing password check for Twitch user '%s' during account deletion.", current_user.username)
         elif current_user.check_password(password):
             password_ok = True
         # --- END MODIFICATION ---
 
         if not password_ok:
-            logger.warning(f"User {current_user.username}: Delete account attempt failed - incorrect password provided.")
+            logger.warning("User %s: Delete account attempt failed - incorrect password provided.", current_user.username)
             flash("Incorrect password provided. Account not deleted.", "danger")
             return redirect(url_for('auth.confirm_delete_account'))
 
         # --- Perform Deletion ---
         user_id_to_delete = current_user.id
         username_to_delete = current_user.username
-        logger.warning(f"Initiating account deletion for user '{username_to_delete}' (ID: {user_id_to_delete}).")
+        logger.warning("Initiating account deletion for user '%s' (ID: %s).", username_to_delete, user_id_to_delete)
 
         try:
             # --- Explicitly delete related data BEFORE deleting the user ---
             # Although cascades might be set up, being explicit can be safer
             # and ensures data is removed even if cascade settings change.
 
-            logger.info(f"Deleting related data for user {user_id_to_delete}...")
+            logger.info("Deleting related data for user %s...", user_id_to_delete)
 
             # Delete saved tabs (cascade should handle this via backref, but explicit is okay)
             # SavedGameTab.query.filter_by(user_id=user_id_to_delete).delete()
@@ -459,12 +462,12 @@ def delete_account():
                  db.session.commit()
 
                  logout_user() # Log the user out AFTER successful deletion
-                 logger.info(f"User '{username_to_delete}' (ID: {user_id_to_delete}) successfully deleted and logged out.")
+                 logger.info("User '%s' (ID: %s) successfully deleted and logged out.", username_to_delete, user_id_to_delete)
                  flash("Your account has been permanently deleted.", "success")
                  return redirect(url_for('main.index'))
             else:
                  # Should not happen if user is logged in
-                 logger.error(f"Cannot delete: User ID {user_id_to_delete} not found in DB for final deletion step.")
+                 logger.error("Cannot delete: User ID %s not found in DB for final deletion step.", user_id_to_delete)
                  flash("User not found during deletion process.", "error")
                  logout_user() # Log out anyway
                  return redirect(url_for('main.index'))
@@ -472,12 +475,12 @@ def delete_account():
 
         except Exception as e:
             db.session.rollback()
-            logger.exception(f"Error deleting account or related data for user '{username_to_delete}'")
+            logger.exception("Error deleting account or related data for user '%s'", username_to_delete)
             flash("An error occurred while deleting the account. Please try again later.", "danger")
             return redirect(url_for('auth.confirm_delete_account'))
     else:
         # Handle form validation failure (e.g., CSRF missing, password field empty)
-        logger.warning(f"User {current_user.username}: Delete account POST failed WTForms validation.")
+        logger.warning("User %s: Delete account POST failed WTForms validation.", current_user.username)
         # Errors should be flashed by WTForms automatically if using render_field
         # Add a generic flash if needed
         # flash("Invalid submission. Please check the form.", "warning")
@@ -516,11 +519,11 @@ def forgot_password():
                     template_context=email_context,
                     template_prefix="auth/email/reset_password" # Path to reset email templates
                 )
-                logger.info(f"Password reset email sent to {user.email} for user '{user.username}'.")
+                logger.info("Password reset email sent to %s for user '%s'.", user.email, user.username)
                 flash('A password reset link has been sent to your email address. Please check your inbox.', 'info')
                 return redirect(url_for('auth.login'))
             except Exception as e:
-                 logger.exception(f"Error sending password reset email for user '{user.username}'")
+                 logger.exception("Error sending password reset email for user '%s'", user.username)
                  flash('An error occurred while sending the password reset email. Please try again later.', 'danger')
                  # Still redirect to login to avoid resubmission loop
                  return redirect(url_for('auth.login'))
@@ -550,14 +553,14 @@ def confirm_email_change(token):
 
         # Security check: Ensure the user ID in the token matches the logged-in user
         if not user_id or user_id != current_user.id:
-            logger.warning(f"Email change token user ID mismatch. Token ID: {user_id}, Current User ID: {current_user.id}")
+            logger.warning("Email change token user ID mismatch. Token ID: %s, Current User ID: %s", user_id, current_user.id)
             flash('Invalid email change request.', 'danger')
             return redirect(url_for('profile.profile_view'))
 
         # Check if the new email is already taken by someone else (in case it happened after request)
         existing_user = db.session.query(User).filter(User.email.ilike(new_email)).first()
         if existing_user and existing_user.id != current_user.id:
-            flash(f'The email address {new_email} has already been registered by another user.', 'danger')
+            flash(f'The email address {new_email} has already been registered by another user.', 'danger') # No change needed here, already safe
             return redirect(url_for('profile.profile_view'))
 
         # All checks passed, update the user's email
@@ -569,17 +572,17 @@ def confirm_email_change(token):
             user_to_update.confirmed = True
             user_to_update.confirmed_on = datetime.datetime.now(datetime.timezone.utc)
             db.session.commit()
-            logger.info(f"User '{user_to_update.username}' successfully changed email from '{old_email}' to '{new_email}'.")
+            logger.info("User '%s' successfully changed email from '%s' to '%s'.", user_to_update.username, old_email, new_email)
             flash('Your email address has been successfully updated!', 'success')
         else:
             # Should not happen if user is logged in
-            logger.error(f"Could not find user {current_user.id} during email change confirmation.")
+            logger.error("Could not find user %s during email change confirmation.", current_user.id)
             flash('An error occurred updating your email.', 'danger')
 
         return redirect(url_for('profile.profile_view'))
 
     except Exception as e:
-        logger.exception(f"Error during email change confirmation for token {token[:10]}...")
+        logger.exception("Error during email change confirmation for token %s...", token[:10])
         flash('An error occurred during email confirmation.', 'danger')
         return redirect(url_for('profile.profile_view'))
     
@@ -594,7 +597,7 @@ def reset_password(token):
         expiration = current_app.config.get('PASSWORD_RESET_EXPIRATION', 1800)
         email = confirm_password_reset_token(token, expiration=expiration)
     except Exception as e:
-        logger.warning(f"Password reset link error: {e}")
+        logger.warning("Password reset link error: %s", e)
         flash('The password reset link is invalid or has expired.', 'danger')
         return redirect(url_for('auth.forgot_password'))
 
@@ -618,12 +621,12 @@ def reset_password(token):
             # user.confirmed_on = datetime.datetime.now(datetime.timezone.utc)
             db.session.add(user)
             db.session.commit()
-            logger.info(f"Password successfully reset for user '{user.username}'.")
+            logger.info("Password successfully reset for user '%s'.", user.username)
             flash('Your password has been successfully reset. You can now log in.', 'success')
             return redirect(url_for('auth.login'))
         except Exception as e:
             db.session.rollback()
-            logger.exception(f"Error resetting password for user '{user.username}'")
+            logger.exception("Error resetting password for user '%s'", user.username)
             flash('An error occurred while resetting your password. Please try again.', 'danger')
 
     return render_template('auth/reset_password.html', form=form, token=token)

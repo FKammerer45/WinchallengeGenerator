@@ -11,3 +11,5 @@ winchallange generator_Code_Copy
 migrations
 vscode
 .vscode/settings.json
+.venv-wsl
+semgrep_findings.json

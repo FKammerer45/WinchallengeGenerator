@@ -705,14 +705,14 @@ def update_group_players(group_id):
     logger.info(f"User {current_user.username} attempting to update player display names for group {group_id}")
     data = request.get_json()
     if data is None:
-        logger.warning(f"Update players request for group {group_id} did not contain valid JSON or Content-Type.")
+        logger.warning("Update players request for group %s did not contain valid JSON or Content-Type.", group_id)
         return jsonify({"error": "Invalid request format. Expected JSON with Content-Type: application/json."}), 400
     if not isinstance(data.get('player_display_names'), list):
-        logger.warning(f"Update players request for group {group_id} missing 'player_display_names' list. Received: {data}")
+        logger.warning("Update players request for group %s missing 'player_display_names' list. Received: %s", group_id, data)
         return jsonify({"error": "Invalid request. JSON must contain 'player_display_names' (as a list)."}), 400
 
     new_display_names_from_client = data['player_display_names']
-    logger.debug(f"Received display names for group {group_id}: {new_display_names_from_client}")
+    logger.debug("Received display names for group %s: %s", group_id, new_display_names_from_client)
 
     try:
         group = db.session.query(ChallengeGroup).options(
@@ -833,23 +833,23 @@ def delete_shared_challenge(public_id):
     try:
         challenge = db.session.query(SharedChallenge).filter_by(public_id=public_id).first()
         if not challenge:
-            logger.warning(f"Delete failed: Challenge {public_id} not found.")
+            logger.warning("Delete failed: Challenge %s not found.", public_id)
             return jsonify({"error": "Challenge not found."}), 404
         if challenge.creator_id != current_user.id:
-            logger.warning(f"Forbidden: User {current_user.username} tried to delete challenge {public_id} created by user {challenge.creator_id}.")
-            return jsonify({"error": "You are not authorized to delete this challenge."}), 403 
+            logger.warning("Forbidden: User %s tried to delete challenge %s created by user %s.", current_user.username, public_id, challenge.creator_id)
+            return jsonify({"error": "You are not authorized to delete this challenge."}), 403
         
         db.session.delete(challenge)
-        db.session.commit() 
-        logger.info(f"User {current_user.username} successfully deleted challenge {public_id}")
+        db.session.commit()
+        logger.info("User %s successfully deleted challenge %s", current_user.username, public_id)
         return '', 204
     except (SQLAlchemyError) as e:
-        db.session.rollback() 
-        logger.exception(f"Database error deleting challenge {public_id} for user {current_user.username}: {e}")
+        db.session.rollback()
+        logger.exception("Database error deleting challenge %s for user %s: %s", public_id, current_user.username, e)
         return jsonify({"error": "Database error while deleting challenge."}), 500
     except Exception as e:
-        db.session.rollback() 
-        logger.exception(f"Unexpected error deleting challenge {public_id} for user {current_user.username}: {e}")
+        db.session.rollback()
+        logger.exception("Unexpected error deleting challenge %s for user %s: %s", public_id, current_user.username, e)
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 @challenge_api.route("/bulk_delete", methods=["POST"])
@@ -873,7 +873,7 @@ def bulk_delete_challenges():
         try:
             # Ensure public_id is a string, as UUID conversion might fail otherwise
             if not isinstance(public_id, str):
-                logger.warning(f"Bulk delete: Invalid public_id format '{public_id}' for user {current_user.username}.")
+                logger.warning("Bulk delete: Invalid public_id format '%s' for user %s.", public_id, current_user.username)
                 failed_ids_with_reason.append((str(public_id), "Invalid ID format.")) # Ensure public_id is string for tuple
                 continue
             
@@ -881,7 +881,7 @@ def bulk_delete_challenges():
             try:
                 uuid.UUID(public_id, version=4)
             except ValueError:
-                logger.warning(f"Bulk delete: Invalid UUID format for public_id '{public_id}' by user {current_user.username}.")
+                logger.warning("Bulk delete: Invalid UUID format for public_id '%s' by user %s.", public_id, current_user.username)
                 failed_ids_with_reason.append((public_id, "Invalid UUID format."))
                 continue
 
@@ -889,19 +889,19 @@ def bulk_delete_challenges():
             
             if not challenge:
                 failed_ids_with_reason.append((public_id, "Not found."))
-                logger.warning(f"Bulk delete: Challenge {public_id} not found for user {current_user.username}.")
+                logger.warning("Bulk delete: Challenge %s not found for user %s.", public_id, current_user.username)
                 continue
 
             if challenge.creator_id != current_user.id:
                 failed_ids_with_reason.append((public_id, "Not authorized."))
-                logger.warning(f"Bulk delete: User {current_user.username} not authorized for challenge {public_id}.")
+                logger.warning("Bulk delete: User %s not authorized for challenge %s.", current_user.username, public_id)
                 continue
             
             challenges_to_delete_from_db.append(challenge)
             
-        except Exception as e: 
+        except Exception as e:
             failed_ids_with_reason.append((str(public_id), f"Server error: {str(e)}")) # Ensure public_id is string
-            logger.exception(f"Bulk delete: Unexpected error processing challenge {public_id} for user {current_user.username}")
+            logger.exception("Bulk delete: Unexpected error processing challenge %s for user %s", public_id, current_user.username)
 
     if not challenges_to_delete_from_db and not failed_ids_with_reason:
          # This case means public_ids_to_delete was empty or all items were invalid format before DB query
@@ -919,14 +919,14 @@ def bulk_delete_challenges():
         try:
             for ch in challenges_to_delete_from_db:
                 db.session.delete(ch)
-                deleted_ids.append(ch.public_id) 
+                deleted_ids.append(ch.public_id)
             db.session.commit()
-            logger.info(f"Bulk delete: Committed deletions for user {current_user.username}. Successful: {len(deleted_ids)}, Failed: {len(failed_ids_with_reason)}")
+            logger.info("Bulk delete: Committed deletions for user %s. Successful: %s, Failed: %s", current_user.username, len(deleted_ids), len(failed_ids_with_reason))
         except Exception as e:
             db.session.rollback()
-            logger.exception(f"Bulk delete: Final commit failed for user {current_user.username}")
+            logger.exception("Bulk delete: Final commit failed for user %s", current_user.username)
             # Add all successfully processed IDs to failed_ids_with_reason as commit failed
-            for ch_id in deleted_ids: 
+            for ch_id in deleted_ids:
                 if not any(ch_id == item[0] for item in failed_ids_with_reason):
                     failed_ids_with_reason.append((ch_id, "Commit failed"))
             deleted_ids = [] # Reset deleted_ids as commit failed

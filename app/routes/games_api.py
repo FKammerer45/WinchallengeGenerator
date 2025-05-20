@@ -30,7 +30,7 @@ def get_default_game_tab_definitions():
             logger.error("DEFAULT_GAME_TAB_DEFINITIONS is not defined or not a dictionary.")
             return jsonify({"error": "Default game tab definitions are currently unavailable."}), 500
             
-        logger.info(f"Serving {len(DEFAULT_GAME_TAB_DEFINITIONS)} default game tab definitions.")
+        logger.info("Serving %s default game tab definitions.", len(DEFAULT_GAME_TAB_DEFINITIONS))
         return jsonify(DEFAULT_GAME_TAB_DEFINITIONS)
         
     except Exception as e:
@@ -47,7 +47,7 @@ def load_default_entries():
     try:
         entries = db.session.query(GameEntry).order_by(GameEntry.Spiel, GameEntry.Spielmodus).all()
         entries_dict = [entry.to_dict() for entry in entries]
-        logger.info(f"Loaded {len(entries_dict)} master game entries from database.")
+        logger.info("Loaded %s master game entries from database.", len(entries_dict))
         return jsonify({"entries": entries_dict})
         
     except Exception as e:
@@ -67,11 +67,11 @@ def save_game():
         logger.warning("Received empty data for /api/games/save (GameEntry).")
         return jsonify({"error": "No game data provided."}), 400
 
-    logger.debug(f"Request received for /api/games/save (GameEntry) with data: {data}")
+    logger.debug("Request received for /api/games/save (GameEntry) with data: %s", data)
 
     required_fields = ['Spiel', 'Spielmodus', 'Schwierigkeit', 'Spieleranzahl']
     if not all(field in data for field in required_fields):
-        logger.warning(f"Missing required fields in GameEntry save request: {data}")
+        logger.warning("Missing required fields in GameEntry save request: %s", data)
         return jsonify({"error": "Missing required fields (Spiel, Spielmodus, Schwierigkeit, Spieleranzahl)."}), 400
 
     try:
@@ -81,7 +81,7 @@ def save_game():
         game_mode = str(data['Spielmodus']).strip()
 
         if difficulty <= 0.1:
-            logger.warning(f"Invalid difficulty value for GameEntry save: {difficulty}")
+            logger.warning("Invalid difficulty value for GameEntry save: %s", difficulty)
             return jsonify({"error": "Difficulty must be greater than 0.1."}), 400
         if difficulty > 10.0:
              return jsonify({"error": "Difficulty cannot exceed 10.0."}), 400
@@ -93,7 +93,7 @@ def save_game():
         # Check for duplicates in GameEntry table
         existing_entry = db.session.query(GameEntry).filter_by(Spiel=game_name, Spielmodus=game_mode).first()
         if existing_entry:
-            logger.warning(f"Attempted to save duplicate GameEntry: {game_name} - {game_mode}")
+            logger.warning("Attempted to save duplicate GameEntry: %s - %s", game_name, game_mode)
             return jsonify({"error": f"Game entry '{game_name} - {game_mode}' already exists in the master list."}), 409 # 409 Conflict
 
         new_entry = GameEntry(
@@ -107,12 +107,12 @@ def save_game():
         new_id = new_entry.id
         db.session.commit()
 
-        logger.info(f"Successfully saved new GameEntry with ID {new_id} to master list.")
+        logger.info("Successfully saved new GameEntry with ID %s to master list.", new_id)
         return jsonify({'success': True, 'entry_id': new_id, 'message': 'Game entry added to master list.'}), 201
 
     except ValueError as e:
         db.session.rollback()
-        logger.warning(f"Invalid numeric data for /api/games/save (GameEntry): {e}")
+        logger.warning("Invalid numeric data for /api/games/save (GameEntry): %s", e)
         return jsonify({"error": "Invalid numeric value for difficulty or players."}), 400
     except Exception as e:
         db.session.rollback()
@@ -128,7 +128,7 @@ def update_game():
         return jsonify({"error": "No game data provided."}), 400
 
     entry_id = data.get('id')
-    logger.debug(f"Request received for /api/games/update (GameEntry) for ID: {entry_id}")
+    logger.debug("Request received for /api/games/update (GameEntry) for ID: %s", entry_id)
 
     if not entry_id:
         logger.warning("Missing 'id' field in GameEntry update request.")
@@ -136,7 +136,7 @@ def update_game():
 
     required_fields = ['Spiel', 'Spielmodus', 'Schwierigkeit', 'Spieleranzahl']
     if not all(field in data for field in required_fields):
-        logger.warning(f"Missing required fields in GameEntry update request for ID {entry_id}: {data}")
+        logger.warning("Missing required fields in GameEntry update request for ID %s: %s", entry_id, data)
         return jsonify({"error": "Missing required fields."}), 400
 
     try:
@@ -146,7 +146,7 @@ def update_game():
         game_mode = str(data['Spielmodus']).strip()
 
         if difficulty <= 0.1:
-            logger.warning(f"Invalid difficulty value for GameEntry update (ID: {entry_id}): {difficulty}")
+            logger.warning("Invalid difficulty value for GameEntry update (ID: %s): %s", entry_id, difficulty)
             return jsonify({"error": "Difficulty must be greater than 0.1."}), 400
         if difficulty > 10.0:
              return jsonify({"error": "Difficulty cannot exceed 10.0."}), 400
@@ -157,7 +157,7 @@ def update_game():
 
         entry = db.session.query(GameEntry).filter_by(id=entry_id).first()
         if not entry:
-            logger.warning(f"GameEntry with ID {entry_id} not found for update.")
+            logger.warning("GameEntry with ID %s not found for update.", entry_id)
             return jsonify({"error": f"Game entry with ID {entry_id} not found in master list."}), 404
 
         # Check if the new name/mode combination conflicts with another existing entry
@@ -168,7 +168,7 @@ def update_game():
                 GameEntry.Spielmodus.ilike(game_mode)
             ).first()
             if conflicting_entry:
-                logger.warning(f"Update for GameEntry ID {entry_id} conflicts with existing entry ID {conflicting_entry.id} ({game_name} - {game_mode}).")
+                logger.warning("Update for GameEntry ID %s conflicts with existing entry ID %s (%s - %s).", entry_id, conflicting_entry.id, game_name, game_mode)
                 return jsonify({"error": f"Another game entry '{game_name} - {game_mode}' already exists in the master list."}), 409
 
 
@@ -178,16 +178,16 @@ def update_game():
         entry.Spieleranzahl = players
         db.session.commit()
 
-        logger.info(f"GameEntry with ID {entry_id} updated successfully in master list.")
+        logger.info("GameEntry with ID %s updated successfully in master list.", entry_id)
         return jsonify({'success': True, 'message': 'Game entry in master list updated.'})
 
     except ValueError as e:
         db.session.rollback()
-        logger.warning(f"Invalid numeric data for /api/games/update (GameEntry ID: {entry_id}): {e}")
+        logger.warning("Invalid numeric data for /api/games/update (GameEntry ID: %s): %s", entry_id, e)
         return jsonify({"error": "Invalid numeric value for difficulty or players."}), 400
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Failed to update GameEntry ID {entry_id} in database.")
+        logger.exception("Failed to update GameEntry ID %s in database.", entry_id)
         return jsonify({'error': "Failed to update game entry in master list due to a server error."}), 500
 
 @games_api.route('/delete', methods=['POST']) 
@@ -199,7 +199,7 @@ def delete_game():
         return jsonify({"error": "No game data provided."}), 400
 
     entry_id = data.get('id')
-    logger.debug(f"Request received for /api/games/delete (GameEntry) for ID: {entry_id}")
+    logger.debug("Request received for /api/games/delete (GameEntry) for ID: %s", entry_id)
 
     if not entry_id:
         logger.warning("Missing 'id' field in GameEntry delete request.")
@@ -208,16 +208,16 @@ def delete_game():
     try:
         entry = db.session.query(GameEntry).filter_by(id=entry_id).first()
         if not entry:
-            logger.warning(f"GameEntry with ID {entry_id} not found for deletion.")
+            logger.warning("GameEntry with ID %s not found for deletion.", entry_id)
             return jsonify({"error": f"Game entry with ID {entry_id} not found in master list."}), 404
 
         db.session.delete(entry)
         db.session.commit()
         
-        logger.info(f"Successfully deleted GameEntry with ID {entry_id} from master list.")
+        logger.info("Successfully deleted GameEntry with ID %s from master list.", entry_id)
         return jsonify({'success': True, 'message': 'Game entry deleted from master list.'})
         
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Failed to delete GameEntry ID {entry_id} from database.")
+        logger.exception("Failed to delete GameEntry ID %s from database.", entry_id)
         return jsonify({'error': "Failed to delete game entry from master list due to a server error."}), 500

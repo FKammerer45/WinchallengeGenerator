@@ -90,8 +90,8 @@ async function handleResetTabToDefault(event) {
         }
         renderGamesForTab(tabIdToReset);
     } catch (error) {
-        console.error(`[Reset Tab] Error resetting tab ${tabIdToReset}:`, error);
-        showFlash(`Failed to reset tab: ${error.message}`, "danger");
+        console.error("[Reset Tab] Error resetting tab %s:", tabIdToReset, error);
+        showFlash(`Failed to reset tab: ${error.message}`, "danger"); // User-facing, template literal is fine
     } finally {
         button.disabled = false;
     }
@@ -195,11 +195,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                             window.userTabsData.entries[clientTabId] = savedTabResponse.saved_tab.entries || [];
                             console.log(`Successfully saved new system default tab "${sysDef.name}" for user.`);
                         } else {
-                            throw new Error(savedTabResponse.error || `Failed to save system default tab ${sysDef.name}`);
+                            throw new Error(savedTabResponse.error || `Failed to save system default tab ${sysDef.name}`); // User-facing, template literal is fine
                         }
                     } catch (saveError) {
-                        console.error(`Error saving system default game tab ${clientTabId} for user:`, saveError);
-                        showFlash(`Could not initialize default tab: ${sysDef.name}. Displaying read-only version.`, "warning");
+                        console.error("Error saving system default game tab %s for user:", clientTabId, saveError);
+                        showFlash(`Could not initialize default tab: ${sysDef.name}. Displaying read-only version.`, "warning"); // User-facing, template literal is fine
                         // Fallback: use transformed definitions for session display
                         window.userTabsData.tabs[clientTabId] = { name: sysDef.name };
                         window.userTabsData.entries[clientTabId] = (sysDef.entries || []).map(entry => ({
@@ -361,12 +361,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (firstTabLink) tabToActivateId = firstTabLink.getAttribute('href').substring(1);
         }
 
-        console.log(`Attempting to activate tab: ${tabToActivateId}. Link element found:`, firstTabLink);
+        console.log("Attempting to activate tab: %s. Link element found:", tabToActivateId, firstTabLink);
         if (firstTabLink && typeof $ !== 'undefined' && $.fn.tab) {
             $(firstTabLink).tab('show');
         } else if (firstTabLink) { /* manual activation ... */ }
         else {
-            console.warn(`Could not find or activate initial game tab: ${tabToActivateId}.`);
+            console.warn("Could not find or activate initial game tab: %s.", tabToActivateId);
             if (gamesTabContent && systemTabs.length === 0 && customTabs.length === 0) {
                 gamesTabContent.innerHTML = '<p class="text-center text-secondary p-5">No game tabs available. Try adding one!</p>';
             }
@@ -374,7 +374,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     } catch (error) {
         console.error("Error during Games page initialization:", error);
-        showFlash(`Initialization Error: ${error.message}`, "danger");
+        showFlash(`Initialization Error: ${error.message}`, "danger"); // User-facing, template literal is fine
         if (gamesTabContent) gamesTabContent.innerHTML = `<div class="alert alert-danger p-5 text-center">Page failed to load: ${escapeHtml(error.message)}.<br>Please try refreshing.</div>`;
     } finally {
         if (loadingPlaceholder) loadingPlaceholder.style.display = 'none';

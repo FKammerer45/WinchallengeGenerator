@@ -32,7 +32,7 @@ export function getLocalOnlyTabs() {
     const tabs = localStorage.getItem(LOCAL_TABS_KEY);
     return tabs ? JSON.parse(tabs) : {}; // Return empty object if null
   } catch (e) {
-    console.error(`Error parsing ${LOCAL_TABS_KEY} from localStorage:`, e);
+    console.error("Error parsing %s from localStorage:", LOCAL_TABS_KEY, e);
     return {}; // Return empty object on error
   }
 }
@@ -46,7 +46,7 @@ export function getLocalOnlyEntries() {
     const entries = localStorage.getItem(LOCAL_ENTRIES_KEY);
     return entries ? JSON.parse(entries) : {}; // Return empty object if null
   } catch (e) {
-    console.error(`Error parsing ${LOCAL_ENTRIES_KEY} from localStorage:`, e);
+    console.error("Error parsing %s from localStorage:", LOCAL_ENTRIES_KEY, e);
     return {}; // Return empty object on error
   }
 }
@@ -63,7 +63,7 @@ export function setLocalOnlyTabs(tabs) {
   try {
     localStorage.setItem(LOCAL_TABS_KEY, JSON.stringify(tabs));
   } catch (e) {
-    console.error(`Error setting ${LOCAL_TABS_KEY} in localStorage:`, e);
+    console.error("Error setting %s in localStorage:", LOCAL_TABS_KEY, e);
   }
 }
 
@@ -79,7 +79,7 @@ export function setLocalOnlyEntries(entries) {
   try {
     localStorage.setItem(LOCAL_ENTRIES_KEY, JSON.stringify(entries));
   } catch (e) {
-    console.error(`Error setting ${LOCAL_ENTRIES_KEY} in localStorage:`, e);
+    console.error("Error setting %s in localStorage:", LOCAL_ENTRIES_KEY, e);
   }
 }
 
@@ -103,7 +103,7 @@ export function addLocalOnlyGameEntry(tabId, entry) {
     allEntries[tabId].push(entry);
     setLocalOnlyEntries(allEntries);
   } catch (e) {
-    console.error(`Failed to add local game entry for tab ${tabId}:`, e);
+    console.error("Failed to add local game entry for tab %s:", tabId, e);
   }
 }
 
@@ -139,10 +139,10 @@ export function updateLocalOnlyGameEntry(tabId, entryId, newEntryData) {
         console.warn(`updateLocalOnlyGameEntry: Entry ID '${entryIdStr}' not found in tab '${tabId}'.`);
       }
     } else {
-      console.warn(`updateLocalOnlyGameEntry: No entries found for tab '${tabId}'.`);
+        console.warn(`updateLocalOnlyGameEntry: No entries found for tab '${tabId}'.`);
     }
   } catch (e) {
-    console.error(`Failed to update local game entry for tab ${tabId}, ID ${entryId}:`, e);
+    console.error("Failed to update local game entry for tab %s, ID %s:", tabId, entryId, e);
   }
 }
 
@@ -174,11 +174,11 @@ export function removeLocalOnlyGameEntry(tabId, entryId) {
         return false;
       }
     } else {
-      console.warn(`removeLocalOnlyGameEntry: No entries found for tab '${tabId}'.`);
-      return false;
+        console.warn(`removeLocalOnlyGameEntry: No entries found for tab '${tabId}'.`);
+        return false;
     }
   } catch (e) {
-    console.error(`Failed to remove local game entry for tab ${tabId}, ID ${entryId}:`, e);
+    console.error("Failed to remove local game entry for tab %s, ID %s:", tabId, entryId, e);
     return false;
   }
 }

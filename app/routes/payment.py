@@ -147,6 +147,15 @@ def capture_paypal_order():
     if not paypal_order_id:
         return jsonify({"error": "Missing PayPal orderID."}), 400
 
+    # Basic validation for paypal_order_id format (alphanumeric and reasonable length)
+    # PayPal Order IDs can vary, but this is a general sanity check.
+    # Example: EC-XXXXXXXXXXXXXXXXX or a newer format.
+    # This regex allows alphanumeric characters, hyphens, and underscores.
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]{10,50}$', paypal_order_id):
+        logger.warning(f"Invalid PayPal orderID format received: {paypal_order_id} from user {current_user.id}")
+        return jsonify({"error": "Invalid PayPal orderID format."}), 400
+
     # Prevent re-processing if user is already pro and tries to pay again through a stale page or direct API call
     # The grant_pro_plan function handles extension, but this adds an earlier check.
     if is_pro_plan_active(current_user):

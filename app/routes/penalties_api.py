@@ -34,7 +34,7 @@ def get_default_penalty_tab_definitions():
             logger.error("DEFAULT_PENALTY_TAB_DEFINITIONS is not defined or not a dictionary.")
             return jsonify({"error": "Default penalty tab definitions are currently unavailable."}), 500
             
-        logger.info(f"Serving {len(DEFAULT_PENALTY_TAB_DEFINITIONS)} default penalty tab definitions.")
+        logger.info("Serving %s default penalty tab definitions.", len(DEFAULT_PENALTY_TAB_DEFINITIONS))
         return jsonify(DEFAULT_PENALTY_TAB_DEFINITIONS)
         
     except Exception as e:
@@ -55,7 +55,7 @@ def load_default_penalties():
         if not penalties_orm:
             logger.info("No master penalties found in the database table.")
         else:
-            logger.info(f"Loaded {len(penalties_dict)} master penalties from database.")
+            logger.info("Loaded %s master penalties from database.", len(penalties_dict))
 
         return jsonify({"penalties": penalties_dict})
 
@@ -76,7 +76,7 @@ def save_penalty_tab():
         return jsonify({"error": "No data provided"}), 400
 
     client_tab_id = data.get("tabId") # e.g., "default-all-penalties", "penaltyPane-123"
-    penalties_list_from_client = data.get("penalties") 
+    penalties_list_from_client = data.get("penalties")
     tab_name_from_client = data.get("tabName")
 
     if not client_tab_id:
@@ -104,7 +104,7 @@ def save_penalty_tab():
         logger.warning("User %s: Invalid 'penalties' format for tab ID: %s", current_user.id, client_tab_id)
         return jsonify({"error": "'penalties' field must be a list."}), 400
     if len(penalties_list_from_client) > MAX_PENALTIES_PER_TAB: # Check against max penalties
-        logger.warning("User %s: Exceeded max penalties per tab (%d) for tab ID: %s", current_user.id, MAX_PENALTIES_PER_TAB, client_tab_id)
+        logger.warning("User %s: Exceeded max penalties per tab (%s) for tab ID: %s", current_user.id, MAX_PENALTIES_PER_TAB, client_tab_id)
         return jsonify({"error": f"Cannot save tab with more than {MAX_PENALTIES_PER_TAB} penalties."}), 400
 
     try:
@@ -118,16 +118,16 @@ def save_penalty_tab():
                     penalty_id = p.get('id') or f"local-p-{hash(p['name'])}" # Fallback ID generation
                     
                     validated_penalties.append({
-                        'id': penalty_id, 
+                        'id': penalty_id,
                         'name': str(p['name']).strip(),
                         'probability': float(p['probability']),
                         'description': str(p.get('description', '')).strip()
                     })
                 except (ValueError, TypeError) as conv_err:
-                     logger.warning(f"Skipping penalty due to conversion error: {p}, Error: {conv_err}")
-                     continue 
+                     logger.warning("Skipping penalty due to conversion error: %s, Error: %s", p, conv_err)
+                     continue
             else:
-                 logger.warning(f"Skipping invalid penalty object during save: {p}")
+                 logger.warning("Skipping invalid penalty object during save: %s", p)
         
         penalties_json_string = json.dumps(validated_penalties)
 

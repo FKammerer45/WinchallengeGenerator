@@ -115,7 +115,7 @@ export function renderPenaltiesForTab(tabId) {
             entries = getLocalOnlyPenaltyEntries()[tabId] || [];
         }
     } catch (e) {
-        console.error(`Error getting penalty entries for rendering tab ${tabId}:`, e);
+        console.error("Error getting penalty entries for rendering tab %s:", tabId, e);
     }
     
     tbody.innerHTML = ""; // Clear existing rows
@@ -305,7 +305,7 @@ export async function handleDeleteSinglePenaltyFromModal() {
     if (!ok) return;
 
     const deleteButton = document.getElementById('deleteSinglePenaltyBtn');
-    if (deleteButton) deleteButton.disabled = true; // Disable button
+        if (deleteButton) deleteButton.disabled = true; // Disable button
 
     try {
         if (removePenaltyEntryData(currentTab, penaltyId)) {
@@ -321,8 +321,8 @@ export async function handleDeleteSinglePenaltyFromModal() {
             throw new Error("Failed to remove penalty data. It might have already been removed.");
         }
     } catch (error) {
-        console.error(`Error deleting penalty ${penaltyId} from modal:`, error);
-        showEditPenaltyAlert(`Failed to delete penalty: ${error.message}`, "danger");
+        console.error("Error deleting penalty %s from modal:", penaltyId, error);
+        showEditPenaltyAlert(`Failed to delete penalty: ${error.message}`, "danger"); // User-facing, template literal is fine
     } finally {
         if (deleteButton) deleteButton.disabled = false; // Re-enable button
     }

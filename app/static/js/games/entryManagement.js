@@ -202,7 +202,7 @@ export function renderGamesForTab(tabId) {
             entries = getLocalOnlyEntries()[tabId] || [];
         }
     } catch (e) {
-        console.error(`Error getting entries for rendering tab ${tabId}:`, e);
+        console.error("Error getting entries for rendering tab %s:", tabId, e);
     }
     // console.log(`[RenderGames] Tab: ${tabId}, Found ${entries.length} entries. LoggedIn: ${isLoggedIn}`);
 

@@ -1,0 +1,39 @@
+<!-- THIS IS custom_base.html - IF YOU SEE THIS, THE TEMPLATE IS BEING USED -->
+{% extends 'admin/base.html' %}
+
+{% block brand %}
+    {{ super() }}
+    <span class="badge badge-info ml-2">CustomBase</span> {# Visible marker #}
+{% endblock %}
+
+{% block nav_right %}
+  <ul class="nav navbar-nav ml-auto"> {# Use ml-auto for Bootstrap 4 #}
+    {# Directly render the logout form if admin is logged in #}
+    {% if session.get('admin_logged_in') %}
+      <li class="nav-item">
+        <form id="adminLogoutForm" method="POST" action="{{ url_for('admin_auth.logout') }}" style="margin: 0; padding: 0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-link nav-link" 
+                  style="border: none; background: none; color: rgba(255,255,255,.5); cursor:pointer; padding: 0.5rem 1rem; line-height: normal;">
+            Logout Admin
+          </button>
+        </form>
+      </li>
+    {% endif %}
+    {# Any other right-aligned links would need to be added here if necessary #}
+    {# For example, if Flask-Admin adds other links via _user_links category, they are omitted by this direct override #}
+    {# This focuses SOLELY on making the logout button a POST form #}
+  </ul>
+{% endblock %}
+
+{# Ensure window.csrfToken is available for other JS if needed #}
+{% block tail_js %}
+    {{ super() }}
+    <script>
+        if (typeof window.csrfToken === 'undefined') {
+            window.csrfToken = "{{ csrf_token() }}";
+        }
+    </script>
+    {# The ADMIN_EXTRA_JS should still load admin_logout.js #}
+    {# If this template override works, admin_logout.js might not be needed for logout #}
+{% endblock %}

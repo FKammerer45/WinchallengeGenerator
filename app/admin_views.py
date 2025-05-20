@@ -3,12 +3,13 @@ from flask_admin.contrib.sqla import ModelView
 from flask_admin import AdminIndexView, expose
 from flask_admin.helpers import get_redirect_target
 from flask_admin.model.helpers import get_mdict_item_or_list
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from flask_wtf import FlaskForm # Import FlaskForm
 from flask_wtf.csrf import generate_csrf # Import generate_csrf
 from wtforms.fields import StringField, IntegerField, BooleanField, DateTimeField, TextAreaField # Import necessary fields
-from wtforms.validators import DataRequired, Email, Optional # Import Optional validator
+from wtforms.validators import DataRequired, Email, Optional, ValidationError # Import Optional validator
 from wtforms.widgets import CheckboxInput, DateTimeInput, TextInput, TextArea # Import necessary widgets
+import json # For JSON validation
 # Import your User model and db instance
 from .models import User, SharedChallenge, ChallengeGroup, SavedGameTab, SavedPenaltyTab, Feedback # Add other models as needed
 from . import db
@@ -108,6 +109,12 @@ class SavedGameTabEditForm(FlaskForm):
     user_display = StringField('User', render_kw={'readonly': True, 'disabled': True}) # For display
     entries_json = TextAreaField('Entries JSON', widget=TextArea()) # Make editable with TextArea
 
+    def validate_entries_json(self, field):
+        try:
+            json.loads(field.data)
+        except json.JSONDecodeError:
+            raise ValidationError('Invalid JSON format.')
+
     def populate_obj(self, obj):
         # Custom populate_obj to handle non-model field 'user_display'
         # and prevent trying to set it on the model.
@@ -142,6 +149,12 @@ class SavedPenaltyTabEditForm(FlaskForm):
     user_display = StringField('User', render_kw={'readonly': True, 'disabled': True}) # For display
     penalties_json = TextAreaField('Penalties JSON', widget=TextArea()) # Make editable
 
+    def validate_penalties_json(self, field):
+        try:
+            json.loads(field.data)
+        except json.JSONDecodeError:
+            raise ValidationError('Invalid JSON format for penalties.')
+
     def populate_obj(self, obj):
         obj.tab_name = self.tab_name.data
         obj.client_tab_id = self.client_tab_id.data
@@ -174,12 +187,30 @@ class SharedChallengeEditForm(FlaskForm):
     max_groups = IntegerField('Max Groups', validators=[DataRequired()])
     num_players_per_group = IntegerField('Players Per Group', validators=[DataRequired()])
     
-    challenge_data = TextAreaField('Challenge Data (JSON)', widget=TextArea())
+    challenge_data = TextAreaField('Challenge Data (JSON)', widget=TextArea()) # Validators=[DataRequired()] implicitly if not Optional
     penalty_info = TextAreaField('Penalty Info (JSON)', validators=[Optional()], widget=TextArea())
     
     timer_current_value_seconds = IntegerField('Timer Current Value (s)', validators=[DataRequired()])
     timer_is_running = BooleanField('Timer Is Running', widget=CheckboxInput())
     timer_last_started_at_utc = DateTimeField('Timer Last Started UTC', format='%Y-%m-%d %H:%M:%S', validators=[Optional()], widget=DateTimeInput())
+
+    def validate_challenge_data(self, field):
+        if not field.data: # Assuming challenge_data can be empty if not required by model
+             # If it's required, DataRequired() validator should be on the field itself.
+             # This validator only checks JSON format if data is present.
+            return
+        try:
+            json.loads(field.data)
+        except json.JSONDecodeError:
+            raise ValidationError('Invalid JSON format for Challenge Data.')
+
+    def validate_penalty_info(self, field):
+        if not field.data: # Optional field, so only validate if data is present
+            return
+        try:
+            json.loads(field.data)
+        except json.JSONDecodeError:
+            raise ValidationError('Invalid JSON format for Penalty Info.')
 
     def populate_obj(self, obj):
         obj.name = self.name.data
@@ -294,11 +325,11 @@ class FeedbackAdminView(AuthenticatedModelView):
 
     def _user_info_formatter(view, context, model, name):
         if model.user: # If linked to a User object
-            return Markup(f"{model.user.username} (ID: {model.user.id})<br><small>Submitted as: {model.username}</small>")
-        return model.username # Fallback to the name entered in the form
+            return Markup(f"{escape(model.user.username)} (ID: {escape(model.user.id)})<br><small>Submitted as: {escape(model.username)}</small>")
+        return escape(model.username) # Fallback to the name entered in the form
 
     column_formatters = {
-        'message': lambda v, c, m, p: (Markup(f'<div style="max-width: 300px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{m.message}</div>') if m.message else ''),
+        'message': lambda v, c, m, p: (Markup(f'<div style="max-width: 300px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">{escape(m.message)}</div>') if m.message else ''),
         'actions': _action_formatter,
         'user_info': _user_info_formatter
     }

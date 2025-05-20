@@ -3,6 +3,7 @@ from werkzeug.security import check_password_hash
 from functools import wraps
 from app import limiter # Import the limiter instance
 import requests # For reCAPTCHA verification
+from app.utils.auth_helpers import is_safe_url # Import the helper
 
 admin_auth_bp = Blueprint('admin_auth', __name__, url_prefix='/admin')
 
@@ -78,14 +79,17 @@ def login():
             session.permanent = True # Or configure session lifetime
             flash('Admin login successful.', 'success')
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('admin.index')) # Redirect to Flask-Admin index
+            if next_page and is_safe_url(next_page):
+                return redirect(next_page)
+            return redirect(url_for('admin.index')) # Redirect to Flask-Admin index
         else:
             flash('Invalid admin username or password.', 'danger')
     
     return render_template('admin/login.html')
 
-@admin_auth_bp.route('/logout')
+@admin_auth_bp.route('/logout', methods=['POST']) # Changed to POST only
 def logout():
+    # CSRF protection is handled by Flask-WTF globally for POST
     session.pop('admin_logged_in', None)
     flash('You have been logged out from the admin panel.', 'info')
     return redirect(url_for('admin_auth.login'))
