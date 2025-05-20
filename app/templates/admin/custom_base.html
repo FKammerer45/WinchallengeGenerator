@@ -6,25 +6,21 @@
     <span class="badge badge-info ml-2">CustomBase</span> {# Visible marker #}
 {% endblock %}
 
-{% block nav_right %}
-  <ul class="nav navbar-nav ml-auto"> {# Use ml-auto for Bootstrap 4 #}
-    {# Directly render the logout form if admin is logged in #}
+{# Attempt to place logout form in the 'tail' block #}
+{% block tail %}
+  <div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999; background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; border-radius: 5px;">
     {% if session.get('admin_logged_in') %}
-      <li class="nav-item">
-        <form id="adminLogoutForm" method="POST" action="{{ url_for('admin_auth.logout') }}" style="margin: 0; padding: 0;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-link nav-link" 
-                  style="border: none; background: none; color: rgba(255,255,255,.5); cursor:pointer; padding: 0.5rem 1rem; line-height: normal;">
-            Logout Admin
-          </button>
+        <form id="adminLogoutFormTail" method="POST" action="{{ url_for('admin_auth.logout') }}" style="margin: 0; padding: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">Logout Admin (from Tail)</button>
         </form>
-      </li>
+    {% else %}
+        <p style="color: red; margin: 0;">Admin not logged in (according to session in tail block)</p>
     {% endif %}
-    {# Any other right-aligned links would need to be added here if necessary #}
-    {# For example, if Flask-Admin adds other links via _user_links category, they are omitted by this direct override #}
-    {# This focuses SOLELY on making the logout button a POST form #}
-  </ul>
+  </div>
+  {{ super() }} {# This will include the original tail block content, including tail_js #}
 {% endblock %}
+
 
 {# Ensure window.csrfToken is available for other JS if needed #}
 {% block tail_js %}
@@ -34,6 +30,6 @@
             window.csrfToken = "{{ csrf_token() }}";
         }
     </script>
-    {# The ADMIN_EXTRA_JS should still load admin_logout.js #}
-    {# If this template override works, admin_logout.js might not be needed for logout #}
+    {# Explicitly include admin_logout.js here #}
+    <script src="{{ url_for('static', filename='js/admin_logout.js') }}"></script>
 {% endblock %}

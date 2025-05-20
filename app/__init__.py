@@ -129,7 +129,7 @@ def create_app(config_name=None):
 
     # Add custom JS for admin logout to all admin pages
     # This path is relative to the application's static folder.
-    # app.config['ADMIN_EXTRA_JS'] = ['js/admin_logout.js'] # Temporarily disabled for testing template-based POST logout
+    # app.config['ADMIN_EXTRA_JS'] = ['js/admin_logout.js'] # Disabled as custom_base.html has its own logout form
 
 
     # Initialize extensions that need the app context
@@ -264,7 +264,7 @@ def create_app(config_name=None):
     admin.add_view(SavedPenaltyTabAdminView(SavedPenaltyTab, db.session, name='Penalty Tabs', category='User Data'))
     admin.add_view(SharedChallengeAdminView(SharedChallenge, db.session, name='Shared Challenges', category='User Data'))
     
-    admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout', class_name='admin-logout-link')) # Added class_name
+    # admin.add_link(MenuLink(name='Logout Admin', category='', endpoint='admin_auth.logout', class_name='admin-logout-link')) # Removed, custom_base.html nav_right handles logout
 
     @app.errorhandler(404)
     def page_not_found(e):
