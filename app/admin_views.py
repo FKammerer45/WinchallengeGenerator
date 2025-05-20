@@ -9,6 +9,7 @@ from flask_wtf.csrf import generate_csrf # Import generate_csrf
 from wtforms.fields import StringField, IntegerField, BooleanField, DateTimeField, TextAreaField # Import necessary fields
 from wtforms.validators import DataRequired, Email, Optional, ValidationError # Import Optional validator
 from wtforms.widgets import CheckboxInput, DateTimeInput, TextInput, TextArea # Import necessary widgets
+from datetime import datetime as dt_parser # For parsing date strings
 import json # For JSON validation
 # Import your User model and db instance
 from .models import User, SharedChallenge, ChallengeGroup, SavedGameTab, SavedPenaltyTab, Feedback # Add other models as needed
@@ -59,6 +60,22 @@ class UserEditForm(FlaskForm):
     # created_at is set on creation, so make it read-only
     created_at = DateTimeField('Created At', format='%Y-%m-%d %H:%M:%S', render_kw={'readonly': True}, validators=[Optional()], widget=DateTimeInput())
 
+    def __init__(self, formdata=None, obj=None, **kwargs):
+        super().__init__(formdata=formdata, obj=obj, **kwargs)
+        if obj: # If the form is being populated from an object
+            date_fields_to_check = ['confirmed_on', 'pro_plan_expiration_date', 'created_at']
+            for field_name in date_fields_to_check:
+                form_field = getattr(self, field_name, None) # Renamed to avoid conflict with outer scope 'field'
+                if form_field and form_field.data is not None and isinstance(form_field.data, str):
+                    # If data is a string, try to parse it, or set to None if invalid
+                    try:
+                        # Use the field's own format for parsing
+                        form_field.data = dt_parser.strptime(form_field.data, form_field.format)
+                    except (ValueError, TypeError):
+                        # If parsing fails or it's an unsuitable string, set to None
+                        # This relies on the field having validators=[Optional()]
+                        form_field.data = None
+    
     def populate_obj(self, obj):
         # Call the superclass populate_obj
         super(UserEditForm, self).populate_obj(obj)
