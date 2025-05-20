@@ -1,0 +1,70 @@
+name: Deploy to Test Environment with SAST
+
+on:
+  push:
+    branches:
+      - website
+
+jobs:
+  sast_and_deploy_test:
+    # Only run this job if the commit message contains "TEST" (case-insensitive)
+    if: "contains(github.event.head_commit.message, 'TEST')"
+    runs-on: ubuntu-latest  # The environment the CI/CD runner itself uses
+    environment: testing-vps
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9' # Match your server's Python version
+
+      - name: Install dependencies for SAST scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety semgrep # Install your chosen scanners
+
+      - name: Run Bandit SAST Scan
+        run: bandit -r ./app -ll -ii # Scan your 'app' directory, low confidence, low severity
+        continue-on-error: true # Decide if a SAST failure should block deployment
+
+      - name: Run Safety Scan (Dependency Vulnerabilities)
+        run: |
+          pip install -r requirements.txt # Install project dependencies first
+          safety check --full-report
+        continue-on-error: true
+
+      - name: Run Semgrep SAST Scan
+        run: semgrep scan --config "auto" # 'auto' uses community rules
+        continue-on-error: true
+
+      # --- Deployment to VPS ---
+      - name: Deploy to Test VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script: |
+            echo "Starting deployment to Test Environment..."
+            cd /srv/myflaskapp/WinchallengeGenerator_Test/
+
+            echo "Pulling latest changes from Git..."
+            git pull origin your-testing-branch-name # Replace with your actual test branch name
+
+            echo "Activating virtual environment and installing dependencies..."
+            source venv_test/bin/activate
+            pip install -r requirements.txt
+
+            echo "Applying database migrations..."
+            flask db upgrade
+
+            echo "Deactivating virtual environment..."
+            deactivate
+
+            echo "Restarting the test application service..."
+            sudo systemctl restart myflaskapp_test.service
+
+            echo "Deployment to Test Environment finished!"
