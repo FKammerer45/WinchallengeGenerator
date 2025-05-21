@@ -184,7 +184,7 @@ Challenge Not Found
     {% elif shared_challenge %}
     {# --- Database Challenge View --- #}
 
-    <div class="card shadow-sm glass-effect mb-3"> {# New outer card #}
+    <div class="card shadow-sm glass-effect mb-4"> {# New outer card #}
       <div class="card-header d-flex justify-content-between align-items-center"> {# Header for the wrapper #}
         <h3 class="h5 mb-0">
           <i class="bi bi-layout-text-sidebar me-1"></i> Challenge Overview
@@ -212,28 +212,53 @@ Challenge Not Found
             </div>
 
           </div> {# End of the inner row containing info bar and timer #}
-
-          {# NEW: Challenge Rules content moved here #}
-          <div class="row p-3 pt-0"> {# Added p-3 padding, pt-0 to reduce top padding #}
-            <div class="col-12">
-              <div class="card h-100 shadow-sm rules-card glass-effect"> {# Inner card for rules #}
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5 class="mb-0 h6"><i class="bi bi-list-check me-1"></i> Rules</h5>
-                </div>
-                <div class="card-body challenge-rules-list">
-                  {% set c = shared_challenge.challenge_data %}
-                  {% include 'challenge/_challenge_details.html' ignore missing %}
-                </div>
-              </div>
-            </div>
-          </div>
-          {# END NEW: Challenge Rules content #}
-
-        </div> {# Maybe close card-body if you added one:
+          {# Maybe close card-body if you added one:
         </div> #}
       </div> {# End collapse show #}
     </div> {# End of New outer card #}
     {# Inside challenge.html #}
+
+    {# --- Overlay Link Section (Only for Shared Challenges) --- #}
+    <div class="card shadow-sm glass-effect mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 h6">
+          <i class="bi bi-broadcast me-1"></i> OBS Overlay
+        </h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+          data-target="#overlayLinkBody" aria-expanded="false" aria-controls="overlayLinkBody"
+          title="Toggle Overlay Link Section">
+          <i class="bi bi-chevron-expand"></i>
+        </button>
+      </div>
+      <div class="collapse" id="overlayLinkBody"> {# Start collapsed #}
+        <div class="card-body">
+          <p class="text-secondary small mb-3">
+            Use the overlay link as a Browser Source in OBS Studio. Generate your unique API key in your profile first
+            if you haven't already.
+            <strong class="text-warning d-block">Keep your API key private!</strong>
+          </p>
+
+          {# --- MODIFIED STRUCTURE --- #}
+          {# Initial button to trigger the key fetch #}
+          <button id="showOverlayLinkBtn" class="btn btn-primary btn-sm mb-2">
+            <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# For loading state #}
+            <span>Show/Copy Overlay Link</span> {# Updated Text #}
+          </button>
+
+          {# Standalone Copy button - initially hidden #}
+          <button id="copyOverlayLinkBtn" class="btn btn-secondary btn-sm mb-2" style="display: none;">
+            <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# For loading state #}
+            <span><i class="bi bi-clipboard me-1"></i> Copy Overlay Link</span>
+          </button>
+
+          {# Error/Message Display Area - Allow HTML for the link #}
+          <div id="overlayLinkError" class="text-warning small mt-1"></div>
+          {# --- END MODIFIED STRUCTURE --- #}
+
+        </div>
+      </div>
+    </div>
+    {# --- End Overlay Link Section --- #}
 
     {# --- Add Profile URL to the #challengeData div --- #}
     {# Find your existing #challengeData div and add the data-profile-url attribute #}
@@ -241,204 +266,172 @@ Challenge Not Found
       data-is-local="{{ is_local | lower }}" {# ... other data attributes ... #}
       data-profile-url="{{ url_for('profile.profile_view') }}" data-is-authorized="{{ is_authorized | lower }}">
     </div>
-
-    {# NEW: Combined Challenge Settings (OBS Overlay and Manage Authorized Users) #}
-    <div class="card shadow-sm glass-effect mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="h5 mb-0">
-          <i class="bi bi-gear me-1"></i> Challenge Settings
-        </h3>
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-          data-target="#challengeSettingsBody" aria-expanded="true" aria-controls="challengeSettingsBody"
-          title="Toggle Challenge Settings">
-          <i class="bi bi-chevron-expand"></i>
-        </button>
-      </div>
-      <div class="collapse show" id="challengeSettingsBody">
-        <div class="card-body">
-          <div class="row">
-            <div class="col-lg-6 mb-3 mb-lg-0"> {# OBS Overlay Column #}
-              <div class="card shadow-sm glass-effect h-100"> {# Inner card for OBS Overlay #}
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5 class="mb-0 h6">
-                    <i class="bi bi-broadcast me-1"></i> OBS Overlay
-                  </h5>
-                </div>
-                <div class="card-body">
-                  <p class="text-secondary small mb-3">
-                    Use the overlay link as a Browser Source in OBS Studio. Generate your unique API key in your profile
-                    first if you haven't already.
-                    <strong class="text-warning d-block">Keep your API key private!</strong>
-                  </p>
-
-                  {# --- MODIFIED STRUCTURE --- #}
-                  {# Initial button to trigger the key fetch #}
-                  <button id="showOverlayLinkBtn" class="btn btn-primary btn-sm mb-2">
-                    <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# For loading state #}
-                    <span>Show/Copy Overlay Link</span> {# Updated Text #}
-                  </button>
-
-                  {# Standalone Copy button - initially hidden #}
-                  <button id="copyOverlayLinkBtn" class="btn btn-secondary btn-sm mb-2" style="display: none;">
-                    <span class="spinner-border spinner-border-sm" style="display: none;"></span> {# For loading state #}
-                    <span><i class="bi bi-clipboard me-1"></i> Copy Overlay Link</span>
-                  </button>
-
-                  {# Error/Message Display Area - Allow HTML for the link #}
-                  <div id="overlayLinkError" class="text-warning small mt-1"></div>
-                  {# --- END MODIFIED STRUCTURE --- #}
-
-                </div>
-              </div>
-            </div>{# End col for OBS Overlay #}
-
-            {% if is_creator %}
-            <div class="col-lg-6"> {# Manage Authorized Users Column #}
-              <div class="card shadow-sm management-card glass-effect h-100"> {# Inner card for management #}
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5 class="mb-0 h6"><i class="bi bi-people me-1"></i> Authorized Users</h5>
-                </div>
-                <div class="card-body authorize-user-section">
-                  <p class="small text-secondary">Users added here (besides yourself) can join/leave groups, update
-                    progress/players in groups they join, and use the penalty wheel.</p>
-                  <div id="authUserErrorDisplay" class="text-danger small mb-2"></div>
-
-                  {# Form for adding users #}
-                  <div class="input-group mb-3">
-                    <input type="text" id="authUsernameInput" class="form-control form-control-sm"
-                      placeholder="Enter username to authorize">
-                    <div class="input-group-append">
-                      <button class="btn btn-sm btn-outline-success" type="button" id="authorizeUserBtn">
-                        <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                        <span>Authorize</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {# List of authorized users #}
-                  <h6 class="mt-4 mb-2 small text-uppercase text-secondary">Currently Authorized:</h6>
-                  <ul id="authorizedUsersList" class="list-group list-group-flush">
-                    {% if authorized_user_list %}
-                    {% for auth_user in authorized_user_list %}
-                    {# Don't list the creator themselves for removal #}
-                    {% if auth_user.id != shared_challenge.creator_id %}
-                    <li
-                      class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-1 px-2 authorized-user-item"
-                      data-user-id="{{ auth_user.id }}">
-                      <span class="username">{{ auth_user.username | escape }}</span>
-                      <button class="btn btn-xs btn-outline-danger remove-auth-user-btn"
-                        data-user-id="{{ auth_user.id }}" data-username="{{ auth_user.username | escape }}"
-                        title="Remove Authorization">
-                        <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                        <span>&times;</span>
-                      </button>
-                    </li>
-                    {% endif %}
-                    {% endfor %}
-                    {% if authorized_user_list | length == 1 and authorized_user_list[0].id == shared_challenge.creator_id %}
-                    <li class="list-group-item list-group-item-action py-1 px-2 text-muted small">(Only you)</li>
-                    {% endif %}
-                    {% else %}
-                    <li class="list-group-item list-group-item-action py-1 px-2 text-muted small">(Only you)</li>
-                    {% endif %}
-                  </ul>
-                </div> {# End card-body #}
-              </div> {# End inner card for management #}
-            </div>{# End col for Manage Authorized Users #}
-            {% endif %} {# End if is_creator #}
-          </div> {# End inner row #}
-        </div> {# End card-body #}
-      </div> {# End collapse #}
-    </div> {# End combined card #}
-
-    {# Penalty Section (Conditional) #}
-    {% if shared_challenge.penalty_info %}
-    <div class="row mb-3">
+    {# Column for the Rules Card - spans full width #}
+    <div class="row mb-4">
       <div class="col-12">
-        <div id="penaltySectionContainer" class="card shadow-sm h-100">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="h5 mb-0"><i class="bi bi-lightning me-1"></i> Penalties</h3>
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-              data-target="#penaltyBody" aria-expanded="true" aria-controls="penaltyBody" title="Toggle Penalty Section">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
-                class="bi bi-chevron-expand" viewBox="0 0 16 16">
-                <path fill-rule="evenodd"
-                  d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
-              </svg>
-            </button>
-          </div>
-          <div class="card-body collapse show" id="penaltyBody">
-            {% set p_info = shared_challenge.penalty_info %}
-            {% set players = [] %}
-            {% set penalty_tab_id = p_info.get('tab_id') %}
-            {% set challenge_index = 'shared' %}
-            {% include 'challenge/_challenge_penalty_section.html' ignore missing %}
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {# Create Group Form (Only for Multigroup) - remains full width for now #}
-    {% if not is_local %}
-    {% if is_creator %}
-    <div class="row mb-3"> {# New row for the Create Group Form #}
-      <div class="col-12">
-        <div class="card shadow-md mb-3"> {# Use standard opaque card for form readability #}
-          <div class="card-header d-flex justify-content-between align-items-center"> {# Added Header #}
-            <h4 class="h5 mb-0 text-secondary-accent"><i class="bi bi-person-plus me-1"></i> Create or Join Group</h4>
-            {# Moved title here #}
+        {# Apply glass effect #}
+        <div class="card h-100 shadow-md rules-card glass-effect">
+          <div class="card-header d-flex justify-content-between align-items-center"> {# Added flex classes #}
+            <h3 class="h5 mb-0"><i class="bi bi-list-check me-1"></i> Challenge Rules</h3>
             {# Added Collapse Button #}
             <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
-              data-target="#createGroupBody" aria-expanded="true" aria-controls="createGroupBody"
-              title="Toggle Create Group Section">
+              data-target="#rulesBody" aria-expanded="true" aria-controls="rulesBody" title="Toggle Rules Section">
               <i class="bi bi-chevron-expand"></i> {# Use Bootstrap Icons #}
             </button>
           </div>
           {# Wrap existing body in collapse div - added 'show' to start expanded #}
-          <div class="collapse show" id="createGroupBody">
-            <div class="card-body p-4">
-              {# Removed h4 title from here #}
-              <form id="addGroupForm" class="form" novalidate>
-                {# ... rest of the form remains the same ... #}
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="form-row align-items-center justify-content-center">
-                  <div class="col-sm-7 col-md-7 mb-2 mb-sm-0">
-                    <label for="groupNameInput" class="sr-only">Group Name</label>
-                    <input type="text" class="form-control form-control-lg" id="groupNameInput" name="group_name"
-                      placeholder="Enter group name to create" required maxlength="80">
-                  </div>
-                  <div class="col-sm-4 col-md-3">
-                    <button type="submit" id="addGroupBtn" class="btn btn-success btn-lg btn-block">
-                      <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                      <span>Create Group</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="text-center">
-                  <small id="groupLimitInfo" class="form-text text-secondary mt-2">Groups: <span
-                      id="currentGroupCount">{{ initial_groups | length }}</span> / <span id="maxGroupCount">{{
-                      shared_challenge.max_groups }}</span></small>
-                </div>
-              </form>
-              <div id="addGroupError" class="text-danger mt-2 font-weight-bold text-center" style="display: none;">
-              </div>
+          <div class="collapse show" id="rulesBody">
+            <div class="card-body challenge-rules-list">
+              {% set c = shared_challenge.challenge_data %}
+              {% include 'challenge/_challenge_details.html' ignore missing %}
             </div>
           </div>
+
+        </div>
+      </div>
+    </div>
+    {% if is_creator %}
+    <hr class="my-5"> {# Optional separator #}
+    <div class="card shadow-md mb-5 management-card glass-effect"> {# Added glass-effect #}
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="h5 mb-0"><i class="bi bi-people me-1"></i> Manage Authorized Users</h3>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+          data-target="#manageUsersBody" aria-expanded="false" aria-controls="manageUsersBody"
+          title="Toggle User Management">
+          <i class="bi bi-chevron-expand"></i> {# Use Bootstrap Icons #}
+        </button>
+      </div>
+      <div class="collapse" id="manageUsersBody"> {# Start collapsed? Or use 'show' class #}
+        <div class="card-body authorize-user-section"> {# Added authorize-user-section class #}
+          <p class="small text-secondary">Users added here (besides yourself) can join/leave groups, update
+            progress/players in groups they join, and use the penalty wheel.</p>
+          <div id="authUserErrorDisplay" class="text-danger small mb-2"></div> {# Changed ID #}
+
+          {# Form for adding users #}
+          <div class="input-group mb-3">
+            <input type="text" id="authUsernameInput" class="form-control form-control-sm" {# Changed ID #}
+              placeholder="Enter username to authorize">
+            <div class="input-group-append">
+              <button class="btn btn-sm btn-outline-success" type="button" id="authorizeUserBtn">
+                <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                <span>Authorize</span>
+              </button>
+            </div>
+          </div>
+
+          {# List of authorized users #}
+          <h6 class="mt-4 mb-2 small text-uppercase text-secondary">Currently Authorized:</h6>
+          <ul id="authorizedUsersList" class="list-group list-group-flush">
+            {% if authorized_user_list %}
+            {% for auth_user in authorized_user_list %}
+            {# Don't list the creator themselves for removal #}
+            {% if auth_user.id != shared_challenge.creator_id %}
+            <li
+              class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-1 px-2 authorized-user-item"
+              data-user-id="{{ auth_user.id }}">
+              <span class="username">{{ auth_user.username | escape }}</span>
+              <button class="btn btn-xs btn-outline-danger remove-auth-user-btn" data-user-id="{{ auth_user.id }}"
+                data-username="{{ auth_user.username | escape }}" title="Remove Authorization">
+                <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                <span>&times;</span> {# Simple remove icon #}
+              </button>
+            </li>
+            {% endif %}
+            {% endfor %}
+            {% if authorized_user_list | length == 1 and authorized_user_list[0].id == shared_challenge.creator_id %}
+            <li class="list-group-item list-group-item-action py-1 px-2 text-muted small">(Only you)</li>
+            {% endif %}
+            {% else %}
+            <li class="list-group-item list-group-item-action py-1 px-2 text-muted small">(Only you)</li>
+            {% endif %}
+          </ul>
+        </div> {# End card-body #}
+      </div> {# End collapse #}
+    </div> {# End card #}
+    {% endif %} {# End if is_creator #}
+
+    {# Penalty Section (Conditional) #}
+    {% if shared_challenge.penalty_info %}
+    {# Use standard opaque card for better contrast with wheels? Or glass? Let's try standard. #}
+    <div id="penaltySectionContainer" class="mb-5 card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="h5 mb-0"><i class="bi bi-lightning me-1"></i> Penalties</h3>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse" data-target="#penaltyBody"
+          aria-expanded="true" aria-controls="penaltyBody" title="Toggle Penalty Section">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+            class="bi bi-chevron-expand" viewBox="0 0 16 16">
+            <path fill-rule="evenodd"
+              d="M3.646 9.146a.5.5 0 0 1 .708 0L8 12.793l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708m0-2.292a.5.5 0 0 0 .708 0L8 3.207l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708" />
+          </svg>
+        </button>
+      </div>
+      <div class="card-body collapse show" id="penaltyBody">
+        {% set p_info = shared_challenge.penalty_info %}
+        {% set players = [] %}
+        {% set penalty_tab_id = p_info.get('tab_id') %}
+        {% set challenge_index = 'shared' %}
+        {% include 'challenge/_challenge_penalty_section.html' ignore missing %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# --- Group Management & Display Section --- #}
+    <hr class="my-5">
+    <h2 class="mb-4 text-light text-center">{% if is_multigroup %}Groups & Progress{% else %}Your Progress{% endif %}
+    </h2>
+
+    {# Create Group Form (Only for Multigroup) #}
+    {% if not is_local %}
+    {% if is_creator %}
+    {# Use standard opaque card for form readability #}
+    <div class="mb-5 card shadow-md">
+      <div class="card-header d-flex justify-content-between align-items-center"> {# Added Header #}
+        <h4 class="h5 mb-0 text-secondary-accent"><i class="bi bi-person-plus me-1"></i> Create or Join Group</h4> {#
+        Moved title here #}
+        {# Added Collapse Button #}
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse"
+          data-target="#createGroupBody" aria-expanded="true" aria-controls="createGroupBody"
+          title="Toggle Create Group Section">
+          <i class="bi bi-chevron-expand"></i> {# Use Bootstrap Icons #}
+        </button>
+      </div>
+      {# Wrap existing body in collapse div - added 'show' to start expanded #}
+      <div class="collapse show" id="createGroupBody">
+        <div class="card-body p-4">
+          {# Removed h4 title from here #}
+          <form id="addGroupForm" class="form" novalidate>
+            {# ... rest of the form remains the same ... #}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-row align-items-center justify-content-center">
+              <div class="col-sm-7 col-md-7 mb-2 mb-sm-0">
+                <label for="groupNameInput" class="sr-only">Group Name</label>
+                <input type="text" class="form-control form-control-lg" id="groupNameInput" name="group_name"
+                  placeholder="Enter group name to create" required maxlength="80">
+              </div>
+              <div class="col-sm-4 col-md-3">
+                <button type="submit" id="addGroupBtn" class="btn btn-success btn-lg btn-block">
+                  <span class="spinner-border spinner-border-sm" style="display: none;"></span>
+                  <span>Create Group</span>
+                </button>
+              </div>
+            </div>
+            <div class="text-center">
+              <small id="groupLimitInfo" class="form-text text-secondary mt-2">Groups: <span id="currentGroupCount">{{
+                  initial_groups | length }}</span> / <span id="maxGroupCount">{{ shared_challenge.max_groups
+                  }}</span></small>
+            </div>
+          </form>
+          <div id="addGroupError" class="text-danger mt-2 font-weight-bold text-center" style="display: none;"></div>
         </div>
       </div>
     </div>
     {% endif %}
     {% endif %}
 
-    {# --- Group Management & Display Section --- #}
-    <hr class="my-4"> {# Reduced margin-top for this hr #}
-    <h2 class="mb-3 text-light text-center">{% if is_multigroup %}Groups & Progress{% else %}Your Progress{% endif %}
-    </h2>
-
     {# --- "Your Group" Section Container --- #}
     <div id="myGroupContainer" class="mb-5">
       {% if not is_local and user_joined_group_id is not none %}
+      <h4 class="text-primary-accent mb-3 text-center">Your Group</h4> {# Blue accent #}
       {% for group_data in initial_groups if group_data.id == user_joined_group_id %}
       {# Include the partial, passing context #}
       {% with group=group_data, challenge=shared_challenge, is_member=True, is_multigroup=is_multigroup,
