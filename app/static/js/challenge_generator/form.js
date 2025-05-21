@@ -1026,7 +1026,7 @@ async function initializeChallengeForm() {
       if (selectedTab && gameSelectionTbody) {
         try {
           // Reuse logic similar to updateGameSelectionCard to get all unique game names
-          const allTabsData = getGameEntries();
+          const allTabsData = getLocalOnlyEntries();
           let entries = [];
           if (allTabsData && allTabsData.hasOwnProperty(selectedTab)) {
             const specificTabEntries = allTabsData[selectedTab];
