@@ -52,30 +52,69 @@ export async function handleProgressUpdate(itemData, isComplete, checkboxEl) { /
     if (itemDiv) itemDiv.style.opacity = '0.6';
 
     try {
-        let currentProgressDataForGroup;
+        let progressDataForRender; // This will hold the data used for the immediate re-render
+
         if (challengeConfig.isLocal) {
-            // updateLocalChallengeProgress is assumed to be in utils/local_storage.js
-            // It needs to update the challengeConfig.progressData internally or return new state
-            const { updateLocalChallengeProgress } = await import('../../utils/local_storage.js');
-            const success = updateLocalChallengeProgress(challengeConfig.id, progressKey, isComplete);
+            const { updateLocalChallengeProgress, getLocalChallengeById } = await import('../../utils/local_storage.js');
+            
+            // Ensure challengeConfig.id is used for localStorage operations
+            const localChallengeId = challengeConfig.id;
+
+            const success = updateLocalChallengeProgress(localChallengeId, progressKey, isComplete);
             if (!success) throw new Error("Failed to save progress locally.");
-            // Assuming updateLocalChallengeProgress modifies a global/imported config or we refetch
-            currentProgressDataForGroup = challengeConfig.progressData || {}; 
-        } else {
+            
+            const updatedLocalData = getLocalChallengeById(localChallengeId);
+            if (updatedLocalData && updatedLocalData.progressData) {
+                // Update the global challengeConfig.progressData for other parts of the app
+                challengeConfig.progressData = updatedLocalData.progressData;
+                // Use the freshly fetched progress data for this render
+                progressDataForRender = updatedLocalData.progressData;
+            } else {
+                console.warn(`Could not re-fetch local challenge data (ID: ${localChallengeId}) after progress update. Progress bar may be stale.`);
+                // Fallback to current config state, though it might be stale if re-fetch failed
+                progressDataForRender = challengeConfig.progressData || {}; 
+            }
+        } else { // Shared challenge logic
             if (!challengeConfig.urls.updateProgressBase) throw new Error("API URL for progress update missing.");
-            const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`;
+            const url = `${challengeConfig.urls.updateProgressBase}/${groupId}/progress`; // groupId from itemData
             await apiFetch(url, { method: 'POST', body: payload }, challengeConfig.csrfToken);
-            // API success, now update local config state
-            updateGroupProgressInConfig(groupId, progressKey, isComplete); // This updates challengeConfig.initialGroups[...].progress
+            
+            updateGroupProgressInConfig(groupId, progressKey, isComplete);
             const groupData = challengeConfig.initialGroups.find(g => g.id === groupId);
-            currentProgressDataForGroup = groupData ? groupData.progress : {};
+            progressDataForRender = groupData ? groupData.progress : {};
         }
 
         if (itemDiv) itemDiv.classList.toggle('completed', isComplete);
 
-        const progressBarContainer = document.getElementById(`progressBarContainer-${groupId}`);
-        if (progressBarContainer && challengeConfig.coreChallengeStructure) {
-            renderOrUpdateProgressBar(progressBarContainer, challengeConfig.coreChallengeStructure, currentProgressDataForGroup);
+        // Determine the ID for the progress bar container.
+        // For local challenges, itemData.groupId is a string like "local_uuid".
+        // For shared challenges, itemData.groupId is a numeric string.
+        let containerGroupIdString;
+        if (challengeConfig.isLocal) {
+            containerGroupIdString = itemData.groupId; // Use the string ID directly for local
+        } else {
+            containerGroupIdString = parseInt(itemData.groupId, 10).toString(); // Parse then convert back to string for shared, or just use itemData.groupId if it's always numeric string
+        }
+        // Ensure itemData.groupId is used consistently if it's already the correct string form.
+        // The key is that `progressBarContainer-${id}` must match how it was set.
+        // In main.js for local, it's `progressBarContainer-${challengeConfig.id}` (string).
+        // For shared, group IDs are numbers, but DOM IDs are strings.
+        
+        const idForContainer = itemData.groupId; // itemData.groupId is already the string form needed.
+                                                 // For local: "local_uuid", for shared: "123" (numeric string)
+                                                 // parseInt was the issue for local.
+
+        const progressBarContainer = document.getElementById(`progressBarContainer-${idForContainer}`);
+        
+        if (progressBarContainer && challengeConfig.coreChallengeStructure && Object.keys(challengeConfig.coreChallengeStructure).length > 0) {
+            renderOrUpdateProgressBar(
+                progressBarContainer, 
+                challengeConfig.coreChallengeStructure, 
+                progressDataForRender // Use the explicitly prepared data
+            );
+        } else {
+            if (!progressBarContainer) console.warn(`Progress bar container not found for ID: progressBarContainer-${containerGroupId}`);
+            if (!challengeConfig.coreChallengeStructure || Object.keys(challengeConfig.coreChallengeStructure).length === 0) console.warn(`Core challenge structure is missing, empty, or not yet loaded when attempting to update progress bar.`);
         }
 
     } catch (error) {

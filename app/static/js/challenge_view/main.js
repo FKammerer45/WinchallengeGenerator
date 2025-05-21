@@ -325,6 +325,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const localCard = document.getElementById('local-group-card'); // Template specific ID
             if (localCard) {
                 const localGroupId = challengeConfig.id; // Use challengeId as groupId for local
+                
+                // Ensure the progress bar container in the local card has the expected ID
+                const localProgressBarContainer = localCard.querySelector('.progress-bar-container');
+                if (localProgressBarContainer) {
+                    localProgressBarContainer.id = `progressBarContainer-${localGroupId}`;
+                }
+
                 const localGroupData = { // Mock group data structure
                     id: localGroupId,
                     name: "Your Progress",
