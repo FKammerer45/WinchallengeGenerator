@@ -1,0 +1,111 @@
+/* static/css/base/_reset.css */
+/* --- Modern Reset & Base Styles --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+  /* --- FIX: Animated Gradient Background --- */
+
+  background: linear-gradient(135deg, var(--base-bg), var(--base-bg-shift), var(--base-bg));
+  background-size: 400% 400%;
+  /* Make gradient large */
+  animation: gradientShift 25s ease-in-out infinite alternate;
+  /* Apply animation */
+  /* --- End Fix --- */
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+  /* Ensure body takes full height */
+}
+
+/* --- Keyframes for Gradient Animation --- */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 2.2rem;
+}
+
+h2 {
+  font-size: 1.8rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+h4 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+}
+
+p strong {
+  color: var(--text-primary);
+}
+
+a {
+  color: var(--link-color);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--link-hover-color);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background-color: var(--surface-border);
+  margin: var(--space-lg) 0;
+}
+
+/* --- Glassmorphism Base --- */
+.glass-effect {
+  background-color: var(--surface-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-md);
+}

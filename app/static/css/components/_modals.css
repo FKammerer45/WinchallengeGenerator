@@ -1,0 +1,188 @@
+/* static/css/components/_modals.css */
+/* --- Modal Styles --- */
+.modal {
+  background-color: rgba(3, 7, 18, 0.6);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.modal-dialog {
+  max-width: 600px;
+  margin: 1.75rem auto;
+}
+
+.modal-dialog.modal-lg {
+  max-width: 800px;
+}
+
+.modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  pointer-events: auto;
+  outline: 0;
+}
+
+.modal-content.glass-effect {
+  background-color: var(--surface-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-content:not(.glass-effect) {
+  background-color: var(--surface-bg-opaque);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--surface-border);
+  border-top-left-radius: var(--border-radius-lg);
+  border-top-right-radius: var(--border-radius-lg);
+}
+
+.modal-title {
+  margin-bottom: 0;
+  line-height: 1.5;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-header .close {
+  padding: 1rem;
+  margin: -1rem -1rem -1rem auto;
+  background-color: transparent;
+  border: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-secondary);
+  text-shadow: none;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.modal-header .close:hover {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+button.close {
+  outline: none;
+}
+
+.modal-body {
+  position: relative;
+  flex: 1 1 auto;
+  padding: 1.5rem;
+  color: var(--text-primary);
+}
+
+.modal-body label {
+  color: var(--text-secondary);
+}
+
+.modal-body .form-control {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--input-border) !important;
+}
+
+.modal-body .form-control:focus {
+  border-color: var(--input-focus-border) !important;
+  box-shadow: var(--input-focus-shadow) !important;
+}
+
+.modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--surface-border);
+  border-bottom-right-radius: var(--border-radius-lg);
+  border-bottom-left-radius: var(--border-radius-lg);
+}
+
+.modal-footer>* {
+  margin: 0.25rem;
+}
+
+/* --- Edit Mode Section Styling (Games/Penalties Modals) --- */
+.edit-mode-section {
+  background-color: rgba(0, 0, 0, 0.1);
+  /* Subtle background difference */
+  border-color: var(--surface-border) !important;
+  color: var(--text-primary);
+  padding: 1rem 1.25rem 0.5rem 1.25rem !important;
+  margin-bottom: 1rem !important;
+  position: relative;
+  border-radius: var(--border-radius-md);
+  border-top: 1px solid var(--surface-border) !important;
+  /* Add top border for separation */
+  margin-top: 1rem;
+}
+
+.edit-mode-section:first-child {
+  margin-top: 0;
+  border-top: none !important;
+}
+
+.edit-mode-section h6 {
+  color: var(--accent-secondary);
+  /* Pink heading for mode name */
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.edit-mode-section label {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  margin-bottom: 0.25rem;
+}
+
+.edit-mode-section .form-control {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--input-border) !important;
+}
+
+.edit-mode-section .form-control:focus {
+  border-color: var(--input-focus-border) !important;
+  box-shadow: var(--input-focus-shadow) !important;
+}
+
+.delete-single-mode-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  font-weight: 500;
+  opacity: 0.7;
+  position: absolute;
+  top: 0.75rem;
+  /* Adjust position */
+  right: 0.75rem;
+}
+
+.delete-single-mode-btn:hover {
+  opacity: 1;
+  background-color: var(--danger-color);
+  color: white !important;
+}
+
+#actionConfirmModal {
+  /* Default Bootstrap modal z-index is often around 1050-1055 */
+  /* Set this higher */
+  z-index: 1060;
+}

@@ -1,0 +1,80 @@
+/* static/css/components/_progress.css */
+/* --- Progress Bar --- */
+.progress {
+  background-color: var(--surface-bg-opaque);
+  border-radius: var(--border-radius-md);
+  height: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  color: var(--text-on-accent);
+  font-weight: bold;
+  transition: width 0.6s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75em;
+}
+
+.progress-bar-striped {
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+  background-size: 1rem 1rem;
+}
+
+.progress-bar-animated {
+  animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+  from {
+    background-position: 1rem 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* Sticky Progress Container */
+#sticky-progress-container {
+  position: fixed; /* Fix position relative to viewport */
+  bottom: 1.5rem;  /* Distance from bottom */
+  right: 1.5rem;   /* Distance from right */
+  z-index: 1050;   /* Ensure it's above most other elements */
+  display: none;   /* Hidden by default */
+  padding: 1rem;   /* Internal padding */
+  min-width: 250px; /* Minimum width */
+  max-width: 350px; /* Maximum width */
+  border: 1px solid var(--surface-border); /* Match theme */
+  /* Inherits glass-effect for background/blur */
+  transition: opacity 0.3s ease, transform 0.3s ease; /* Add transitions */
+  opacity: 0;
+  transform: translateY(20px); /* Start slightly off-screen */
+}
+
+#sticky-progress-container.visible {
+  display: block; /* Show when visible class is added */
+  opacity: 1;
+  transform: translateY(0); /* Animate into position */
+}
+
+#sticky-progress-container .sticky-progress-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+}
+#sticky-progress-container .sticky-progress-header i {
+    margin-right: 0.5rem;
+}
+
+#sticky-progress-container .progress {
+    height: 1rem; /* Example height */
+}

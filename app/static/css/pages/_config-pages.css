@@ -1,0 +1,37 @@
+/* static/css/pages/_config-pages.css */
+/* Games/Penalties Config Pages */
+.config-page-container .page-title {
+  font-weight: 300;
+  margin-bottom: 1.5rem !important;
+}
+
+/* Tab Content Area */
+/* Note: Specific .nav-tabs styling is now handled by components/tabs.css */
+.config-page-container .tab-content {
+  border: 1px solid var(--surface-border);
+  border-top: none;
+  padding: var(--space-lg);
+  background-color: var(--surface-bg-opaque);
+  border-radius: 0 var(--border-radius-md) var(--border-radius-md) var(--border-radius-md);
+  min-height: 450px;
+}
+
+/* Tables within config tabs */
+.config-page-container .table {
+  background-color: transparent;
+  margin-bottom: 0;
+}
+
+.config-page-container .table th,
+.config-page-container .table td {
+  border-color: var(--surface-border);
+}
+
+.config-page-container .table thead th {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.config-page-container .table-hover tbody tr:hover {
+  background-color: var(--surface-highlight);
+  color: var(--text-primary);
+}

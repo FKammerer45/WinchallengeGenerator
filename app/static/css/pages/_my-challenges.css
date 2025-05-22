@@ -1,0 +1,59 @@
+/* static/css/pages/_my-challenges.css */
+/* --- General Page Styles --- */
+.my-challenges-page .page-title {
+  /* Example: Add subtle gradient or effect */
+  color: var(--text-primary, #f8f9fa);
+}
+
+.my-challenges-page .section-heading {
+  color: var(--text-primary, #f8f9fa);
+  /* Add subtle bottom border */
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  display: flex; /* Align icon and text */
+  align-items: center;
+}
+
+.my-challenges-page .section-heading i {
+  color: var(--text-secondary, #adb5bd); /* Icon color for headings */
+  margin-right: 0.75rem;
+  font-size: 1.2em; /* Slightly larger icon */
+}
+
+.my-challenges-page .section-divider {
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  opacity: 0.5; /* Make divider less prominent */
+}
+
+/* --- Empty State Messages --- */
+.empty-section-message {
+  color: var(--text-secondary, #adb5bd);
+  text-align: center;
+  padding: 2rem 0;
+  font-style: italic;
+}
+
+#noChallengesMessageContainer .alert {
+  background-color: rgba(var(--bs-secondary-rgb, 108, 117, 125), 0.1); /* Use Bootstrap variable if available */
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-secondary);
+}
+
+#noChallengesMessageContainer .alert i {
+  color: var(--text-secondary);
+}
+
+.list-group-item {
+  background-color: var(--surface-bg-opaque);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 0.5rem;
+  padding: 1rem;
+  color: var(--text-primary);
+}
+
+.list-group-item:hover {
+  background-color: var(--surface-highlight);
+  border-color: var(--surface-border);
+  color: var(--text-primary);
+}

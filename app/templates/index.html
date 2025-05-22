@@ -4,6 +4,7 @@
 {% block head %}
 {{ super() }}
 {# Base style.css is linked in base.html #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/frontpage_improvements.css') }}">
 <style>
     /* Styles from previous versions (keep relevant ones) */
     .custom-range::-webkit-slider-thumb {
@@ -246,7 +247,7 @@
                     </div>
                     <div class="collapse show card-body" id="modeParamsBody">
                         {# Challenge Mode Radio Buttons #}
-                        <div class="form-group mb-4">
+                        <div class="form-group mb-3">
                             <label class="fw-bold d-block mb-2">Challenge Mode:</label>
                             <div class="d-flex flex-wrap">
                                 <div class="custom-control custom-radio me-3 mb-1">
@@ -487,7 +488,7 @@
     const maxDiff = 1500;
     if (diffInput) {
         diffInput.addEventListener('input', () => {
-            if (+diffInput.value > maxDiff) diffInput.value = maxDiff;
+            if (Number(diffInput.value) > maxDiff) diffInput.value = maxDiff;
         });
     }
     const maxGroupsInput = document.getElementById('maxGroups');

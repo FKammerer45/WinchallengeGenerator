@@ -1,0 +1,58 @@
+/* static/css/components/_tables.css */
+/* --- Table Styles --- */
+.table {
+  width: 100%;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 0.8rem 1rem;
+  vertical-align: middle;
+  border-top: 1px solid var(--surface-border);
+  text-align: left;
+}
+
+.table thead th {
+  vertical-align: bottom;
+  border-bottom: 2px solid var(--surface-border);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background-color: transparent;
+}
+
+.table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--surface-highlight);
+}
+
+.table-hover tbody tr:hover {
+  color: var(--text-primary);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.table-bordered,
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid var(--surface-border);
+}
+
+.table-bordered thead th,
+.table-bordered thead td {
+  border-bottom-width: 2px;
+}
+
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

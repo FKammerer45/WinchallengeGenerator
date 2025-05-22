@@ -1,0 +1,290 @@
+/* static/css/components/_forms.css */
+/* --- Form Styling --- */
+.form-control,
+.custom-select {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+  border-radius: var(--border-radius-md);
+
+  /* --- ADJUSTED --- */
+  padding: 0.375rem 1rem;
+  /* Reduced vertical padding */
+  height: auto;
+  /* Allow height to adjust */
+  line-height: normal;
+  /* Use default line height */
+  /* --- END ADJUSTMENT --- */
+
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+  font-size: 1rem;
+  width: 100%;
+}
+
+.form-control::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.form-control:focus,
+.custom-select:focus {
+  background-color: var(--surface-bg-opaque);
+  border-color: var(--input-focus-border);
+  color: var(--text-primary);
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+/* Custom Select Arrow */
+.custom-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+  padding-right: 2.5rem;
+}
+
+/* Custom Checkbox/Radio Base Styles */
+.custom-control {
+  position: relative;
+  display: block;
+  min-height: 1.5rem;
+  padding-left: 1.75rem; /* Adjusted for 0.5rem gap */
+}
+
+.custom-control-input {
+  position: absolute;
+  left: -1.25rem; /* Align clickable area with visual */
+  z-index: -1;
+  width: 1.25rem;
+  height: 1.25rem;
+  opacity: 0;
+}
+
+.custom-control-label {
+  position: relative;
+  margin-bottom: 0;
+  vertical-align: top;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.custom-control-label::before {
+  position: absolute;
+  top: 0.05rem;
+  left: -1.25rem; /* Visual alignment as per your feedback */
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  pointer-events: none;
+  content: "";
+  background-color: var(--input-bg);
+  border: 1px solid var(--text-secondary);
+  opacity: 0.7;
+  border-radius: var(--border-radius-sm);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+}
+
+.custom-control-label::after {
+  position: absolute;
+  top: 0.05rem;
+  left: -1.25rem; /* Visual alignment as per your feedback */
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  content: "";
+  background: 50% / 60% 60% no-repeat;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.custom-control-input:not(:checked):not(:disabled)~.custom-control-label:hover::before {
+  background-color: var(--surface-highlight);
+  border-color: var(--text-primary);
+  opacity: 0.9;
+}
+
+.custom-control-input:checked~.custom-control-label::before {
+  color: var(--text-on-accent);
+  background-color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  opacity: 1;
+}
+
+.custom-control-input:checked~.custom-control-label::after {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23fff' d='M6.564.75l-3.59 3.6-1.59-1.6L0 4.26 2.974 7.25 8 2.193z'/%3e%3c/svg%3e");
+  opacity: 1;
+}
+
+.custom-control-input:focus~.custom-control-label::before {
+  box-shadow: var(--input-focus-shadow);
+}
+
+.custom-control-input:disabled~.custom-control-label {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-control-input:disabled~.custom-control-label::before {
+  background-color: var(--surface-bg-opaque);
+  opacity: 0.4;
+  border-color: var(--input-border);
+}
+
+.custom-radio .custom-control-label::before {
+  border-radius: 50%;
+}
+
+.custom-radio .custom-control-input:checked~.custom-control-label::after {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+}
+
+/* Custom Range */
+.custom-range {
+  width: 100%;
+  height: calc(1rem + 0.4rem);
+  padding: 0;
+  background-color: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.custom-range:focus {
+  outline: none;
+}
+
+.custom-range:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1px var(--base-bg), var(--input-focus-shadow);
+}
+
+.custom-range:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 1px var(--base-bg), var(--input-focus-shadow);
+}
+
+.custom-range::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 0.5rem;
+  color: transparent;
+  cursor: pointer;
+  background-color: var(--surface-border);
+  border-color: transparent;
+  border-radius: 1rem;
+}
+
+.custom-range::-webkit-slider-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--accent-primary);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  appearance: none;
+  margin-top: -0.375rem;
+  transition: background-color var(--transition-fast);
+}
+
+.custom-range::-moz-range-track {
+  width: 100%;
+  height: 0.5rem;
+  color: transparent;
+  cursor: pointer;
+  background-color: var(--surface-border);
+  border-color: transparent;
+  border-radius: 1rem;
+}
+
+.custom-range::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--accent-primary);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  appearance: none;
+  transition: background-color var(--transition-fast);
+}
+
+.custom-range:hover::-webkit-slider-thumb {
+  background-color: var(--accent-primary-hover);
+}
+
+.custom-range:hover::-moz-range-thumb {
+  background-color: var(--accent-primary-hover);
+}
+
+/* Progress Items (uses custom-control styles) */
+.progress-item .custom-control-input {
+  display: none;
+}
+
+.progress-item .custom-control-label {
+  margin-left: 0;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.progress-item:hover .custom-control-label:not(.completed-label) {
+  color: var(--link-color);
+}
+
+.progress-item .custom-control-input:checked~.custom-control-label {
+  text-decoration: line-through;
+  opacity: 0.5;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.progress-item .custom-control-input:checked~.custom-control-label::before {
+  background-color: var(--success-color);
+  border-color: var(--success-color);
+  box-shadow: 0 0 8px var(--success-glow);
+  opacity: 1;
+}
+
+.progress-item .custom-control-input:checked~.custom-control-label::after {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23fff' d='M6.564.75l-3.59 3.6-1.59-1.6L0 4.26 2.974 7.25 8 2.193z'/%3e%3c/svg%3e");
+  opacity: 1;
+}
+
+.progress-item .custom-control-input:focus~.custom-control-label::before {
+  box-shadow: none;
+}
+
+.progress-item .custom-control-input:focus:checked~.custom-control-label::before {
+  box-shadow: 0 0 10px var(--success-glow);
+}
+
+.progress-item {
+  margin-bottom: 0.6rem;
+  transition: background-color var(--transition-fast);
+  padding: 0.3rem 0.6rem;
+  padding-left: 2rem;
+  border-radius: var(--border-radius-sm);
+  display: block;
+  min-height: auto;
+}
+
+.progress-item:hover:not(.completed) {
+  background-color: var(--surface-highlight);
+}
+
+.progress-item.error-flash {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.5s ease-out;
+}

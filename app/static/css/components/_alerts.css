@@ -1,0 +1,55 @@
+/* static/css/components/_alerts.css */
+/* --- Alert Styling --- */
+.alert {
+  border-left-width: 4px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.95rem;
+}
+
+.alert-dismissible .close {
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+  color: inherit;
+}
+
+/* Inherit color */
+.alert-dismissible .close:hover {
+  opacity: 1;
+}
+
+/* Custom alert colors */
+.alert-success {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-color: var(--success-color);
+  color: var(--success-color);
+}
+
+.alert-danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+
+.alert-warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: var(--warning-color);
+  color: var(--warning-color);
+}
+
+.alert-info {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.alert-secondary {
+  background-color: var(--surface-highlight);
+  border-color: var(--surface-border);
+  color: var(--text-secondary);
+}
+
+.alert a {
+  font-weight: bold;
+  color: inherit;
+  text-decoration: underline;
+}

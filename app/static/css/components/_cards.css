@@ -1,0 +1,154 @@
+/* static/css/components/_cards.css */
+/* --- Card Styles --- */
+.card {
+  margin-bottom: var(--space-lg);
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  background-color: var(--surface-bg-opaque);
+  color: var(--text-primary);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.card.glass-effect {
+  background-color: var(--surface-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-md);
+}
+
+.card-header {
+  background-color: transparent;
+  border-bottom: 1px solid var(--surface-border);
+  font-weight: 600;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text-primary);
+}
+
+.card-body {
+  padding: var(--space-md);
+}
+
+.card-footer {
+  background-color: transparent;
+  border-top: 1px solid var(--surface-border);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+/* Group Card Styles (Shared with My Challenges via .list-card) */
+.list-card,
+.group-card {
+  background-color: var(--surface-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-md);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-std), box-shadow var(--transition-std), border-color var(--transition-std);
+  border-radius: var(--border-radius-md);
+}
+
+.list-card .card-body,
+.group-card .card-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  max-height: 480px;
+  padding: 1.25rem;
+}
+
+.list-card .card-title,
+.group-card .card-title {
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--surface-border);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.list-card .card-footer,
+.group-card .card-footer {
+  background-color: transparent;
+  border-top: 1px solid var(--surface-border);
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+/* Styling for Joined Group Card */
+#myGroupContainer .group-card-wrapper {
+  width: 100%;
+  max-width: 750px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#myGroupContainer .card.group-card {
+  border: 2px solid var(--accent-primary);
+  box-shadow: 0 0 20px var(--accent-primary-glow);
+  transform: scale(1.01);
+}
+
+/* --- Card Styles from my_challenges --- */
+.list-card {
+  /* Assuming glass-effect provides background/blur */
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  border-radius: var(--border-radius-lg, 0.5rem); /* Use theme variable */
+}
+
+.challenge-card-hover:hover {
+  transform: translateY(-5px) scale(1.02); /* Subtle lift and scale */
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2); /* Enhanced shadow on hover */
+}
+
+.list-card .card-body-link {
+  text-decoration: none;
+  color: var(--text-primary, #f8f9fa); /* Ensure link text matches theme */
+  display: block; /* Make link cover body */
+  height: 100%; /* Ensure link covers flex body */
+}
+
+.list-card .card-body {
+  display: flex;
+  flex-direction: column; /* Arrange title/subtitle/details vertically */
+  min-height: 150px; /* Ensure a minimum card height */
+}
+
+.list-card .card-title {
+  color: var(--text-primary, #f8f9fa);
+  font-weight: 600; /* Slightly bolder title */
+}
+
+.list-card .card-title i {
+  font-size: 1.1em; /* Adjust icon size */
+  vertical-align: middle;
+}
+
+
+.list-card .card-subtitle code {
+  background-color: rgba(255, 255, 255, 0.1); /* Subtle background for code */
+  padding: 0.1em 0.4em;
+  border-radius: var(--border-radius-sm, 0.2rem);
+  font-family: var(--font-mono, monospace); /* Use theme variable */
+}
+
+.list-card .card-text {
+  line-height: 1.4;
+}
+
+.list-card .card-text i {
+   vertical-align: middle; /* Align icons better */
+   font-size: 0.9em; /* Slightly smaller detail icons */
+   margin-right: 0.3rem;
+}
+
+.list-card .card-footer {
+  background-color: rgba(0, 0, 0, 0.1); /* Slightly different footer bg */
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+}

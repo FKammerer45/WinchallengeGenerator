@@ -1,0 +1,302 @@
+/* static/css/components/_navbar.css */
+/* --- Navbar --- */
+.navbar {
+  padding: 0.8rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  transition: background-color var(--transition-std), box-shadow var(--transition-std);
+}
+
+.navbar.glass-effect {
+  background-color: rgba(3, 7, 18, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--surface-border);
+  box-shadow: none;
+}
+
+.navbar-scrolled {
+  box-shadow: var(--shadow-sm);
+  background-color: rgba(3, 7, 18, 0.9);
+}
+
+.navbar-brand {
+  font-weight: 700;
+  color: var(--text-primary) !important;
+  font-size: 1.4rem;
+  letter-spacing: -0.5px;
+}
+
+.navbar-brand:hover {
+  color: var(--text-primary) !important;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  margin: 0 0.25rem;
+  border-radius: var(--border-radius-sm);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+  font-weight: 500;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover,
+.navbar-dark .navbar-nav .nav-link:focus {
+  color: var(--text-primary);
+  background-color: var(--surface-highlight);
+}
+
+.navbar-dark .navbar-nav .nav-item.active .nav-link {
+  color: var(--accent-primary);
+  background-color: rgba(59, 130, 246, 0.1);
+  font-weight: 600;
+}
+
+/* User Dropdown */
+.navbar-dark .navbar-nav .dropdown-menu {
+  background-color: var(--surface-bg-opaque);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-md);
+  margin-top: 0.5rem;
+  border-radius: var(--border-radius-md);
+  padding: 0.5rem 0;
+  min-width: 180px;
+}
+
+.navbar-dark .navbar-nav .dropdown-item {
+  color: var(--text-secondary);
+  padding: 0.6rem 1.2rem;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  font-weight: 500;
+}
+
+.navbar-dark .navbar-nav .dropdown-item:hover,
+.navbar-dark .navbar-nav .dropdown-item:focus {
+  color: var(--text-primary);
+  background-color: var(--surface-highlight);
+}
+
+.navbar-dark .navbar-nav .dropdown-item.text-danger {
+  color: var(--danger-color) !important;
+  font-weight: 500;
+}
+
+.navbar-dark .navbar-nav .dropdown-item.text-danger:hover,
+.navbar-dark .navbar-nav .dropdown-item.text-danger:focus {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #f87171 !important;
+}
+
+.navbar-dark .dropdown-divider {
+  border-top: 1px solid var(--surface-border);
+  margin: 0.5rem 0;
+}
+
+/* Login/Register Button */
+.navbar .btn-outline-secondary {
+  color: var(--accent-secondary);
+  border-color: var(--accent-secondary);
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.navbar .btn-outline-secondary:hover {
+  color: var(--text-on-accent);
+  background-color: var(--accent-secondary);
+  border-color: var(--accent-secondary);
+}
+
+/* --- Styling for the Pricing Nav Link --- */
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing {
+  /* Use accent color for text */
+  color: var(--accent-secondary, #fb923c);
+  font-weight: 600; /* Make it bolder */
+  background-color: rgba(251, 146, 60, 0.1); /* Subtle background tint using secondary accent */
+  border: 1px solid var(--accent-secondary-glow, rgba(251, 146, 60, 0.3)); /* Subtle border */
+  border-radius: var(--border-radius-md, 0.5rem); /* Match button radius */
+  padding: 0.4rem 0.8rem; /* Adjust padding to look more button-like */
+  margin-left: 0.5rem; /* Add some space from other links */
+  box-shadow: 0 0 10px 1px var(--accent-secondary-glow, rgba(251, 146, 60, 0.3)); /* Add a glow */
+  transition: all var(--transition-std, 200ms cubic-bezier(0.4, 0, 0.2, 1)); /* Smooth transition */
+}
+
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing:hover,
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing:focus {
+  color: var(--text-on-accent, #ffffff); /* Text color on hover */
+  background-color: var(--accent-secondary, #fb923c); /* Solid background on hover */
+  border-color: var(--accent-secondary-hover, #f97316); /* Darker border on hover */
+  box-shadow: 0 0 15px 3px var(--accent-secondary-glow, rgba(251, 146, 60, 0.4)); /* Enhanced glow */
+  transform: translateY(-1px); /* Slight lift effect */
+  text-decoration: none; /* Remove underline from hover */
+}
+
+/* Ensure the icon color matches */
+.navbar-dark .navbar-nav .nav-link.nav-link-pricing i {
+  color: inherit; /* Inherit color from the link */
+  vertical-align: middle; /* Align icon better */
+}
+
+/* Active state styling (when on the pricing page) */
+.navbar-dark .navbar-nav .nav-item.active .nav-link.nav-link-pricing {
+  color: var(--text-on-accent, #ffffff);
+  background-color: var(--accent-secondary-hover, #f97316); /* Use darker hover color for active */
+  border-color: var(--accent-secondary-hover, #f97316);
+  box-shadow: 0 0 15px 3px var(--accent-secondary-glow, rgba(251, 146, 60, 0.4));
+}
+
+/* --- Navbar Sound Controls Enhancement --- */
+/* Container for BOTH mute button and slider wrapper */
+.navbar-sound-controls {
+  position: relative; /* Optional: if needed for more complex positioning */
+}
+
+/* Wrapper specifically for the volume slider + icons */
+.volume-controls-wrapper {
+  display: flex; /* Use flex for internal alignment */
+  align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  max-width: 0; /* Start collapsed horizontally */
+  overflow: hidden;
+  transition: opacity 0.3s ease, max-width 0.4s ease-in-out, visibility 0s linear 0.3s, margin-left 0.4s ease-in-out; /* Smooth transitions */
+  margin-left: 0; /* Start with no margin */
+  vertical-align: middle; /* Align wrapper vertically */
+}
+
+/* Show the wrapper when hovering the PARENT li */
+.navbar-sound-controls:hover .volume-controls-wrapper {
+  opacity: 1;
+  visibility: visible;
+  max-width: 150px; /* Expand to desired width */
+  margin-left: 0.75rem; /* Add space from mute button when shown */
+  transition: opacity 0.3s ease, max-width 0.4s ease-in-out, visibility 0s linear 0s, margin-left 0.4s ease-in-out; /* Adjust transition */
+}
+
+/* Ensure slider inside is visible and styled when wrapper is shown */
+.volume-controls-wrapper .custom-range {
+  cursor: pointer;
+  opacity: 1; /* Make sure it's visible */
+  transition: opacity 0.2s ease 0.1s; /* Optional slight delay */
+}
+
+/* Icons next to slider */
+.volume-slider-container i.small {
+  font-size: 0.9em;
+  opacity: 0.7;
+  margin: 0 3px; /* Spacing around slider */
+}
+
+/* Existing mute button style */
+#globalMuteBtn {
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+#globalMuteBtn i {
+  vertical-align: middle;
+  font-size: 1.1rem;
+}
+
+/* Existing slider thumb styles (can be kept) */
+.volume-slider-container .custom-range::-webkit-slider-thumb {
+   background: var(--text-secondary);
+   width: 12px;
+   height: 12px;
+   margin-top: -4px;
+}
+.volume-slider-container .custom-range::-moz-range-thumb {
+   background: var(--text-secondary);
+   width: 12px;
+   height: 12px;
+   border-radius: 50%;
+   border: none;
+}
+.volume-slider-container .custom-range:hover::-webkit-slider-thumb {
+   background: var(--text-primary);
+}
+.volume-slider-container .custom-range:hover::-moz-range-thumb {
+   background: var(--text-primary);
+}
+
+/* --- Navbar Feedback Dropdown --- */
+#feedbackDropdownContainer .nav-link {
+  padding-left: 0.5rem; /* Adjust padding for icon button */
+  padding-right: 0.5rem;
+}
+
+#feedbackDropdownToggle i {
+  font-size: 1.3rem; /* Make icon a bit larger */
+  vertical-align: middle;
+}
+
+#feedbackPanel {
+  background-color: var(--surface-bg-opaque, #111827);
+  border: 1px solid var(--surface-border, rgba(75, 85, 99, 0.4));
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.4));
+  color: var(--text-primary, #f3f4f6);
+  border-radius: var(--border-radius-md, 0.5rem);
+}
+
+#feedbackPanel h5 {
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+#feedbackPanel .form-label.sr-only { /* Ensure sr-only labels don't take space if accidentally visible */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+}
+
+#feedbackPanel .form-control-sm,
+#feedbackPanel .form-select-sm {
+  background-color: var(--input-bg, rgba(30, 41, 59, 0.8));
+  border: 1px solid var(--input-border, rgba(75, 85, 99, 0.4));
+  color: var(--text-primary, #f3f4f6);
+  border-radius: var(--border-radius-sm, 0.375rem);
+  font-size: 0.875rem; /* Slightly smaller for dropdown form */
+  padding: 0.4rem 0.8rem;
+}
+
+#feedbackPanel .form-control-sm::placeholder {
+  color: var(--text-secondary, #9ca3af);
+  opacity: 0.7;
+}
+
+#feedbackPanel .form-control-sm:focus,
+#feedbackPanel .form-select-sm:focus {
+  background-color: var(--surface-bg-opaque, #111827);
+  border-color: var(--input-focus-border, #3b82f6);
+  box-shadow: var(--input-focus-shadow, 0 0 0 3px rgba(59, 130, 246, 0.3));
+}
+
+#feedbackPanel .form-select-sm {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  background-size: 0.8em;
+  padding-right: 2rem;
+}
+
+#feedbackPanel .invalid-feedback {
+    font-size: 0.8em;
+    color: var(--danger-color, #ef4444);
+    margin-top: 0.2rem;
+    display: block; /* Ensure it shows */
+}
+
+#feedbackPanel .alert-sm {
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}

@@ -1,0 +1,82 @@
+/* static/css/base/_utilities.css */
+/* --- Utility Classes --- */
+.text-primary-accent {
+  color: var(--accent-primary) !important;
+}
+
+.text-secondary-accent {
+  color: var(--accent-secondary) !important;
+}
+
+.rounded-sm {
+  border-radius: var(--border-radius-sm) !important;
+}
+
+.rounded-md {
+  border-radius: var(--border-radius-md) !important;
+}
+
+.rounded-lg {
+  border-radius: var(--border-radius-lg) !important;
+}
+
+.shadow-sm {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* --- Scrollbar Styling (Optional, Webkit only) --- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--base-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--surface-border);
+  border-radius: 10px;
+  border: 2px solid var(--base-bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(75, 85, 99, 0.7);
+}
+
+/* --- Font Imports --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+/* For code blocks */
+
+.flash-top-center {
+  position: fixed;
+  top: calc(56px + 0.75rem);
+  /* 56px navbar + small gap */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1080;
+  max-width: 420px;
+  width: 90%;
+}
+
+.custom-tooltip {
+    position: absolute;
+    background-color: #333;
+    color: white;
+    padding: 3px 7px;
+    border-radius: 3px;
+    font-size: 0.75rem; /* Small text */
+    z-index: 1080; /* Ensure it's above most other elements, Bootstrap modals are 1050+ */
+    pointer-events: none; /* So it doesn't interfere with mouse events on elements below it */
+    display: none; /* Hidden by default */
+    white-space: nowrap; /* Keep "doubleclick to edit" on one line */
+}
