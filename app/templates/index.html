@@ -4,7 +4,6 @@
 {% block head %}
 {{ super() }}
 {# Base style.css is linked in base.html #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/frontpage_improvements.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -324,7 +323,7 @@
                             <hr class="my-4">
                             <div class="text-center">
                                 <button type="button" id="createCustomChallengeBtn" class="btn btn-primary btn-lg w-100">
-                                    <i class="bi bi-check-lg"></i> Create & View Custom Challenge
+                                    <i class="bi bi-plus-circle-fill"></i> Create Challenge
                                 </button>
                             </div>
                         </div>
@@ -346,8 +345,8 @@
                             <button id="shareChallengeBtn" class="btn btn-primary btn-lg action-btn"
                                 style="display:none;">
                                 <span class="spinner-border spinner-border-sm" style="display: none;"></span>
-                                <i class="bi bi-share-fill me-1"></i>
-                                <span>Share Challenge</span>
+                                <i class="bi bi-check-circle-fill me-1"></i> {# Changed icon to suit "Accept" #}
+                                <span>Accept Challenge</span>
                             </button>
                             {% endif %}
                             <a href="#" id="viewLocalChallengeBtn" class="btn btn-secondary btn-lg action-btn"
@@ -373,7 +372,7 @@
 </div> {# End container #}
 
 {# --- Pass data needed by JS (remains the same) --- #}
-<script>
+<script type="text/javascript">
     window.csrfToken = "{{ csrf_token() }}";
     window.generateChallengeUrl = "{{ url_for('challenge_api.generate_challenge') }}";
     window.shareChallengeUrl = "{{ url_for('challenge_api.share_challenge') }}";

@@ -486,6 +486,12 @@ function gatherSelectedModes() {
 function handleChallengeFormSubmit(event) {
   event.preventDefault();
 
+  // Hide custom challenge builder if it's open
+  const customBuilderWrapper = document.getElementById("customChallengeBuilderWrapper");
+  if (customBuilderWrapper) {
+    customBuilderWrapper.style.display = "none";
+  }
+
   // Helper function for fallback UUID
   function generateSimpleUUID() {
     return 'xxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -766,17 +772,28 @@ function handleChallengeFormSubmit(event) {
       // Store full data (including potentially full penalty_info) for sharing
       window.currentChallengeData = data;
 
+      console.log("[FormJS] In handleChallengeFormSubmit: isAuthenticated =", isAuthenticated, "data.share_options =", data.share_options); // DEBUG LOG
+
       if (isAuthenticated && data.share_options) {
         if (shareBtn) {
           shareBtn.style.display = "inline-block";
-          shareBtn.disabled = false;
-          shareBtn.classList.remove("btn-secondary");
-          shareBtn.classList.add("btn-primary");
+          shareBtn.disabled = false; // Explicitly enable
+          shareBtn.classList.remove("btn-secondary", "disabled"); // Remove any potentially disabling classes
+          shareBtn.classList.add("btn-primary"); // Ensure primary styling
+          shareBtn.removeAttribute("aria-disabled"); // Ensure accessibility state is correct
+          console.log("shareChallengeBtn IS being enabled and styled primary in form.js"); // UPDATED DEBUG LOG
+
           const shareBtnText = shareBtn.querySelector(
             "span:not(.spinner-border-sm)"
           );
-          if (shareBtnText) shareBtnText.textContent = "Share Challenge";
-          shareBtn.title = "Share this generated challenge";
+          // Ensure the icon is also updated if it was changed from the default
+          const shareBtnIcon = shareBtn.querySelector("i.bi");
+          if (shareBtnText) shareBtnText.textContent = "Accept Challenge";
+          if (shareBtnIcon) { // Change icon to suit "Accept Challenge"
+            shareBtnIcon.classList.remove("bi-share-fill");
+            shareBtnIcon.classList.add("bi-check-circle-fill");
+          }
+          shareBtn.title = "Accept and share this generated challenge"; // Update title
         }
         if (viewLocalBtn) viewLocalBtn.style.display = "none";
       } else {
@@ -1766,36 +1783,10 @@ function handleCreateCustomChallenge() {
     return;
   }
 
-  // Generate HTML for display (using challengeDataForDisplay)
-  let htmlResult = `<h3 class="mb-3 text-light text-center h4">${escapeHtml(challengeDataForDisplay.name)}</h3>`;
-  htmlResult += `<p class="text-center"><strong>Total Difficulty:</strong> ${challengeDataForDisplay.totalDifficulty.toFixed(1)} | <strong>Mode:</strong> ${escapeHtml(challengeDataForDisplay.groupType)}</p>`;
-
-  if (challengeDataForDisplay.normal.length > 0) {
-    htmlResult += `<h4>Normal Wins</h4>`;
-    challengeDataForDisplay.normal.forEach(item => {
-      htmlResult += `<p>${escapeHtml(item.game)} (${escapeHtml(item.mode || 'N/A')}): ${item.wins} win(s) ${item.custom ? '(Custom - Diff: ' + item.difficulty.toFixed(1) + ')' : '(Diff: ' + item.difficulty.toFixed(1) + ')'}</p>`;
-    });
-  }
-
-  if (challengeDataForDisplay.b2b.length > 0) {
-    htmlResult += `<h4>Back-to-Back Segments</h4>`;
-    challengeDataForDisplay.b2b.forEach((segment, index) => {
-      htmlResult += `<p class="mt-2"><strong>Segment ${index + 1}:</strong></p>`;
-      segment.forEach(item => {
-        htmlResult += `<p style="margin-left: 20px;">${escapeHtml(item.game)} (${escapeHtml(item.mode || 'N/A')}): ${item.wins} win(s) ${item.custom ? '(Custom - Diff: ' + item.difficulty.toFixed(1) + ')' : '(Diff: ' + item.difficulty.toFixed(1) + ')'}</p>`;
-      });
-    });
-  }
-  
-  resultDiv.innerHTML = htmlResult;
-  customBuilderWrapper.style.display = "none";
-  resultWrapper.style.display = "block";
-  requestAnimationFrame(() => {
-    resultWrapper.classList.add("visible");
-  });
-
   // Determine if to save locally or send to backend
   const isAuthenticated = window.IS_AUTHENTICATED === true;
+  const createCustomChallengeButton = document.getElementById("createCustomChallengeBtn");
+
 
   if (isAuthenticated) {
     // Read main form settings for payload
@@ -1813,7 +1804,7 @@ function handleCreateCustomChallenge() {
             let penaltyEntriesListMain = [];
             if (window.indexPagePenaltyTabs && window.indexPagePenaltyTabs.entries) {
                 penaltyEntriesListMain = window.indexPagePenaltyTabs.entries[penaltyTabIdMain] || [];
-            } else { // Fallback for local if somehow global isn't populated (should be for logged-in)
+            } else { 
                 const localPenaltyData = getLocalPenaltyEntries();
                 penaltyEntriesListMain = localPenaltyData[penaltyTabIdMain] || [];
             }
@@ -1833,8 +1824,6 @@ function handleCreateCustomChallenge() {
     const maxGroupsMain = groupModeMain === "multi" ? (parseInt(mainFormData.get("max_groups")) || 1) : 1;
     const numPlayersPerGroupMain = parseInt(mainFormData.get("num_players")) || 1;
 
-
-    // User is logged in, send to /api/challenge/share
     const sharePayload = {
       challenge_data: payloadChallengeData,
       penalty_info: penaltyInfoPayload,
@@ -1844,69 +1833,46 @@ function handleCreateCustomChallenge() {
       is_custom_built: true 
     };
 
-    // Clear previous share/local buttons and messages
     if (viewLocalBtn) viewLocalBtn.style.display = "none";
-    if (shareBtn) {
-        shareBtn.style.display = "none"; // Hide the original share button
-        const shareBtnSpinner = shareBtn.querySelector(".spinner-border-sm");
-        const shareBtnText = shareBtn.querySelector("span:not(.spinner-border-sm)");
-        // We might want a dedicated "View Shared Custom Challenge" button later
-        // For now, we'll just show a success/error message.
-    }
-    if (shareResultDiv) {
+    if (shareResultDiv) { 
         shareResultDiv.style.display = "none";
         shareResultDiv.innerHTML = "";
     }
     
-    // Use the global shareChallengeUrl or default to /api/challenge/share
+    setLoading(createCustomChallengeButton, true, "Creating...");
+
     const shareUrl = window.shareChallengeUrl || "/api/challenge/share";
-    console.log("Sending share request to:", shareUrl, "with payload:", JSON.stringify(sharePayload));
-
-
+    
     apiFetch(shareUrl, { method: "POST", body: sharePayload }, window.csrfToken)
       .then(sharedResponse => {
-        // The /api/challenge/share endpoint returns status, public_id, and share_url on success.
+        setLoading(createCustomChallengeButton, false); 
         if (sharedResponse.status === "success" && sharedResponse.public_id && sharedResponse.share_url) {
-            // The main resultDiv already shows the custom challenge structure.
-            // We just need to provide a success message and a link.
-            if (shareResultDiv) {
-                 shareResultDiv.innerHTML = `<div class="alert alert-success">Custom challenge shared successfully! <a href="${sharedResponse.share_url}" target="_blank" class="alert-link">View it here</a> or use the button below.</div>`;
-                 shareResultDiv.style.display = "block";
-            }
-            
-            // Update the "Create & View" button to become a "View Shared Challenge" link/button
-            const createCustomChallengeButton = document.getElementById("createCustomChallengeBtn");
             if (createCustomChallengeButton) {
-                const viewSharedButton = createCustomChallengeButton.cloneNode(true); // Clone to remove old listeners
-                viewSharedButton.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> View Shared Custom Challenge';
-                viewSharedButton.classList.remove("btn-primary");
-                viewSharedButton.classList.add("btn-success"); // Or btn-info
-                viewSharedButton.onclick = () => { window.open(sharedResponse.share_url, '_blank'); };
-                createCustomChallengeButton.parentNode.replaceChild(viewSharedButton, createCustomChallengeButton);
+                createCustomChallengeButton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Accept Challenge';
+                createCustomChallengeButton.classList.remove("btn-primary");
+                createCustomChallengeButton.classList.add("btn-success"); 
+                createCustomChallengeButton.disabled = true; 
+                createCustomChallengeButton.onclick = () => { window.open(sharedResponse.share_url, '_blank'); };
             }
-            
-            // Hide the original "Share Challenge" button if it was for random challenges and is still visible
-            if (shareBtn && shareBtn.id === "shareChallengeBtn") { // Ensure it's the correct button
-                 shareBtn.style.display = "none";
-            }
-
         } else {
-          // If sharedResponse.error is present, use it, otherwise a generic message.
-          const errorMessage = sharedResponse.error || "Failed to share custom challenge. The server did not return the expected success response.";
-          throw new Error(errorMessage);
+          const errorMessage = sharedResponse.error || "Failed to share custom challenge. Server error.";
+          throw new Error(errorMessage); 
         }
       })
       .catch(error => {
-        console.error("Error sharing custom challenge via /api/challenge/share:", error);
-        showError(errorDisplay, `Error sharing custom challenge: ${error.message}`);
-        if (shareResultDiv) {
-            shareResultDiv.innerHTML = `<div class="alert alert-danger">Failed to share custom challenge: ${escapeHtml(error.message)}</div>`;
-            shareResultDiv.style.display = "block";
+        setLoading(createCustomChallengeButton, false, "Create Challenge"); 
+        console.error("Error sharing custom challenge:", error);
+        if (createCustomChallengeButton) {
+            createCustomChallengeButton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Accept Challenge'; 
+            createCustomChallengeButton.classList.remove("btn-primary");
+            createCustomChallengeButton.classList.add("btn-success"); 
+            createCustomChallengeButton.disabled = true;
         }
       });
 
   } else {
     // User is not logged in, save locally
+    setLoading(createCustomChallengeButton, false); 
     let uuid;
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       uuid = crypto.randomUUID();
@@ -1919,22 +1885,25 @@ function handleCreateCustomChallenge() {
     const localId = `local_custom_${uuid}`;
     const challengeToStore = {
         localId: localId,
-        name: challengeData.name,
+        name: challengeDataForDisplay.name, 
         createdAt: new Date().toISOString(),
-        challengeData: {
-            normal: challengeData.normal.map(n => ({ game: n.game, wins: n.wins, difficulty: n.difficulty, mode: n.mode, custom: n.custom })),
-            b2b: challengeData.b2b.map(seg => seg.map(g => ({ game: g.game, wins: g.wins, difficulty: g.difficulty, mode: g.mode, custom: g.custom }))),
+        challengeData: { 
+            normal: challengeDataForDisplay.normal.map(n => ({ game: n.game, wins: n.wins, difficulty: n.difficulty, mode: n.mode, custom: n.custom })),
+            b2b: challengeDataForDisplay.b2b.map(seg => seg.map(g => ({ game: g.game, wins: g.wins, difficulty: g.difficulty, mode: g.mode, custom: g.custom }))),
         },
-        isCustom: true
+        isCustom: true, 
     };
     
     const saved = saveChallengeToLocalStorage(challengeToStore);
-    if (saved && viewLocalBtn) {
-        viewLocalBtn.href = `/challenge/${localId}`;
-        viewLocalBtn.style.display = "inline-block";
-    } else if (!saved) {
-        showError(errorDisplay, "Warning: Could not save custom challenge locally.");
+
+    if (createCustomChallengeButton) {
+        createCustomChallengeButton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Accept Challenge'; 
+        createCustomChallengeButton.classList.remove("btn-primary");
+        createCustomChallengeButton.classList.add("btn-success"); 
+        createCustomChallengeButton.disabled = true;
+        if (saved) {
+            createCustomChallengeButton.onclick = () => { window.open(`/challenge/${localId}`, '_blank'); };
+        }
     }
-    if (shareBtn) shareBtn.style.display = "none";
   }
 }

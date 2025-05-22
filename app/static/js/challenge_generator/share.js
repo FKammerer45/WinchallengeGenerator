@@ -105,14 +105,21 @@ async function handleShareButtonClick() {
 
     } finally {
         if (shareBtn) {
-            setLoading(shareBtn, false, 'Share Challenge'); // Restore text first
+            // Restore button to "Accept Challenge" but keep it disabled as action is complete/attempted
+            setLoading(shareBtn, false, 'Accept Challenge'); 
             shareBtn.disabled = true;
-            shareBtn.classList.add('btn-secondary'); // Bootstrap class for greyed out
-            shareBtn.classList.remove('btn-primary'); // Remove primary color
-            shareBtn.title = "Challenge shared or attempt made. Generate a new challenge to share again.";
-            // Remove the spinner part of setLoading if it doesn't handle this well
+            shareBtn.classList.add('btn-secondary'); 
+            shareBtn.classList.remove('btn-primary'); 
+            shareBtn.title = "Challenge accepted or attempt made. Generate a new challenge to accept again.";
+            
             const originalTextSpan = shareBtn.querySelector('span:not(.spinner-border-sm)');
-            if (originalTextSpan) originalTextSpan.textContent = "Shared"; // Or "Share Attempted"
+            if (originalTextSpan) originalTextSpan.textContent = "Accepted"; // Or "Accept Attempted"
+
+            const shareBtnIcon = shareBtn.querySelector("i.bi");
+            if (shareBtnIcon) { // Ensure icon is checkmark
+                shareBtnIcon.classList.remove("bi-share-fill");
+                shareBtnIcon.classList.add("bi-check-circle-fill");
+            }
             const spinner = shareBtn.querySelector('.spinner-border-sm');
             if(spinner) spinner.style.display = 'none';
         }

@@ -176,3 +176,23 @@
   padding: 0.2rem 0.5rem; /* Smaller padding */
   font-size: 0.8rem; /* Smaller font */
 }
+
+/* Main Action Buttons on Index Page */
+/* Targeting .btn-lg within the specific container to adjust padding and font */
+.generate-button-container .btn-group .btn.btn-lg {
+    padding-top: 0.5rem;    /* Reduced top padding */
+    padding-bottom: 0.5rem; /* Reduced bottom padding */
+    font-size: 1rem;      /* Standardized font size, adjust as needed e.g., 1.1rem */
+    /* line-height: 1.5; /* Ensure text is vertically centered if needed */
+}
+
+/* Ensure icons within these buttons are vertically aligned */
+.generate-button-container .btn-group .btn.btn-lg .bi {
+    vertical-align: middle; 
+    margin-bottom: 0.125em; /* Small adjustment for better centering with current font size */
+}
+
+/* Ensure text within these buttons is also well-aligned */
+.generate-button-container .btn-group .btn.btn-lg span:not(.spinner-border) {
+    vertical-align: middle;
+}

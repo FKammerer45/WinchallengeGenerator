@@ -56,3 +56,22 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Reduce row height in the game selection table on the index page */
+.game-selection-table tbody tr > td { /* Target direct children TDs */
+  padding-top: 0.25rem;    /* Further reduced top padding */
+  padding-bottom: 0.25rem; /* Further reduced bottom padding */
+  line-height: 1.2;       /* Adjust line-height for tighter spacing */
+}
+
+/* Ensure form elements within these cells don't add excessive vertical space */
+.game-selection-table .form-control-sm,
+.game-selection-table .btn-sm {
+  padding-top: 0.2rem;    /* Fine-tune padding of small controls */
+  padding-bottom: 0.2rem;
+  font-size: 0.875rem;    /* Ensure font size is consistent and not too large */
+}
+
+.game-selection-table .custom-control.custom-checkbox {
+  margin-bottom: 0; 
+}
