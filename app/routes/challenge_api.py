@@ -276,6 +276,8 @@ def share_challenge():
             logger.info(f"Storing challenge with {len(penalty_info_to_store.get('penalties',[]))} embedded penalties from tab '{penalty_info_to_store.get('source_tab_name', 'Unknown')}'.")
     
     name = data.get('name', None)
+    is_custom_built = data.get('is_custom_built', False) # Get the flag, default to False
+
     try:
         max_groups = int(data.get('max_groups', 1)) 
         num_players_per_group = int(data.get('num_players_per_group', 1)) 
@@ -300,7 +302,8 @@ def share_challenge():
             challenge_data=challenge_data_from_payload, 
             penalty_info=penalty_info_to_store, 
             max_groups=max_groups,
-            num_players_per_group=num_players_per_group
+            num_players_per_group=num_players_per_group,
+            is_custom_built=is_custom_built # Pass the flag to the model
         )
 
         if current_user.is_authenticated:
@@ -323,8 +326,91 @@ def share_challenge():
         logger.exception(f"DB Error sharing challenge for user {current_user.username}")
         return jsonify({"error": "Database error creating challenge."}), 500
     except Exception as e:
-        db.session.rollback() 
+        db.session.rollback()
         logger.exception(f"Unexpected error sharing challenge for user {current_user.username}")
+        return jsonify({"error": "An unexpected server error occurred."}), 500
+
+@challenge_api.route("/create_custom_shared", methods=["POST"])
+@csrf.exempt # Assuming similar CSRF needs as /share
+@login_required
+def create_custom_shared_challenge():
+    """
+    Creates a persistent SharedChallenge from the custom builder.
+    """
+    logger.info(f"--- Custom Shared Challenge endpoint called by user {current_user.username} ---")
+    
+    try:
+        data = request.get_json(force=True)
+    except Exception as json_err:
+        logger.error(f"Failed to parse request JSON for custom shared: {json_err}")
+        return jsonify({"error": "Invalid JSON data received."}), 400
+
+    error_msg = None
+    if not data:
+        error_msg = "No JSON data received or failed to parse."
+    elif not isinstance(data.get('challenge_data'), dict):
+        error_msg = "'challenge_data' is missing or not an object."
+    elif 'normal' not in data['challenge_data'] and 'b2b' not in data['challenge_data']:
+        error_msg = "'challenge_data' must contain at least 'normal' or 'b2b' key."
+    elif not data.get('name'):
+        error_msg = "Challenge 'name' is required."
+
+    if error_msg:
+        logger.warning(f"Custom Share validation failed: {error_msg}. Payload: {data}")
+        return jsonify({"error": error_msg}), 400
+
+    challenge_data_from_payload = data.get('challenge_data')
+    # Penalties are explicitly null for custom challenges from current JS logic
+    penalty_info_to_store = None 
+    name = data.get('name')
+    is_custom_built = data.get('is_custom_built', True) # Default to true for this endpoint
+
+    # For custom challenges, assume single group, single player unless specified otherwise
+    # These could be made configurable in the custom builder in the future
+    max_groups = 1 
+    num_players_per_group = 1
+
+    try:
+        user_max_challenges = get_user_limit(current_user, 'max_challenges')
+        current_challenge_count = db.session.query(func.count(SharedChallenge.id)).filter(SharedChallenge.creator_id == current_user.id).scalar()
+        if current_challenge_count >= user_max_challenges:
+            logger.warning(f"User {current_user.username} reached challenge limit ({user_max_challenges}) for custom shared.")
+            return jsonify({"error": f"Max challenges ({user_max_challenges}) reached."}), 403
+
+        public_id = str(uuid.uuid4())
+        new_challenge = SharedChallenge(
+            public_id=public_id,
+            creator_id=current_user.id,
+            name=name,
+            challenge_data=challenge_data_from_payload,
+            penalty_info=penalty_info_to_store,
+            max_groups=max_groups,
+            num_players_per_group=num_players_per_group,
+            is_custom_built=is_custom_built
+        )
+
+        # Automatically authorize the creator
+        user_to_add = db.session.get(User, current_user.id)
+        if user_to_add:
+            new_challenge.authorized_users_list.append(user_to_add)
+
+        db.session.add(new_challenge)
+        db.session.commit()
+        logger.info(f"Successfully created Custom SharedChallenge {public_id} by user {current_user.username}")
+
+        share_url = url_for('main.challenge_view', challenge_id=public_id, _external=True)
+        return jsonify({
+            "status": "success", "message": "Custom challenge shared successfully.",
+            "public_id": public_id, "share_url": share_url
+        }), 201
+
+    except (IntegrityError, SQLAlchemyError) as e:
+        db.session.rollback()
+        logger.exception(f"DB Error creating custom shared challenge for user {current_user.username}")
+        return jsonify({"error": "Database error creating custom challenge."}), 500
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Unexpected error creating custom shared challenge for user {current_user.username}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 # --- /<public_id>/groups endpoint ---

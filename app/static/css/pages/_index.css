@@ -71,30 +71,6 @@
   padding: 0.7rem 1rem;
 }
 
-.index-page-container .game-selection-table .custom-control {
-  padding-left: 2rem;
-}
-
-.index-page-container .game-selection-table .custom-control-label::before {
-  top: 0;
-  left: -2rem;
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.index-page-container .game-selection-table .custom-control-label::after {
-  top: 0;
-  left: -2rem;
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.index-page-container .game-selection-table label {
-  cursor: pointer;
-  margin-bottom: 0;
-  font-weight: 500;
-}
-
 .index-page-container .game-weight-input {
   background-color: var(--input-bg) !important;
   color: var(--text-primary) !important;
@@ -138,7 +114,7 @@
 }
 
 .index-page-container .result-card h4,
-.result-card h6 {
+.result-card h6 { /* Applied to B2B segment titles too */
   color: var(--text-primary);
   margin-top: 1rem;
   margin-bottom: 0.75rem;
@@ -275,29 +251,141 @@
 #challengeResult > p { animation-delay: 0.15s; }
 #challengeResult > h4 + p { animation-delay: 0.2s; }
 
-#b2bValueDisplay {
-  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out; /* Smooth transition */
-  font-weight: 600; /* Make the text slightly bolder */
-  padding: 0.25rem 0.8rem; /* Adjust padding */
+/* Styles moved from index.html (inline style block) */
+.card-header.h5 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    position: relative;
+    z-index: 2;
+}
+.game-selection-table thead {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.game-selection-table thead th {
+    border-bottom-width: 1px !important;
+    border-color: var(--surface-border) !important;
+    color: var(--text-secondary);
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.75px;
+}
+.game-selection-table tbody tr:hover {
+    background-color: var(--surface-highlight);
+}
+.game-selection-table td {
+    border-color: var(--surface-border) !important;
+    vertical-align: middle;
+    padding: 0.6rem 1rem;
+}
+.generate-btn { /* This class is on the generate challenge button */
+    font-size: 1.1rem; /* Already btn-lg, so this might be redundant or for fine-tuning */
+    /* padding: 0.8rem 1.5rem; */ /* btn-lg handles padding */
+}
+.range-value-display {
+    display: inline-block;
+    min-width: 3em;
+    padding: 0.25rem 0.6rem;
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius-sm);
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.9em;
+    text-align: center;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+.card > .collapse.show,
+.card > .collapsing { /* Combined as they had same padding */
+    padding: 1.5rem;
+}
+#challengeResultWrapper { /* Already defined above, this is for the animation */
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+}
+#challengeResultWrapper.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+/* Ensure cards in the same row try to maintain height */
+.row.match-height > [class*='col-'] {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.5rem; /* Consistent spacing between rows/stacked cols */
+}
+.row.match-height > [class*='col-'] > .card {
+    flex-grow: 1;
+}
+/* Style for the result column content (where generate button and results appear) */
+.result-column-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Make it fill the column height */
+}
+.result-column-content .generate-button-container {
+    /* Position button at the top of this column */
+    margin-bottom: 1.5rem; /* Space between button and results */
+}
+.result-column-content #challengeResultWrapper {
+    /* Result wrapper will be below button */
+    flex-grow: 1; /* Allow result wrapper to take remaining space */
 }
 
-#b2bValueDisplay.level-none {
-  color: var(--text-secondary, #9ca3af);
-  background-color: rgba(108, 117, 125, 0.15); /* Greyish background */
-  border-color: rgba(108, 117, 125, 0.4);
+/* --- Custom Challenge Builder Specific Styles --- */
+#customChallengeBuilderWrapper .result-card { /* Use existing result-card for base */
+    border-color: var(--accent-secondary); /* Different accent for builder */
+    box-shadow: 0 0 20px var(--accent-secondary-glow);
 }
-#b2bValueDisplay.level-low {
-  color: var(--success-color, #34d399);
-  background-color: rgba(52, 211, 153, 0.1); /* Greenish background */
-  border-color: rgba(52, 211, 153, 0.4);
+
+#customChallengeBuilderWrapper .custom-builder-section-header {
+    font-size: 1.25rem; /* Match h4 in result */
+    font-weight: 600;
+    color: var(--text-title, var(--text-primary));
+    margin-top: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--surface-border);
 }
-#b2bValueDisplay.level-medium {
-  color: var(--warning-color, #f59e0b);
-  background-color: rgba(245, 158, 11, 0.1); /* Orangish background */
-  border-color: rgba(245, 158, 11, 0.4);
+#customChallengeBuilderWrapper .custom-builder-section-header:first-of-type {
+    margin-top: 0;
 }
-#b2bValueDisplay.level-high {
-  color: var(--danger-color, #ef4444);
-  background-color: rgba(239, 68, 68, 0.1); /* Reddish background */
-  border-color: rgba(239, 68, 68, 0.4);
+
+#customChallengeBuilderWrapper .custom-builder-item-list .row {
+    background-color: var(--surface-bg-alt);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: var(--border-radius-sm);
+    border-left: 3px solid var(--primary-color);
+}
+
+#customChallengeBuilderWrapper .b2b-segment.card {
+    background-color: rgba(var(--surface-highlight-rgb), 0.5); /* Slightly different bg for B2B segment card */
+    border-left: 3px solid var(--warning-color);
+    padding: 0.75rem; /* Override card padding if needed */
+}
+
+#customChallengeBuilderWrapper .b2b-segment h6 { /* B2B Segment Title */
+    color: var(--text-primary);
+    font-weight: 600;
+    border-bottom: none; /* Remove bottom border if inherited from .result-card h6 */
+    margin-bottom: 0.5rem;
+}
+
+#customChallengeBuilderWrapper .b2b-segment .b2b-game-rows-container .row {
+    border-left-color: var(--warning-color); /* Ensure B2B game rows also have accent */
+    margin-left: 0; /* Reset margin if any from parent */
+    margin-right: 0;
+}
+
+#customChallengeBuilderWrapper .custom-game-inputs {
+    border: 1px dashed var(--input-border);
+    padding: 0.5rem;
+    border-radius: var(--border-radius-sm);
+    background-color: rgba(var(--input-bg-rgb), 0.5);
+}
+
+#customChallengeBuilderWrapper .game-difficulty-display {
+    font-style: italic;
 }

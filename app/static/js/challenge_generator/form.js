@@ -1217,4 +1217,724 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Call the main initialization function for the challenge form page
   await initializeChallengeForm();
+  initializeCustomChallengeBuilder(); // Initialize custom builder logic
 });
+
+// --- Custom Challenge Builder Logic ---
+function getSelectedGamesFromMainTable() {
+  const gameSourceSelect = document.getElementById("gameSourceSelect");
+  const selectedTabId = gameSourceSelect?.value;
+  if (!selectedTabId) return [];
+
+  const isLoggedIn = window.IS_AUTHENTICATED === true;
+  const sourceEntries = isLoggedIn
+    ? window.indexPageGameTabs?.entries || {}
+    : getLocalOnlyEntries();
+
+  const entriesForSelectedTab = sourceEntries[selectedTabId] || [];
+  const gameNames = new Set();
+  entriesForSelectedTab.forEach(entry => {
+    const gameName = (entry?.Spiel || entry?.game)?.trim();
+    if (gameName) {
+      gameNames.add(gameName);
+    }
+  });
+  return Array.from(gameNames).sort();
+}
+
+function addNormalWinGameRow() {
+  const normalWinsContainer = document.getElementById("normalWinsContainer");
+  if (!normalWinsContainer) return;
+  // Call the generic function, ensuring isB2B is false
+  addSingleGameRowToContainer(normalWinsContainer, false);
+}
+
+function updateCustomChallengeSummary() {
+  const normalWinsContainer = document.getElementById("normalWinsContainer");
+  const b2bSegmentsContainer = document.getElementById("b2bSegmentsContainer");
+  const totalDifficultyDisplay = document.getElementById("customChallengeTotalDifficultyDisplay");
+  const groupTypeDisplay = document.getElementById("customChallengeGroupTypeDisplay");
+  const penaltiesEnabledDisplay = document.getElementById("customChallengePenaltiesEnabledDisplay"); // Assuming you add this element
+
+  if (!totalDifficultyDisplay || !groupTypeDisplay) return;
+
+  let totalDifficulty = 0;
+  let hasB2bSegments = false;
+  
+  // Read from main form
+  const mainForm = document.getElementById("challengeForm");
+  const mainFormData = new FormData(mainForm);
+  const mainFormGroupMode = mainFormData.get("group_mode") || "single";
+  const mainFormPenaltiesEnabled = mainFormData.get("use_penalties") === "on";
+
+  // Calculate difficulty from Normal Wins
+  normalWinsContainer.querySelectorAll(".normal-win-game-row").forEach(row => {
+    const winsInput = row.querySelector(".game-wins-input");
+    const gameSelect = row.querySelector(".custom-game-select");
+    const modeSelect = row.querySelector(".custom-game-mode-select");
+    const customDifficultyInput = row.querySelector(".custom-game-difficulty");
+    
+    const wins = parseInt(winsInput.value) || 0;
+    let gameDifficulty = 0;
+
+    if (gameSelect.value === "custom") {
+      // For custom games, the difficulty is directly from its input
+      gameDifficulty = parseFloat(customDifficultyInput.value) || 0;
+    } else if (gameSelect.value) {
+      const selectedMode = modeSelect ? modeSelect.value : null;
+      const gameData = findGameData(gameSelect.value, selectedMode);
+      gameDifficulty = gameData ? parseFloat(gameData.difficulty) : 0;
+    }
+    totalDifficulty += wins * gameDifficulty;
+  });
+
+  // Calculate difficulty from B2B Segments
+  if (b2bSegmentsContainer && b2bSegmentsContainer.children.length > 0) {
+    const b2bSegmentElements = b2bSegmentsContainer.querySelectorAll(".b2b-segment");
+    for (const segmentElement of b2bSegmentElements) {
+      if (segmentElement.querySelector(".b2b-segment-game-row")) {
+        hasB2bSegments = true;
+        break;
+      }
+    }
+
+    b2bSegmentsContainer.querySelectorAll(".b2b-segment-game-row").forEach(row => {
+      const winsInput = row.querySelector(".game-wins-input");
+      const gameSelect = row.querySelector(".custom-game-select");
+      const modeSelect = row.querySelector(".custom-game-mode-select");
+      // Correctly get the custom difficulty input for *this specific row*
+      const customDifficultyInput = row.querySelector(".custom-game-difficulty"); 
+      
+      const wins = parseInt(winsInput.value) || 0;
+      let gameDifficulty = 0;
+
+      if (gameSelect.value === "custom") {
+        gameDifficulty = parseFloat(customDifficultyInput.value) || 0;
+      } else if (gameSelect.value) {
+        const selectedMode = modeSelect ? modeSelect.value : null;
+        const gameData = findGameData(gameSelect.value, selectedMode);
+        gameDifficulty = gameData ? parseFloat(gameData.difficulty) : 0;
+      }
+      totalDifficulty += wins * gameDifficulty; 
+    });
+  }
+
+  totalDifficultyDisplay.textContent = totalDifficulty.toFixed(1);
+  
+  let groupModeText = "Single Group";
+  if (mainFormGroupMode === "multi") {
+      groupModeText = "Multi-Group";
+  } else if (hasB2bSegments) { // Fallback to B2B if main form is single but B2B segments exist
+      groupModeText = "Multi-Group (B2B)";
+  }
+  
+  let penaltiesText = "";
+  if (mainFormPenaltiesEnabled) {
+      const penaltySourceSelectMain = document.getElementById("penaltySourceSelect");
+      const penaltyTabNameMain = penaltySourceSelectMain ? penaltySourceSelectMain.options[penaltySourceSelectMain.selectedIndex]?.text : "Default Penalties";
+      penaltiesText = ` w/ ${escapeHtml(penaltyTabNameMain)}`;
+  }
+  
+  groupTypeDisplay.textContent = `${groupModeText}${penaltiesText}`;
+  // if (penaltiesEnabledDisplay) { // Optional separate display for penalties
+  //   penaltiesEnabledDisplay.textContent = mainFormPenaltiesEnabled ? "Penalties: Enabled" : "Penalties: Disabled";
+  // }
+}
+
+
+// Finds game data including difficulty for a specific game and mode.
+function findGameData(gameName, gameMode = null) {
+    const gameSourceSelect = document.getElementById("gameSourceSelect");
+    const selectedTabId = gameSourceSelect?.value;
+    if (!selectedTabId) return null;
+
+    const isLoggedIn = window.IS_AUTHENTICATED === true;
+    const sourceEntries = isLoggedIn
+        ? window.indexPageGameTabs?.entries || {}
+        : getLocalOnlyEntries();
+    
+    const entriesForSelectedTab = sourceEntries[selectedTabId] || [];
+    
+    let foundEntry = null;
+    if (gameMode && gameMode !== "N/A" && gameMode !== "custom") { // Ensure gameMode is a valid mode string
+        foundEntry = entriesForSelectedTab.find(entry => 
+            (entry?.Spiel || entry?.game)?.trim() === gameName &&
+            (entry?.Spielmodus || entry?.gameMode)?.trim() === gameMode
+        );
+    }
+    
+    // Fallback to first entry if specific mode not found or not specified, to get available modes
+    if (!foundEntry) {
+        foundEntry = entriesForSelectedTab.find(entry => (entry?.Spiel || entry?.game)?.trim() === gameName);
+    }
+
+    if (foundEntry) {
+        const modes = new Set();
+        entriesForSelectedTab.forEach(entry => {
+            if ((entry?.Spiel || entry?.game)?.trim() === gameName) {
+                const mode = (entry?.Spielmodus || entry?.gameMode)?.trim();
+                if (mode) {
+                    modes.add(mode);
+                }
+            }
+        });
+
+        // Determine the difficulty: use the specific mode's entry if found, otherwise the first entry for the game.
+        let difficultyToUse = 1.0;
+        if (gameMode && gameMode !== "N/A" && gameMode !== "custom") {
+            const specificModeEntry = entriesForSelectedTab.find(entry => 
+                (entry?.Spiel || entry?.game)?.trim() === gameName &&
+                (entry?.Spielmodus || entry?.gameMode)?.trim() === gameMode
+            );
+            if (specificModeEntry) {
+                 difficultyToUse = specificModeEntry.difficulty !== undefined ? parseFloat(specificModeEntry.difficulty) : 
+                                   specificModeEntry.Schwierigkeit !== undefined ? parseFloat(specificModeEntry.Schwierigkeit) : 1.0;
+            } else { // Fallback if specific mode entry not found (should ideally not happen if mode is in dropdown)
+                 difficultyToUse = foundEntry.difficulty !== undefined ? parseFloat(foundEntry.difficulty) : 
+                                   foundEntry.Schwierigkeit !== undefined ? parseFloat(foundEntry.Schwierigkeit) : 1.0;
+            }
+        } else { // No specific mode, or it's N/A/custom - use the first found entry for the game
+            difficultyToUse = foundEntry.difficulty !== undefined ? parseFloat(foundEntry.difficulty) : 
+                              foundEntry.Schwierigkeit !== undefined ? parseFloat(foundEntry.Schwierigkeit) : 1.0;
+        }
+
+        return {
+            name: gameName,
+            difficulty: difficultyToUse.toFixed(1),
+            availableModes: Array.from(modes).sort()
+        };
+    }
+    return null;
+}
+
+function populateGameModeDropdown(selectElement, modes, defaultMode = null) {
+    selectElement.innerHTML = ""; // Clear existing options
+    if (!modes || modes.length === 0) {
+        selectElement.innerHTML = '<option value="">N/A</option>';
+        selectElement.disabled = true;
+        return;
+    }
+    selectElement.disabled = false;
+    modes.forEach(mode => {
+        const option = document.createElement("option");
+        option.value = escapeHtml(mode);
+        option.textContent = escapeHtml(mode);
+        selectElement.appendChild(option);
+    });
+    if (defaultMode && modes.includes(defaultMode)) {
+        selectElement.value = escapeHtml(defaultMode);
+    } else if (modes.length > 0) {
+        selectElement.value = escapeHtml(modes[0]); // Default to first mode
+    }
+}
+
+function initializeCustomChallengeBuilder() {
+  const showBuilderBtn = document.getElementById("showCustomChallengeBuilderBtn");
+  const customBuilderWrapper = document.getElementById("customChallengeBuilderWrapper");
+  const challengeResultWrapper = document.getElementById("challengeResultWrapper");
+  const addNormalWinGameBtn = document.getElementById("addNormalWinGameBtn");
+
+  if (showBuilderBtn && customBuilderWrapper) {
+    showBuilderBtn.addEventListener("click", () => {
+      const isHidden = customBuilderWrapper.style.display === "none";
+      customBuilderWrapper.style.display = isHidden ? "block" : "none";
+      if (isHidden && challengeResultWrapper) {
+        challengeResultWrapper.style.display = "none";
+        challengeResultWrapper.classList.remove("visible");
+      }
+    });
+  }
+
+  if (addNormalWinGameBtn) {
+    addNormalWinGameBtn.addEventListener("click", addNormalWinGameRow);
+  }
+  
+  const addB2bSegmentBtn = document.getElementById("addB2bSegmentBtn");
+  const createCustomChallengeBtn = document.getElementById("createCustomChallengeBtn");
+
+  if (addB2bSegmentBtn) {
+    addB2bSegmentBtn.addEventListener("click", addB2bSegmentRow);
+  }
+  if (createCustomChallengeBtn) {
+    createCustomChallengeBtn.addEventListener("click", handleCreateCustomChallenge); 
+  }
+  
+  // Add event listeners to main form controls to update custom summary dynamically
+  const mainFormControlsToWatch = [
+    "enablePenalties", 
+    "penaltySourceSelect",
+    // "num_players", // num_players from main form is now used in payload
+    // "max_groups" // max_groups from main form is now used in payload
+  ];
+  mainFormControlsToWatch.forEach(controlId => {
+    const element = document.getElementById(controlId);
+    if (element) {
+      element.addEventListener("change", updateCustomChallengeSummary);
+    }
+  });
+  document.querySelectorAll('input[name="group_mode"]').forEach(radio => {
+    radio.addEventListener("change", updateCustomChallengeSummary);
+  });
+  // Also listen to num_players and max_groups if their display affects the custom summary directly
+  const numPlayersInput = document.getElementById("num_players");
+  if (numPlayersInput) numPlayersInput.addEventListener("input", updateCustomChallengeSummary);
+  const maxGroupsInput = document.getElementById("max_groups");
+  if (maxGroupsInput) maxGroupsInput.addEventListener("input", updateCustomChallengeSummary);
+
+
+  updateCustomChallengeSummary(); // Initial call to set display
+}
+
+let b2bSegmentCounter = 0;
+
+function addB2bSegmentRow() {
+  const b2bSegmentsContainer = document.getElementById("b2bSegmentsContainer");
+  if (!b2bSegmentsContainer) return;
+
+  b2bSegmentCounter++;
+  const segmentDiv = document.createElement("div");
+  segmentDiv.className = "b2b-segment card mb-3 p-3"; // Added card styling for visual separation
+  segmentDiv.dataset.segmentId = b2bSegmentCounter;
+
+  segmentDiv.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0">B2B Segment ${b2bSegmentCounter}</h6>
+      <button type="button" class="btn btn-danger btn-sm remove-b2b-segment-btn">
+        <i class="bi bi-x-lg"></i> Remove Segment
+      </button>
+    </div>
+    <div class="b2b-game-rows-container">
+      <!-- Game rows for this B2B segment will be added here -->
+    </div>
+    <button type="button" class="btn btn-outline-success btn-sm mt-2 add-game-to-b2b-btn">
+      <i class="bi bi-plus-circle"></i> Add Game to Segment
+    </button>
+  `;
+  b2bSegmentsContainer.appendChild(segmentDiv);
+
+  segmentDiv.querySelector(".remove-b2b-segment-btn").addEventListener("click", function() {
+    segmentDiv.remove();
+    updateCustomChallengeSummary();
+  });
+
+  segmentDiv.querySelector(".add-game-to-b2b-btn").addEventListener("click", function() {
+    addSingleGameRowToContainer(segmentDiv.querySelector(".b2b-game-rows-container"), true);
+  });
+  
+  // Add one game row by default to the new B2B segment
+  addSingleGameRowToContainer(segmentDiv.querySelector(".b2b-game-rows-container"), true);
+  updateCustomChallengeSummary();
+}
+
+// Generic function to add a game row, adaptable for normal or B2B
+function addSingleGameRowToContainer(container, isB2B = false) {
+  if (!container) return;
+
+  const gameRow = document.createElement("div");
+  // Add an extra class for B2B rows for potential specific styling or easier selection
+  gameRow.className = `row mb-2 align-items-center ${isB2B ? 'b2b-segment-game-row' : 'normal-win-game-row'}`;
+
+
+  const availableGames = getSelectedGamesFromMainTable();
+  let gameOptionsHtml = '<option value="" selected disabled>Select Game</option>';
+  availableGames.forEach(gameName => {
+    gameOptionsHtml += `<option value="${escapeHtml(gameName)}">${escapeHtml(gameName)}</option>`;
+  });
+  gameOptionsHtml += '<option value="custom">Add Custom Game...</option>';
+
+  gameRow.innerHTML = `
+    <div class="col-md-4">
+      <select class="form-control form-control-sm custom-game-select">
+        ${gameOptionsHtml}
+      </select>
+      <div class="custom-game-inputs mt-2" style="display: none;">
+        <input type="text" class="form-control form-control-sm mb-1 custom-game-name" placeholder="Game Name">
+        <input type="number" class="form-control form-control-sm custom-game-difficulty" placeholder="Difficulty" min="0.1" step="0.1">
+      </div>
+    </div>
+    <div class="col-md-3">
+      <select class="form-control form-control-sm custom-game-mode-select" disabled>
+        <option value="">N/A</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <input type="number" class="form-control form-control-sm game-wins-input" value="1" min="1" placeholder="Wins">
+    </div>
+    <div class="col-md-1">
+      <p class="mb-0 game-difficulty-display text-muted small" style="font-size: 0.75rem;">Diff: -</p>
+    </div>
+    <div class="col-md-2 text-end">
+      <button type="button" class="btn btn-outline-danger btn-sm remove-game-row-btn">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+  `;
+  container.appendChild(gameRow);
+
+  const customGameSelect = gameRow.querySelector(".custom-game-select");
+  const customGameModeSelect = gameRow.querySelector(".custom-game-mode-select");
+  const customGameInputs = gameRow.querySelector(".custom-game-inputs");
+  const gameDifficultyDisplay = gameRow.querySelector(".game-difficulty-display");
+  const customGameNameInput = gameRow.querySelector(".custom-game-name");
+  const customGameDifficultyInput = gameRow.querySelector(".custom-game-difficulty");
+
+  function updateRowDisplayAndTotalDifficulty() {
+    const selectedGameName = customGameSelect.value;
+    const selectedGameMode = customGameModeSelect.value;
+
+    if (selectedGameName === "custom") {
+      customGameInputs.style.display = "block";
+      gameDifficultyDisplay.textContent = `Diff: ${customGameDifficultyInput.value || '-'}`;
+      populateGameModeDropdown(customGameModeSelect, []); 
+    } else {
+      customGameInputs.style.display = "none";
+      if (selectedGameName) {
+        const gameData = findGameData(selectedGameName, selectedGameMode);
+        gameDifficultyDisplay.textContent = `Diff: ${gameData ? gameData.difficulty : '-'}`;
+        // If modes were just populated and one is now selected, this will use it.
+        // If no mode selected (e.g. game has no modes), findGameData handles it.
+      } else {
+        gameDifficultyDisplay.textContent = "Diff: -";
+        populateGameModeDropdown(customGameModeSelect, []);
+      }
+    }
+    updateCustomChallengeSummary();
+  }
+
+  customGameSelect.addEventListener("change", function() {
+    const selectedGameName = this.value;
+    if (selectedGameName === "custom") {
+      customGameNameInput.value = ""; 
+      customGameDifficultyInput.value = "";
+      populateGameModeDropdown(customGameModeSelect, []);
+    } else if (selectedGameName) {
+      const gameData = findGameData(selectedGameName); // Get available modes
+      populateGameModeDropdown(customGameModeSelect, gameData ? gameData.availableModes : []);
+    } else {
+      populateGameModeDropdown(customGameModeSelect, []);
+    }
+    updateRowDisplayAndTotalDifficulty(); // Update difficulty based on new game/mode
+  });
+  
+  customGameModeSelect.addEventListener("change", updateRowDisplayAndTotalDifficulty);
+
+  customGameDifficultyInput.addEventListener('input', function() {
+    if (customGameSelect.value === 'custom') {
+        gameDifficultyDisplay.textContent = `Diff: ${this.value || '-'}`; // Update row display
+        updateCustomChallengeSummary(); // Update total summary
+    }
+  });
+  
+  customGameNameInput.addEventListener('input', updateCustomChallengeSummary); 
+  gameRow.querySelector(".game-wins-input").addEventListener("input", updateCustomChallengeSummary); 
+
+  gameRow.querySelector(".remove-game-row-btn").addEventListener("click", function() {
+    gameRow.remove();
+    updateCustomChallengeSummary();
+  });
+  
+  // Initial population of modes if a game is pre-selected (e.g. if we implement editing later)
+  if (customGameSelect.value && customGameSelect.value !== "custom") {
+      const initialGameData = findGameData(customGameSelect.value);
+      populateGameModeDropdown(customGameModeSelect, initialGameData ? initialGameData.availableModes : []);
+  }
+  updateRowDisplayAndTotalDifficulty(); // Initial call to set difficulty and total
+}
+
+
+function handleCreateCustomChallenge() {
+  const challengeNameInput = document.getElementById("challengeName");
+  const customChallengeName = challengeNameInput ? challengeNameInput.value.trim() : "Custom Challenge";
+  
+  const normalWinsContainer = document.getElementById("normalWinsContainer");
+  const b2bSegmentsContainer = document.getElementById("b2bSegmentsContainer");
+  const resultDiv = document.getElementById("challengeResult");
+  const resultWrapper = document.getElementById("challengeResultWrapper");
+  const customBuilderWrapper = document.getElementById("customChallengeBuilderWrapper");
+  const errorDisplay = document.getElementById("formErrorDisplay");
+  const viewLocalBtn = document.getElementById("viewLocalChallengeBtn");
+  const shareBtn = document.getElementById("shareChallengeBtn");
+  const shareResultDiv = document.getElementById("shareResult");
+
+
+  if (!resultDiv || !resultWrapper || !customBuilderWrapper) {
+    console.error("One or more critical display elements are missing.");
+    return;
+  }
+  
+  showError(errorDisplay, null); // Clear previous errors
+
+  const challengeDataForDisplay = { // Keep this for the immediate display
+    name: customChallengeName || `Custom Challenge ${new Date().toLocaleDateString()}`,
+    normal: [],
+    b2b: [],
+    totalDifficulty: parseFloat(document.getElementById("customChallengeTotalDifficultyDisplay").textContent) || 0,
+    groupType: document.getElementById("customChallengeGroupTypeDisplay").textContent || "Single Group"
+  };
+
+  const payloadChallengeData = { // This will be structured for the /api/challenge/share endpoint
+      normal: {},
+      b2b: []
+  };
+
+  // Gather Normal Wins
+  normalWinsContainer.querySelectorAll(".normal-win-game-row").forEach(row => {
+    const gameSelect = row.querySelector(".custom-game-select");
+    const modeSelect = row.querySelector(".custom-game-mode-select");
+    const winsInput = row.querySelector(".game-wins-input");
+    const customNameInput = row.querySelector(".custom-game-name");
+    const customDiffInput = row.querySelector(".custom-game-difficulty");
+
+    const wins = parseInt(winsInput.value) || 1;
+    let gameName, gameDifficulty, gameMode, isCustomGame = false;
+
+    if (gameSelect.value === "custom") {
+      gameName = customNameInput.value.trim() || "Custom Game";
+      gameDifficulty = parseFloat(customDiffInput.value) || 1.0;
+      gameMode = "custom"; // Or leave undefined/null if custom games don't have modes
+      isCustomGame = true;
+    } else if (gameSelect.value) {
+      gameName = gameSelect.value;
+      const selectedMode = modeSelect ? modeSelect.value : null;
+      const gameData = findGameData(gameName, selectedMode);
+      gameDifficulty = gameData ? parseFloat(gameData.difficulty) : 1.0;
+      gameMode = selectedMode || (gameData && gameData.availableModes && gameData.availableModes.length > 0 ? gameData.availableModes[0] : "N/A");
+    } else {
+      return; // Skip if no game selected
+    }
+    // For display
+    challengeDataForDisplay.normal.push({ game: gameName, wins: wins, difficulty: gameDifficulty, mode: gameMode, custom: isCustomGame });
+    // For payload
+    const payloadKeyNormal = `${gameName} (${gameMode === "custom" || gameMode === "N/A" ? "Default" : gameMode})`;
+    payloadChallengeData.normal[payloadKeyNormal] = { count: wins, diff: gameDifficulty };
+  });
+
+  // Gather B2B Segments
+  let segmentIndex = 0;
+  b2bSegmentsContainer.querySelectorAll(".b2b-segment").forEach(segmentElement => {
+    const segmentGamesForDisplay = [];
+    const segmentGamesForPayloadGroup = {};
+    let segmentTotalWins = 0;
+    let segmentTotalDifficulty = 0;
+
+    segmentElement.querySelectorAll(".b2b-segment-game-row").forEach(row => {
+      const gameSelect = row.querySelector(".custom-game-select");
+      const modeSelect = row.querySelector(".custom-game-mode-select");
+      const winsInput = row.querySelector(".game-wins-input");
+      const customNameInput = row.querySelector(".custom-game-name");
+      const customDiffInput = row.querySelector(".custom-game-difficulty");
+
+      const wins = parseInt(winsInput.value) || 1;
+      let gameName, gameDifficulty, gameMode, isCustomGame = false;
+
+      if (gameSelect.value === "custom") {
+        gameName = customNameInput.value.trim() || "Custom Game";
+        gameDifficulty = parseFloat(customDiffInput.value) || 1.0;
+        gameMode = "custom";
+        isCustomGame = true;
+      } else if (gameSelect.value) {
+        gameName = gameSelect.value;
+        const selectedMode = modeSelect ? modeSelect.value : null;
+        const gameData = findGameData(gameName, selectedMode);
+        gameDifficulty = gameData ? parseFloat(gameData.difficulty) : 1.0;
+      gameMode = selectedMode || (gameData && gameData.availableModes && gameData.availableModes.length > 0 ? gameData.availableModes[0] : "N/A");
+      } else {
+        return; // Skip if no game selected in B2B row
+      }
+      // For display
+      segmentGamesForDisplay.push({ game: gameName, wins: wins, difficulty: gameDifficulty, mode: gameMode, custom: isCustomGame });
+      // For payload
+      const payloadKeyB2B = `${gameName} (${gameMode === "custom" || gameMode === "N/A" ? "Default" : gameMode})`;
+      segmentGamesForPayloadGroup[payloadKeyB2B] = wins; // Store wins directly
+      segmentTotalWins += wins;
+      segmentTotalDifficulty += wins * gameDifficulty;
+    });
+
+    if (segmentGamesForDisplay.length > 0) {
+      challengeDataForDisplay.b2b.push(segmentGamesForDisplay);
+      payloadChallengeData.b2b.push({
+        group: segmentGamesForPayloadGroup,
+        length: segmentTotalWins,
+        seg_diff: parseFloat(segmentTotalDifficulty.toFixed(1)), // Ensure it's a number
+        segment_index_1_based: ++segmentIndex
+      });
+    }
+  });
+  
+  if (challengeDataForDisplay.normal.length === 0 && payloadChallengeData.b2b.length === 0) { // Check payload's b2b
+    showError(errorDisplay, "Please add at least one game to your custom challenge.");
+    return;
+  }
+
+  // Generate HTML for display (using challengeDataForDisplay)
+  let htmlResult = `<h3 class="mb-3 text-light text-center h4">${escapeHtml(challengeDataForDisplay.name)}</h3>`;
+  htmlResult += `<p class="text-center"><strong>Total Difficulty:</strong> ${challengeDataForDisplay.totalDifficulty.toFixed(1)} | <strong>Mode:</strong> ${escapeHtml(challengeDataForDisplay.groupType)}</p>`;
+
+  if (challengeDataForDisplay.normal.length > 0) {
+    htmlResult += `<h4>Normal Wins</h4>`;
+    challengeDataForDisplay.normal.forEach(item => {
+      htmlResult += `<p>${escapeHtml(item.game)} (${escapeHtml(item.mode || 'N/A')}): ${item.wins} win(s) ${item.custom ? '(Custom - Diff: ' + item.difficulty.toFixed(1) + ')' : '(Diff: ' + item.difficulty.toFixed(1) + ')'}</p>`;
+    });
+  }
+
+  if (challengeDataForDisplay.b2b.length > 0) {
+    htmlResult += `<h4>Back-to-Back Segments</h4>`;
+    challengeDataForDisplay.b2b.forEach((segment, index) => {
+      htmlResult += `<p class="mt-2"><strong>Segment ${index + 1}:</strong></p>`;
+      segment.forEach(item => {
+        htmlResult += `<p style="margin-left: 20px;">${escapeHtml(item.game)} (${escapeHtml(item.mode || 'N/A')}): ${item.wins} win(s) ${item.custom ? '(Custom - Diff: ' + item.difficulty.toFixed(1) + ')' : '(Diff: ' + item.difficulty.toFixed(1) + ')'}</p>`;
+      });
+    });
+  }
+  
+  resultDiv.innerHTML = htmlResult;
+  customBuilderWrapper.style.display = "none";
+  resultWrapper.style.display = "block";
+  requestAnimationFrame(() => {
+    resultWrapper.classList.add("visible");
+  });
+
+  // Determine if to save locally or send to backend
+  const isAuthenticated = window.IS_AUTHENTICATED === true;
+
+  if (isAuthenticated) {
+    // Read main form settings for payload
+    const mainForm = document.getElementById("challengeForm");
+    const mainFormData = new FormData(mainForm);
+
+    const usePenaltiesMain = mainFormData.get("use_penalties") === "on";
+    let penaltyInfoPayload = null;
+    if (usePenaltiesMain) {
+        const penaltyTabIdMain = mainFormData.get("penalty_tab_id");
+        const penaltySourceSelectMain = document.getElementById("penaltySourceSelect");
+        const penaltyTabNameMain = penaltySourceSelectMain ? penaltySourceSelectMain.options[penaltySourceSelectMain.selectedIndex]?.text : "Unknown Tab";
+        
+        if (penaltyTabIdMain) {
+            let penaltyEntriesListMain = [];
+            if (window.indexPagePenaltyTabs && window.indexPagePenaltyTabs.entries) {
+                penaltyEntriesListMain = window.indexPagePenaltyTabs.entries[penaltyTabIdMain] || [];
+            } else { // Fallback for local if somehow global isn't populated (should be for logged-in)
+                const localPenaltyData = getLocalPenaltyEntries();
+                penaltyEntriesListMain = localPenaltyData[penaltyTabIdMain] || [];
+            }
+            const validPenaltyEntriesMain = (Array.isArray(penaltyEntriesListMain) ? penaltyEntriesListMain : []).filter(p => {
+                const prob = p && p.probability !== undefined ? parseFloat(p.probability) : NaN;
+                return !isNaN(prob) && prob > 0;
+            });
+            penaltyInfoPayload = {
+                source_tab_id: penaltyTabIdMain,
+                source_tab_name: penaltyTabNameMain,
+                penalties: validPenaltyEntriesMain,
+            };
+        }
+    }
+
+    const groupModeMain = mainFormData.get("group_mode") || "single";
+    const maxGroupsMain = groupModeMain === "multi" ? (parseInt(mainFormData.get("max_groups")) || 1) : 1;
+    const numPlayersPerGroupMain = parseInt(mainFormData.get("num_players")) || 1;
+
+
+    // User is logged in, send to /api/challenge/share
+    const sharePayload = {
+      challenge_data: payloadChallengeData,
+      penalty_info: penaltyInfoPayload,
+      name: challengeDataForDisplay.name, 
+      max_groups: maxGroupsMain,
+      num_players_per_group: numPlayersPerGroupMain,
+      is_custom_built: true 
+    };
+
+    // Clear previous share/local buttons and messages
+    if (viewLocalBtn) viewLocalBtn.style.display = "none";
+    if (shareBtn) {
+        shareBtn.style.display = "none"; // Hide the original share button
+        const shareBtnSpinner = shareBtn.querySelector(".spinner-border-sm");
+        const shareBtnText = shareBtn.querySelector("span:not(.spinner-border-sm)");
+        // We might want a dedicated "View Shared Custom Challenge" button later
+        // For now, we'll just show a success/error message.
+    }
+    if (shareResultDiv) {
+        shareResultDiv.style.display = "none";
+        shareResultDiv.innerHTML = "";
+    }
+    
+    // Use the global shareChallengeUrl or default to /api/challenge/share
+    const shareUrl = window.shareChallengeUrl || "/api/challenge/share";
+    console.log("Sending share request to:", shareUrl, "with payload:", JSON.stringify(sharePayload));
+
+
+    apiFetch(shareUrl, { method: "POST", body: sharePayload }, window.csrfToken)
+      .then(sharedResponse => {
+        // The /api/challenge/share endpoint returns status, public_id, and share_url on success.
+        if (sharedResponse.status === "success" && sharedResponse.public_id && sharedResponse.share_url) {
+            // The main resultDiv already shows the custom challenge structure.
+            // We just need to provide a success message and a link.
+            if (shareResultDiv) {
+                 shareResultDiv.innerHTML = `<div class="alert alert-success">Custom challenge shared successfully! <a href="${sharedResponse.share_url}" target="_blank" class="alert-link">View it here</a> or use the button below.</div>`;
+                 shareResultDiv.style.display = "block";
+            }
+            
+            // Update the "Create & View" button to become a "View Shared Challenge" link/button
+            const createCustomChallengeButton = document.getElementById("createCustomChallengeBtn");
+            if (createCustomChallengeButton) {
+                const viewSharedButton = createCustomChallengeButton.cloneNode(true); // Clone to remove old listeners
+                viewSharedButton.innerHTML = '<i class="bi bi-box-arrow-up-right me-1"></i> View Shared Custom Challenge';
+                viewSharedButton.classList.remove("btn-primary");
+                viewSharedButton.classList.add("btn-success"); // Or btn-info
+                viewSharedButton.onclick = () => { window.open(sharedResponse.share_url, '_blank'); };
+                createCustomChallengeButton.parentNode.replaceChild(viewSharedButton, createCustomChallengeButton);
+            }
+            
+            // Hide the original "Share Challenge" button if it was for random challenges and is still visible
+            if (shareBtn && shareBtn.id === "shareChallengeBtn") { // Ensure it's the correct button
+                 shareBtn.style.display = "none";
+            }
+
+        } else {
+          // If sharedResponse.error is present, use it, otherwise a generic message.
+          const errorMessage = sharedResponse.error || "Failed to share custom challenge. The server did not return the expected success response.";
+          throw new Error(errorMessage);
+        }
+      })
+      .catch(error => {
+        console.error("Error sharing custom challenge via /api/challenge/share:", error);
+        showError(errorDisplay, `Error sharing custom challenge: ${error.message}`);
+        if (shareResultDiv) {
+            shareResultDiv.innerHTML = `<div class="alert alert-danger">Failed to share custom challenge: ${escapeHtml(error.message)}</div>`;
+            shareResultDiv.style.display = "block";
+        }
+      });
+
+  } else {
+    // User is not logged in, save locally
+    let uuid;
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      uuid = crypto.randomUUID();
+    } else {
+      uuid = 'xxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    const localId = `local_custom_${uuid}`;
+    const challengeToStore = {
+        localId: localId,
+        name: challengeData.name,
+        createdAt: new Date().toISOString(),
+        challengeData: {
+            normal: challengeData.normal.map(n => ({ game: n.game, wins: n.wins, difficulty: n.difficulty, mode: n.mode, custom: n.custom })),
+            b2b: challengeData.b2b.map(seg => seg.map(g => ({ game: g.game, wins: g.wins, difficulty: g.difficulty, mode: g.mode, custom: g.custom }))),
+        },
+        isCustom: true
+    };
+    
+    const saved = saveChallengeToLocalStorage(challengeToStore);
+    if (saved && viewLocalBtn) {
+        viewLocalBtn.href = `/challenge/${localId}`;
+        viewLocalBtn.style.display = "inline-block";
+    } else if (!saved) {
+        showError(errorDisplay, "Warning: Could not save custom challenge locally.");
+    }
+    if (shareBtn) shareBtn.style.display = "none";
+  }
+}

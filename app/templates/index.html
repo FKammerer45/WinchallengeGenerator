@@ -5,148 +5,6 @@
 {{ super() }}
 {# Base style.css is linked in base.html #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/frontpage_improvements.css') }}">
-<style>
-    /* Styles from previous versions (keep relevant ones) */
-    .custom-range::-webkit-slider-thumb {
-        background: var(--accent-primary);
-    }
-
-    .custom-range::-moz-range-thumb {
-        background: var(--accent-primary);
-    }
-
-    .card-header.h5 {
-        font-size: 1.15rem;
-        font-weight: 600;
-        position: relative;
-        z-index: 2;
-    }
-
-    .game-selection-table thead {
-        background-color: rgba(255, 255, 255, 0.05);
-    }
-
-    .game-selection-table thead th {
-        border-bottom-width: 1px !important;
-        border-color: var(--surface-border) !important;
-        color: var(--text-secondary);
-        padding: 0.75rem 1rem;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.75px;
-    }
-
-    .game-selection-table tbody tr:hover {
-        background-color: var(--surface-highlight);
-    }
-
-    .game-selection-table td {
-        border-color: var(--surface-border) !important;
-        vertical-align: middle;
-        padding: 0.6rem 1rem;
-    }
-
-    .generate-btn {
-        font-size: 1.1rem;
-        padding: 0.8rem 1.5rem;
-    }
-
-    .range-value-display {
-        display: inline-block;
-        min-width: 3em;
-        padding: 0.25rem 0.6rem;
-        background-color: var(--input-bg);
-        border: 1px solid var(--input-border);
-        border-radius: var(--border-radius-sm);
-        color: var(--text-primary);
-        font-weight: 500;
-        font-size: 0.9em;
-        text-align: center;
-        margin-left: 0.5rem;
-        vertical-align: middle;
-    }
-
-    .custom-control {
-        padding-left: 1.75rem;
-    }
-
-    .custom-control-label {
-        vertical-align: middle;
-    }
-
-    .custom-control-label::before,
-    .custom-control-label::after {
-        top: 0.15rem;
-        width: 1.1rem;
-        height: 1.1rem;
-    }
-
-    .custom-radio .custom-control-label::before {
-        border-radius: 50%;
-    }
-
-    .card>.collapse.show {
-        padding: 1.5rem;
-    }
-
-    .card>.collapsing {
-        padding: 1.5rem;
-    }
-
-    #challengeResultWrapper {
-        opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
-    }
-
-    #challengeResultWrapper.visible {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    input[type=number]::-webkit-outer-spin-button,
-    input[type=number]::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-
-    /* Firefox */
-    input[type=number] {
-        -moz-appearance: textfield;
-    }
-
-    /* Ensure cards in the same row try to maintain height */
-    .row.match-height>[class*='col-'] {
-        display: flex;
-        flex-direction: column;
-        margin-bottom: 1.5rem;
-        /* Consistent spacing between rows/stacked cols */
-    }
-
-    .row.match-height>[class*='col-']>.card {
-        flex-grow: 1;
-    }
-
-    /* Style for the result column content */
-    .result-column-content {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        /* Make it fill the column height */
-    }
-
-    .result-column-content .generate-button-container {
-        /* Position button at the top of this column */
-        margin-bottom: 1.5rem;
-        /* Space between button and results */
-    }
-
-    .result-column-content #challengeResultWrapper {
-        /* Result wrapper will be below button */
-        flex-grow: 1;
-        /* Allow result wrapper to take remaining space */
-    }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -411,16 +269,67 @@
                 <div class="result-column-content">
 
                     {# --- Generate Button Container (INSIDE FORM) --- #}
-                    <div class="generate-button-container text-center">
-                        <button type="submit"
-                            class="btn btn-warning btn-lg shadow-lg generate-btn d-inline-flex align-items-center">
-                            <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
-                            <i class="bi bi-magic me-2"></i>
-                            <span>Generate Challenge</span>
-                        </button>
+                    <div class="generate-button-container text-center mb-3">
+                        <div class="btn-group w-100" role="group" aria-label="Challenge Actions">
+                            <button type="submit"
+                                class="btn btn-warning btn-lg shadow-lg generate-btn d-inline-flex align-items-center justify-content-center flex-fill">
+                                <span class="spinner-border spinner-border-sm me-2" style="display: none;"></span>
+                                <i class="bi bi-magic me-2"></i>
+                                <span>Generate Challenge</span>
+                            </button>
+                            <button type="button" id="showCustomChallengeBuilderBtn"
+                                class="btn btn-info btn-lg shadow-lg d-inline-flex align-items-center justify-content-center flex-fill">
+                                <i class="bi bi-tools me-2"></i>
+                                <span>Build Custom Challenge</span>
+                            </button>
+                        </div>
                         <div id="formErrorDisplay" class="alert alert-danger mt-3" style="display: none;"></div>
                     </div>
                     {# --- End Generate Button Container --- #}
+
+                    {# --- Custom Challenge Builder Wrapper (Placeholder) --- #}
+                    <div id="customChallengeBuilderWrapper" class="mt-4" style="display:none;">
+                        <hr class="my-4" style="border-color: var(--surface-border);">
+                        <div class="result-card glass-effect p-4"> {# Re-use result-card for similar base styling #}
+                            <h3 class="mb-3 text-center h4">Custom Challenge Builder</h3>
+                            
+                            {# Group Type & Difficulty Display - Styled like result header #}
+                            <p class="text-center mb-4">
+                                <strong>Mode:</strong> <span id="customChallengeGroupTypeDisplay">Single Group</span> | 
+                                <strong>Total Difficulty:</strong> <span id="customChallengeTotalDifficultyDisplay">0</span>
+                            </p>
+
+                            {# Normal Wins Section #}
+                            <div class="custom-builder-section mb-4">
+                                <h4 class="custom-builder-section-header">Normal Wins</h4>
+                                <div id="normalWinsContainer" class="custom-builder-item-list">
+                                    {# Game rows will be added here by JS, styled like result items #}
+                                </div>
+                                <button type="button" id="addNormalWinGameBtn" class="btn btn-sm btn-success mt-2 w-100">
+                                    <i class="bi bi-plus-lg"></i> Add Game to Normal Wins
+                                </button>
+                            </div>
+
+                            {# Back-to-Back Segments Section #}
+                            <div class="custom-builder-section">
+                                <h4 class="custom-builder-section-header">Back-to-Back Segments</h4>
+                                <div id="b2bSegmentsContainer" class="custom-builder-item-list">
+                                    {# B2B Segments will be added here by JS #}
+                                </div>
+                                <button type="button" id="addB2bSegmentBtn" class="btn btn-sm btn-info mt-2 w-100">
+                                    <i class="bi bi-plus-square-dotted"></i> Add B2B Segment
+                                </button>
+                            </div>
+                            
+                            <hr class="my-4">
+                            <div class="text-center">
+                                <button type="button" id="createCustomChallengeBtn" class="btn btn-primary btn-lg w-100">
+                                    <i class="bi bi-check-lg"></i> Create & View Custom Challenge
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {# --- End Custom Challenge Builder Wrapper --- #}
 
                     {# --- Result Wrapper (Placeholder, OUTSIDE form logic but inside layout column) --- #}
                     {# This outer div is targeted by JS to be shown/hidden #}
@@ -472,7 +381,6 @@
 </script>
 {% endblock %}
 
-
 {% block scripts %}
 {{ super() }}
 {# --- Load JS modules for this page (remains the same) --- #}
@@ -484,6 +392,7 @@
 
 {# Script for clamping inputs (remains the same) #}
 <script>
+    // window.IS_AUTHENTICATED = {% if current_user.is_authenticated %}true{% else %}false{% endif %}; // Removed duplicate
     const diffInput = document.getElementById('desiredDiff');
     const maxDiff = 1500;
     if (diffInput) {

@@ -187,6 +187,7 @@ class SharedChallenge(db.Model):
     timer_current_value_seconds = Column(Integer, nullable=False, default=0, server_default='0')
     timer_is_running = Column(Boolean, nullable=False, default=False, server_default='0')
     timer_last_started_at_utc = Column(DateTime(timezone=True), nullable=True)
+    is_custom_built = Column(Boolean, default=False, nullable=False) # Indicates if challenge was made with custom builder
     
     groups = db.relationship("ChallengeGroup", back_populates="shared_challenge", cascade="all, delete-orphan", lazy="select")
     creator = db.relationship("User", back_populates="created_challenges")
