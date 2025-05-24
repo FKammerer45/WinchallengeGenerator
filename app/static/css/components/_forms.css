@@ -147,6 +147,14 @@ label {
   border-color: var(--input-border);
 }
 
+/* Custom Challenge Builder - Disabled Mode Select Styling */
+.custom-game-mode-select:disabled {
+  background-color: var(--input-bg); /* Match normal input background */
+  border-color: var(--input-border); /* Match normal input border */
+  opacity: 1; /* Ensure full opacity */
+  cursor: default; /* Change cursor to default */
+}
+
 .custom-radio .custom-control-label::before {
   border-radius: 50%;
 }

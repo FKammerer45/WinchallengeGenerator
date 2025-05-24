@@ -247,4 +247,16 @@ export function updateRowTooltipPosition(event) {
     tooltip.style.left = (event.pageX + 10) + 'px';
     tooltip.style.top = (event.pageY + 10) + 'px';
 }
+/**
+ * Generates a simple UUID (Universally Unique Identifier).
+ * This is a fallback for environments where crypto.randomUUID is not available.
+ * @returns {string} A UUID string.
+ */
+export function generateSimpleUUID() {
+    return 'xxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 // --- END Custom Row Tooltip Management ---
