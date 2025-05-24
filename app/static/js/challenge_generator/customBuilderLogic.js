@@ -648,7 +648,7 @@ export function handleCreateCustomChallenge() {
     const saved = saveChallengeToLocalStorage(challengeToStore);
 
     if (createCustomChallengeButton) {
-        createCustomChallengeButton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Accept Challenge'; 
+        createCustomChallengeButton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Accept Challenge';
         createCustomChallengeButton.classList.remove("btn-primary");
         createCustomChallengeButton.classList.add("btn-success"); 
         createCustomChallengeButton.disabled = true;

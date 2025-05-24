@@ -514,14 +514,16 @@ def add_group_to_challenge(public_id):
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
 # --- /<public_id>/groups/<int:group_id>/progress endpoint ---
-@challenge_api.route("/<public_id>/groups/<int:group_id>/progress", methods=["POST"]) 
-@login_required 
+@challenge_api.route("/<public_id>/groups/<int:group_id>/progress", methods=["POST"])
+@login_required
 def update_group_progress(public_id, group_id):
     data = request.get_json()
     required_keys = ['item_type', 'item_key', 'item_index', 'is_complete']
     if not data or not all(key in data for key in required_keys):
+        logger.warning(f"Update progress request for {public_id}/group/{group_id} missing JSON or required keys: {data}")
         return jsonify({"error": f"Invalid request. JSON with keys {required_keys} required."}), 400
     if not isinstance(data.get('is_complete'), bool):
+        logger.warning(f"Update progress request for {public_id}/group/{group_id} 'is_complete' is not boolean: {data.get('is_complete')}")
         return jsonify({"error": "'is_complete' must be a boolean."}), 400
 
     item_type = data['item_type']
@@ -530,21 +532,25 @@ def update_group_progress(public_id, group_id):
         item_index = int(data['item_index'])
         segment_index = int(data['segment_index']) if 'segment_index' in data else None
     except (ValueError, TypeError):
+        logger.warning(f"Update progress request for {public_id}/group/{group_id} invalid index or segment_index: {data.get('item_index')}, {data.get('segment_index')}")
         return jsonify({"error": "Invalid index or segment_index provided."}), 400
     is_complete = data['is_complete']
 
+    logger.debug(f"Received progress update for challenge {public_id}, group {group_id}: type={item_type}, key={item_key}, index={item_index}, segment={segment_index}, complete={is_complete}")
+
     try:
         group = db.session.query(ChallengeGroup).options(
-                selectinload(ChallengeGroup.members) 
+                selectinload(ChallengeGroup.members)
             ).join(SharedChallenge, SharedChallenge.id == ChallengeGroup.shared_challenge_id)\
              .filter(SharedChallenge.public_id == public_id, ChallengeGroup.id == group_id)\
              .first()
 
         if not group:
+            logger.warning(f"Challenge or Group not found for {public_id}/group/{group_id}.")
             return jsonify({"error": "Challenge or Group not found."}), 404
-        challenge = group.shared_challenge 
+        challenge = group.shared_challenge
         if not challenge:
-            logger.error(f"Challenge object missing for group {group_id}")
+            logger.error(f"Challenge object missing for group {group_id} (public_id: {public_id})")
             return jsonify({"error": "Internal Server Error: Cannot find challenge for group."}), 500
         
         if not is_user_authorized(challenge, current_user):
@@ -556,18 +562,23 @@ def update_group_progress(public_id, group_id):
             logger.warning(f"Forbidden: User {current_user.username} (ID: {current_user.id}) tried to update progress for group {group_id} but is not a member.")
             return jsonify({"error": "You must be a member of this group to update its progress."}), 403
 
-        if group.progress_data is None: 
+        if group.progress_data is None:
             group.progress_data = {}
-        progress = group.progress_data 
+        progress = group.progress_data
 
         if item_type == 'b2b':
             if segment_index is None or segment_index < 1:
+                logger.warning(f"B2B item for {public_id}/group/{group_id} missing or invalid segment_index: {segment_index}")
                 return jsonify({"error": "'segment_index' (>= 1) is required for b2b items."}), 400
-            progress_key = f"{item_type}_{segment_index}_{item_key}_{item_index}"
+            # Convert 1-based segment_index from frontend to 0-based for internal key
+            progress_key = f"{item_type}_{segment_index - 1}_{item_key}_{item_index}"
         elif item_type == 'normal':
             progress_key = f"{item_type}_{item_key}_{item_index}"
         else:
+            logger.warning(f"Invalid progress item type '{item_type}' for {public_id}/group/{group_id}.")
             return jsonify({"error": "Invalid progress item type specified."}), 400
+
+        logger.debug(f"Constructed progress_key: {progress_key}")
 
         needs_update = False
         if is_complete:
@@ -580,10 +591,13 @@ def update_group_progress(public_id, group_id):
                 needs_update = True
 
         if needs_update:
-            group.progress_data = progress 
-            flag_modified(group, "progress_data") 
-            db.session.commit() 
+            group.progress_data = progress
+            flag_modified(group, "progress_data")
+            db.session.commit()
+            logger.info(f"Progress data committed for group {group_id}. Key: {progress_key}, Complete: {is_complete}")
             emit_progress_update(public_id, group_id, group.progress_data)
+        else:
+            logger.debug(f"No update needed for progress_key {progress_key} for group {group_id}.")
 
         return jsonify({"status": "success", "message": "Progress updated."}), 200
 
