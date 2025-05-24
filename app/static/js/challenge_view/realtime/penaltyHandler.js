@@ -199,14 +199,27 @@ function getPenaltyWheelConfig(segments, winningIndex, callbackFn, idx, wheelTyp
 }
 
 async function handleLostGameClick(event) {
-    console.log('[PenaltyHandler] handleLostGameClick triggered. Event target:', event.target);
     const clickedElement = event.target;
-    const button = clickedElement.closest('.lostGameBtn-Shared, .lostGameBtn-Local');
+    let button = null;
+
+    // Check if the clicked element itself is a lost game button
+    if (clickedElement.matches('.lostGameBtn-Shared, .lostGameBtn-Local')) {
+        button = clickedElement;
+    } 
+    // Check if the parent of the clicked element is a lost game button (e.g., if an icon inside the button was clicked)
+    else if (clickedElement.parentElement && clickedElement.parentElement.matches('.lostGameBtn-Shared, .lostGameBtn-Local')) {
+        button = clickedElement.parentElement;
+    }
 
     if (!button || button.disabled) {
-        return;
+        // This is not a click on a relevant "Lost Game" button, or the button is disabled.
+        // console.log('[PenaltyHandler] handleLostGameClick: Exiting because not a relevant button click or button disabled. Target:', clickedElement);
+        return; 
     }
-    event.stopPropagation();
+
+    // If we've reached here, it's a valid click on a "Lost Game" button.
+    console.log('[PenaltyHandler] handleLostGameClick: PROCESSING Lost Game Button Click. Target:', event.target);
+    event.stopPropagation(); // Prevent further bubbling only if we are handling this event.
     if (bailIfLibMissing(document.body)) return;
 
     const isLocalClick = button.classList.contains('lostGameBtn-Local');

@@ -101,21 +101,26 @@ export function updateCustomChallengeSummary() {
 
   totalDifficultyDisplay.textContent = totalDifficulty.toFixed(1);
   
-  let groupModeText = "Single Group";
+  let groupModeText = "";
   if (mainFormGroupMode === "multi") {
-      groupModeText = "Multi-Group";
-  } else if (hasB2bSegments) {
+    groupModeText = "Multi-Group";
+  } else { // mainFormGroupMode is "single"
+    if (hasB2bSegments) {
       groupModeText = "Multi-Group (B2B)";
+    } else {
+      groupModeText = "Single Group";
+    }
   }
   
   let penaltiesText = "";
   if (mainFormPenaltiesEnabled) {
       const penaltySourceSelectMain = document.getElementById("penaltySourceSelect");
       const penaltyTabNameMain = penaltySourceSelectMain ? penaltySourceSelectMain.options[penaltySourceSelectMain.selectedIndex]?.text : "Default Penalties";
-      penaltiesText = ` w/ ${escapeHtml(penaltyTabNameMain)}`;
+      // Using a Bootstrap icon for penalties and ensuring space
+      penaltiesText = ` <i class="bi bi-shield-fill-exclamation" title="Penalties: ${escapeHtml(penaltyTabNameMain)}"></i> ${escapeHtml(penaltyTabNameMain)}`;
   }
   
-  groupTypeDisplay.textContent = `${groupModeText}${penaltiesText}`;
+  groupTypeDisplay.innerHTML = `${groupModeText}${penaltiesText}`; // Use innerHTML to render the icon
 }
 
 export function findGameData(gameName, gameMode = null) {
@@ -319,10 +324,10 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
     <div class="col-md-2" data-col-type="wins-input">
       <input type="number" class="form-control form-control-sm game-wins-input" value="1" min="1" placeholder="Wins">
     </div>
-    <div class="col-md-1" data-col-type="difficulty-display">
+    <div class="col-md-2" data-col-type="difficulty-display">
       <p class="mb-0 game-difficulty-display text-muted small" style="font-size: 0.75rem;">Diff: -</p>
     </div>
-    <div class="col-md-3 text-end" data-col-type="remove-button">
+    <div class="col-md-2 text-end" data-col-type="remove-button">
       <button type="button" class="btn btn-outline-danger btn-sm remove-game-row-btn">
         <i class="bi bi-trash"></i>
       </button>
@@ -350,13 +355,13 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
       customGameSelect.style.display = "none";
       customGameInputs.style.display = "flex";
       gameSelectionArea.classList.remove('col-md-6');
-      gameSelectionArea.classList.add('col-md-8');
+      gameSelectionArea.classList.add('col-md-7'); // Adjusted from 8 to 7
 
-      winsInputColumn.classList.remove('col-md-2');
+      winsInputColumn.classList.remove('col-md-2'); // No change needed if already col-md-2
       winsInputColumn.classList.add('col-md-2');
-      gameDifficultyDisplayColumn.classList.remove('col-md-1');
-      gameDifficultyDisplayColumn.classList.add('col-md-1');
-      removeButtonColumn.classList.remove('col-md-3');
+      gameDifficultyDisplayColumn.classList.remove('col-md-2'); // Was col-md-1, now col-md-2
+      gameDifficultyDisplayColumn.classList.add('col-md-2');
+      removeButtonColumn.classList.remove('col-md-2'); // Was col-md-3, now col-md-1
       removeButtonColumn.classList.add('col-md-1');
 
 
@@ -365,15 +370,15 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
     } else {
       customGameSelect.style.display = "block";
       customGameInputs.style.display = "none";
-      gameSelectionArea.classList.remove('col-md-8');
-      gameSelectionArea.classList.add('col-md-6');
+      gameSelectionArea.classList.remove('col-md-7'); // Revert from custom state
+      gameSelectionArea.classList.add('col-md-6');   // Back to non-custom state
 
-      winsInputColumn.classList.remove('col-md-2');
+      winsInputColumn.classList.remove('col-md-2'); // No change needed if already col-md-2
       winsInputColumn.classList.add('col-md-2');
-      gameDifficultyDisplayColumn.classList.remove('col-md-1');
-      gameDifficultyDisplayColumn.classList.add('col-md-1');
-      removeButtonColumn.classList.remove('col-md-1');
-      removeButtonColumn.classList.add('col-md-3');
+      gameDifficultyDisplayColumn.classList.remove('col-md-1'); // Revert from custom state (if it was col-md-1)
+      gameDifficultyDisplayColumn.classList.add('col-md-2');   // Back to non-custom state
+      removeButtonColumn.classList.remove('col-md-1'); // Revert from custom state
+      removeButtonColumn.classList.add('col-md-2');   // Back to non-custom state
 
 
       if (selectedGameName) {

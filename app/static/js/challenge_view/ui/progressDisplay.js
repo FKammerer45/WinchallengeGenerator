@@ -116,7 +116,7 @@ export function renderProgressItems(container, challengeStructure, groupId, grou
                      aria-label="${escapeHtml(labelText)}"
                      data-group-id="${groupId}"
                      data-item-type="${itemType}"
-                     data-item-key="${escapedItemKey}"
+                     data-item-key="${String(itemKey)}" // Use raw itemKey for data attribute
                      data-item-index="${itemIndex}"
                      ${segmentAttr}
                      ${isChecked ? 'checked' : ''}
