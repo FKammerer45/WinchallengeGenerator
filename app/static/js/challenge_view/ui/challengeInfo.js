@@ -29,7 +29,7 @@ export function renderChallengeRules(container, challengeData) {
                             ${info?.count || 0}x Wins
                         </span>
                         <span class="badge bg-secondary rounded-pill px-2 py-1">
-                            Diff: ${typeof info?.diff === 'number' ? info.diff.toFixed(1) : 'N/A'}
+                            Diff: ${typeof info?.diff_per_instance === 'number' ? info.diff_per_instance.toFixed(1) : 'N/A'}
                         </span>
                     </div>
                 </li>`;
@@ -58,7 +58,7 @@ export function renderChallengeRules(container, challengeData) {
                             </div>
                             <div class="text-end">
                                 <span class="badge bg-light text-dark rounded-pill px-2 py-1">
-                                    ${count || 0}x Wins
+                                    ${count?.count || 0}x Wins
                                 </span>
                             </div>
                         </li>`;

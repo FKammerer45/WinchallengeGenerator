@@ -79,8 +79,8 @@ def save_tab():
                     'gameMode': str(entry.get('gameMode','')).strip(),
                     'difficulty': str(entry.get('difficulty','1.0')).strip(), # Store as string for consistency
                     'numberOfPlayers': int(entry.get('numberOfPlayers', 1)),
-                    'weight': float(entry.get('weight', 1.0))
-                    # Add other expected fields with defaults if necessary
+                    'weight': float(entry.get('weight', 1.0)),
+                    'tags': entry.get('tags', []) # Add tags, default to empty list
                 })
             else:
                 logger.warning("User %s: Skipping invalid entry object during save for tab %s: %s", current_user.id, client_tab_id_from_request, entry)

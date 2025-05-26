@@ -68,6 +68,27 @@
   width: 90%;
 }
 
+/* Flash message container for JS-generated messages */
+#js-flash-message-container {
+  position: fixed;
+  top: 1rem; /* Adjust as needed, consider navbar height */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1090; /* Higher than Bootstrap modals (1050) and navbar (usually 1030) */
+  width: auto;
+  max-width: 90%; /* Prevent it from being too wide on large screens */
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center alerts if container is wider */
+}
+
+#js-flash-message-container .alert {
+  min-width: 300px; /* Ensure alerts have a decent minimum width */
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.5rem; /* Space between multiple flash messages */
+}
+
+
 .custom-tooltip {
     position: absolute;
     background-color: #333;

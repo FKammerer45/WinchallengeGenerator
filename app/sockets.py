@@ -42,35 +42,32 @@ def calculate_progress(challenge_data, progress_data):
     # --- FIX: Use standard Python checks ---
     # Check if challenge_data exists AND 'normal' key exists and is truthy
     normal_wins = challenge_data.get('normal')
-    if normal_wins: # Checks if normal_wins is not None, not empty dict/list etc.
-        # Ensure normal_wins is iterable (like a dict)
+    if normal_wins: 
         if isinstance(normal_wins, dict):
-            for key, info in normal_wins.items():
-                # Check if info is a dict before accessing 'count'
-                count = info.get('count', 0) if isinstance(info, dict) else 0
-                total += count
-                for i in range(count):
-                    progress_key = f"normal_{key}_{i}"
-                    if progress_data.get(progress_key) is True:
+            for game_key, game_info_obj in normal_wins.items():
+                actual_count = game_info_obj.get('count', 0) if isinstance(game_info_obj, dict) else 0
+                progress_item_key = game_info_obj.get('id', game_key) if isinstance(game_info_obj, dict) else game_key
+                total += actual_count
+                for i in range(actual_count):
+                    progress_key_str = f"normal_{progress_item_key}_{i}"
+                    if progress_data.get(progress_key_str) is True:
                         completed += 1
         else:
              logger.warning(f"challenge_data['normal'] is not a dictionary: {type(normal_wins)}")
 
-
-    # Check if challenge_data exists AND 'b2b' key exists and is truthy
     b2b_segments = challenge_data.get('b2b')
-    if b2b_segments and isinstance(b2b_segments, list): # Check if it's a list
-        for segIndex, seg in enumerate(b2b_segments):
-            segmentIdx = segIndex # 0-based index for keys
-            # Check if seg is a dict AND 'group' key exists and is truthy
-            segment_group = seg.get('group') if isinstance(seg, dict) else None
-            if segment_group and isinstance(segment_group, dict): # Check if group is a dict
-                for key, count in segment_group.items():
-                    count_val = count or 0 # Handle None count
-                    total += count_val
-                    for i in range(count_val):
-                        progress_key = f"b2b_{segmentIdx}_{key}_{i}"
-                        if progress_data.get(progress_key) is True:
+    if b2b_segments and isinstance(b2b_segments, list):
+        for segIndex, seg_data in enumerate(b2b_segments):
+            segment_key_idx = segIndex 
+            segment_group_dict = seg_data.get('group') if isinstance(seg_data, dict) else None
+            if segment_group_dict and isinstance(segment_group_dict, dict):
+                for game_key, game_info_obj_in_b2b in segment_group_dict.items():
+                    actual_count_in_b2b = game_info_obj_in_b2b.get('count', 0) if isinstance(game_info_obj_in_b2b, dict) else 0
+                    progress_item_key_b2b = game_info_obj_in_b2b.get('id', game_key) if isinstance(game_info_obj_in_b2b, dict) else game_key
+                    total += actual_count_in_b2b
+                    for i in range(actual_count_in_b2b):
+                        progress_key_str = f"b2b_{segment_key_idx}_{progress_item_key_b2b}_{i}"
+                        if progress_data.get(progress_key_str) is True:
                             completed += 1
             # else: logger.debug(f"Segment {segIndex} has no valid 'group' dictionary.") # Optional debug
     # else: logger.debug("No valid 'b2b' list found in challenge_data.") # Optional debug
@@ -311,11 +308,30 @@ def handle_join_challenge_room(data):
     user_for_log = "Overlay" if is_overlay_client else (current_user.username if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated else "AnonymousPageViewer")
 
     try:
-        if not is_overlay_client: 
-            if not (hasattr(current_user, 'is_authenticated') and current_user.is_authenticated):
-                logger.warning(f"[Join Room] PAGE VIEWER SID={sid} DENIED for challenge '{challenge_public_id}': User not authenticated for room join.")
+        user_to_auth = None
+        if not is_overlay_client:
+            client_user_id = data.get('user_id')
+            if client_user_id:
+                try:
+                    user_to_auth = db.session.get(User, int(client_user_id))
+                    if user_to_auth:
+                        logger.debug(f"[Join Room] SID {sid} - Loaded user {user_to_auth.username} (ID: {user_to_auth.id}) from client-provided user_id.")
+                    else:
+                        logger.warning(f"[Join Room] SID {sid} - User ID {client_user_id} provided by client not found in DB.")
+                except ValueError:
+                    logger.warning(f"[Join Room] SID {sid} - Invalid user_id format provided by client: {client_user_id}")
+            
+            if not user_to_auth: # Fallback to current_user if client_user_id fails or not provided
+                user_to_auth = current_user
+                if hasattr(user_to_auth, 'is_authenticated'):
+                    logger.debug(f"[Join Room] SID {sid} - Using current_user.is_authenticated: {user_to_auth.is_authenticated}, User ID: {user_to_auth.id if user_to_auth.is_authenticated else 'N/A'}")
+                else:
+                    logger.debug(f"[Join Room] SID {sid} - current_user does not have is_authenticated. Type: {type(user_to_auth)}")
+            
+            if not user_to_auth or not user_to_auth.is_authenticated:
+                logger.warning(f"[Join Room] PAGE VIEWER SID={sid} DENIED for challenge '{challenge_public_id}': User not authenticated for room join. User object: {str(user_to_auth)}")
                 emit('room_join_error', {'error': 'Authentication required to join this challenge room.'}, room=sid)
-                return 
+                return False
         
         # --- Explicitly log before and after join_room ---
         join_room(challenge_public_id)
@@ -323,13 +339,13 @@ def handle_join_challenge_room(data):
         emit('room_joined', {'room': challenge_public_id, 'message': f'Successfully joined room {challenge_public_id}. SID: {sid}'}, room=sid)
 
 
-        if not is_overlay_client and hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+        if not is_overlay_client and user_to_auth and user_to_auth.is_authenticated: # Use the determined user_to_auth
             challenge = db.session.query(SharedChallenge).filter_by(public_id=challenge_public_id).first()
             if challenge:
-                initial_state_data = get_challenge_state_for_overlay(challenge, current_user.id)
+                initial_state_data = get_challenge_state_for_overlay(challenge, user_to_auth.id) # Use ID from user_to_auth
                 if initial_state_data:
                     emit('initial_state', initial_state_data, room=sid)
-                    logger.debug(f"[Join Room] Sent initial_state to PAGE VIEWER SID={sid} for challenge {challenge.public_id}")
+                    logger.debug(f"[Join Room] Sent initial_state to PAGE VIEWER SID={sid} (User ID: {user_to_auth.id}) for challenge {challenge.public_id}")
             else:
                 logger.warning(f"[Join Room] Challenge {challenge_public_id} not found when trying to send initial_state to page viewer SID={sid}")
 
@@ -376,3 +392,23 @@ def emit_player_names_updated(challenge_public_id: str, group_id: int, player_na
         'player_names': player_names # Updated list of player slot objects
     }
     socketio.emit('player_names_updated', payload, room=challenge_public_id)
+
+def emit_current_game_updated(challenge_public_id: str, group_id: int, game_info: dict):
+    """Emits when the current game for a group is updated."""
+    payload = {
+        'challenge_id': challenge_public_id,
+        'group_id': group_id,
+        'current_game_info': game_info # Contains id, name, tags
+    }
+    socketio.emit('current_game_updated', payload, room=challenge_public_id)
+
+def emit_timed_penalty_applied(challenge_public_id: str, group_id: int, penalty_text: str, duration_seconds: int, applied_at_utc_iso: str):
+    """Emits when a penalty with a duration is applied to a group."""
+    payload = {
+        'challenge_id': challenge_public_id,
+        'group_id': group_id,
+        'penalty_text': penalty_text or "",
+        'duration_seconds': duration_seconds,
+        'applied_at_utc': applied_at_utc_iso
+    }
+    socketio.emit('timed_penalty_applied', payload, room=challenge_public_id)

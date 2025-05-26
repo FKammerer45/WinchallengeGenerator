@@ -24,6 +24,39 @@ user_challenge_group_membership_table = db.Table('user_challenge_group_membershi
     db.Column('user_id', Integer, ForeignKey('users.id', name='fk_membership_user_id'), primary_key=True),
     db.Column('group_id', Integer, ForeignKey('challenge_groups.id', name='fk_membership_group_id'), primary_key=True)
 )
+
+# Association table for Penalties and Tags
+penalty_tags = db.Table('penalty_tags', db.metadata,
+    db.Column('penalty_id', db.Integer, db.ForeignKey('penalties.id', name='fk_penalty_tags_penalty_id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id', name='fk_penalty_tags_tag_id'), primary_key=True)
+)
+
+# Association table for Game Entries and Tags
+game_tags = db.Table('game_tags', db.metadata,
+    db.Column('game_entry_id', db.Integer, db.ForeignKey('game_entries.id', name='fk_game_tags_game_entry_id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tags.id', name='fk_game_tags_tag_id'), primary_key=True)
+)
+
+class Tag(db.Model):
+    __tablename__ = 'tags'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), unique=True, nullable=False, index=True)
+
+    # The relationships on Penalty and GameEntry will use these tables
+    # and define back_populates to this Tag model if needed,
+    # but Tag itself doesn't strictly need direct back_populates from Penalty/GameEntry
+    # unless we frequently query Tag.penalties or Tag.game_entries.
+    # For now, we'll primarily access tags from the Penalty/GameEntry side.
+
+    def __repr__(self):
+        return f"<Tag {self.name}>"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name
+        }
+
 # --- Basic Config/Entry Models ---
 
 # Inherit from db.Model instead of Base
@@ -79,13 +112,16 @@ class GameEntry(db.Model):
     Schwierigkeit = Column(Float, nullable=False) # German for "Difficulty"
     Spieleranzahl = Column(Integer, nullable=False) # German for "Number of Players"
     
+    tags = relationship("Tag", secondary=game_tags, backref=db.backref("game_entries", lazy="dynamic"), lazy="select")
+
     def to_dict(self) -> Dict[str, Any]: 
         return { 
             "id": self.id, 
             "Spiel": self.Spiel, 
             "Spielmodus": self.Spielmodus, 
             "Schwierigkeit": self.Schwierigkeit, 
-            "Spieleranzahl": self.Spieleranzahl 
+            "Spieleranzahl": self.Spieleranzahl,
+            "tags": [tag.name for tag in self.tags] if self.tags else []
         }
 
 # Inherit from db.Model instead of Base
@@ -96,13 +132,16 @@ class Penalty(db.Model):
     name = Column(String(150), nullable=False, unique=True)
     probability = Column(Float, nullable=False) # Probability might be better handled contextually
     description = Column(String(255), nullable=True)
+
+    tags = relationship("Tag", secondary=penalty_tags, backref=db.backref("penalties", lazy="dynamic"), lazy="select")
     
     def to_dict(self) -> Dict[str, Any]: 
         return { 
             "id": self.id, 
             "name": self.name, 
             "probability": self.probability, 
-            "description": self.description 
+            "description": self.description,
+            "tags": [tag.name for tag in self.tags] if self.tags else []
         }
 
 
@@ -252,8 +291,11 @@ class ChallengeGroup(db.Model):
     group_name = Column(String(80), nullable=False)
     progress_data = Column(JSON, nullable=True, default=lambda: {})
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc))
-    active_penalty_text = Column(String(255), nullable=True)
+    active_penalty_text = Column(String(255), nullable=True) # Will store name + description
+    active_penalty_duration_seconds = Column(Integer, nullable=True)
+    penalty_applied_at_utc = Column(DateTime(timezone=True), nullable=True)
     player_names = Column(JSON, nullable=True) 
+    current_game_info = Column(JSON, nullable=True) # To store {id: "game_id_in_challenge", name: "Game Name", tags: ["tag1", "tag2"]}
     
     shared_challenge = db.relationship("SharedChallenge", back_populates="groups", lazy="select")
     members = db.relationship( "User", secondary=user_challenge_group_membership_table, back_populates="joined_groups", lazy="select" ) # Use table object

@@ -76,6 +76,9 @@
   {% endif %}
   {% endwith %}
 
+  {# --- Container for JS-based Flash Messages --- #}
+  <div id="js-flash-message-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 1050; width: auto; max-width: 90%;"></div>
+
   {# --- Navbar with Glass Effect --- #}
   {# Add glass-effect class, JS will add/remove navbar-scrolled #}
   <nav class="navbar navbar-expand-lg navbar-dark glass-effect" id="mainNavbar">

@@ -7,47 +7,60 @@
  * @param {boolean} isLoading - Whether to show the loading state.
  * @param {string} [loadingText='Processing...'] - Text to display when loading.
  */
-export function setLoading(buttonElement, isLoading, loadingText = 'Processing...') {
-    if (!buttonElement) return;
-    const originalTextSpan = buttonElement.querySelector('span:not(.spinner-border-sm)');
-    // const spinner = buttonElement.querySelector('.spinner-border-sm'); // spinner variable not strictly needed if CSS handles display
+export function setLoading(element, isLoading, loadingText = 'Processing...') {
+    if (!(element instanceof HTMLElement)) {
+        // console.warn("setLoading: Provided element is not an HTMLElement.", element);
+        return;
+    }
+
+    const isButton = element.tagName === 'BUTTON';
+    const originalTextSpan = element.querySelector('span:not(.spinner-border-sm)'); // Attempt to find text span
+    const spinner = element.querySelector('.spinner-border-sm'); // Attempt to find spinner
 
     if (isLoading) {
-        // Store original text only if it's not already stored
-        if (!buttonElement.dataset.originalText && originalTextSpan) {
-            buttonElement.dataset.originalText = originalTextSpan.textContent.trim();
+        if (isButton) {
+            element.disabled = true;
         }
-        buttonElement.disabled = true; // Disable button when loading starts
-        buttonElement.classList.add('loading'); // Add 'loading' class for CSS to show spinner
-        if (originalTextSpan) originalTextSpan.textContent = loadingText;
-   
-    } else {
-        // When loading is finished:
-        buttonElement.disabled = false; // <<< --- ENSURE BUTTON IS RE-ENABLED ---
-        buttonElement.classList.remove('loading'); // Remove 'loading' class to hide spinner via CSS
+        element.classList.add('loading'); // Generic loading class for element itself
+        element.setAttribute('aria-busy', 'true');
 
-        // Restore original text if available
-        if (originalTextSpan && typeof buttonElement.dataset.originalText === 'string') {
-            originalTextSpan.textContent = buttonElement.dataset.originalText;
-        } else if (originalTextSpan) {
-            // Fallback text restoration (ensure your specific button's original text is covered)
-            if (buttonElement.classList.contains('generate-btn') || buttonElement.textContent.toLowerCase().includes('generate')) {
-                 originalTextSpan.textContent = 'Generate Challenge';
-            } else if (buttonElement.classList.contains('join-group-btn')) {
-                 originalTextSpan.textContent = 'Join Group';
-            } else if (buttonElement.classList.contains('leave-group-btn')) {
-                 originalTextSpan.textContent = 'Leave Group';
-            } else if (buttonElement.id === 'addGroupBtn') {
-                 originalTextSpan.textContent = 'Create Group';
-            } else if (buttonElement.id === 'shareChallengeBtn') {
-                originalTextSpan.textContent = 'Share Challenge';
+        if (originalTextSpan) {
+            if (!element.dataset.originalText) {
+                element.dataset.originalText = originalTextSpan.textContent.trim();
             }
-            // Add more specific fallbacks if needed for other buttons that use setLoading
-            else {
-                originalTextSpan.textContent = 'Submit'; // A generic fallback
+            originalTextSpan.textContent = loadingText;
+        }
+        if (spinner) {
+            spinner.style.display = 'inline-block'; // Or manage via CSS .loading .spinner-border-sm
+        }
+    } else {
+        if (isButton) {
+            element.disabled = false;
+        }
+        element.classList.remove('loading');
+        element.removeAttribute('aria-busy');
+
+        if (originalTextSpan && typeof element.dataset.originalText === 'string') {
+            originalTextSpan.textContent = element.dataset.originalText;
+        } else if (originalTextSpan && isButton) { // Fallback text restoration only for buttons
+            if (element.classList.contains('generate-btn') || element.textContent.toLowerCase().includes('generate')) {
+                 originalTextSpan.textContent = 'Generate Challenge';
+            } else if (element.classList.contains('join-group-btn')) {
+                 originalTextSpan.textContent = 'Join Group';
+            } else if (element.classList.contains('leave-group-btn')) {
+                 originalTextSpan.textContent = 'Leave Group';
+            } else if (element.id === 'addGroupBtn') {
+                 originalTextSpan.textContent = 'Create Group';
+            } else if (element.id === 'shareChallengeBtn') {
+                originalTextSpan.textContent = 'Share Challenge';
+            } else {
+                originalTextSpan.textContent = 'Submit'; 
             }
         }
-        delete buttonElement.dataset.originalText; // Clean up stored text
+        if (spinner) {
+            spinner.style.display = 'none'; // Or manage via CSS
+        }
+        delete element.dataset.originalText;
     }
 }
 
@@ -97,7 +110,15 @@ export function showFlash(message, type = 'info', timeout = 4000) {
             <span aria-hidden="true">&times;</span>
         </button>
     `;
-    document.body.appendChild(div);
+    
+    const container = document.getElementById('js-flash-message-container');
+    if (container) {
+        container.appendChild(div);
+    } else {
+        // Fallback if container is somehow not found
+        document.body.appendChild(div);
+        console.warn('#js-flash-message-container not found. Appending flash to body.');
+    }
   
     // auto‑dismiss
     setTimeout(() => div.classList.remove('show'), timeout);

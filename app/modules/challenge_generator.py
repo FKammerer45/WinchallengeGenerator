@@ -184,35 +184,66 @@ def generate_challenge_logic(
     logger.info("Final generated difficulty: %.2f (Desired: %.2f) after %d iterations.",
                 total_diff, desired_diff, iteration)
 
-    normal_group = {}
-    b2b_grouped = []
+    normal_group_processed = {}
+    b2b_grouped_processed = []
 
-    # Group normal segments (length 1)
+    # Process normal segments (length 1)
     for seg in [s for s in segments if s["length"] == 1]:
-        win = seg["wins"][0]
-        key = f"{win.get('Spiel', 'Unknown Game')} ({win.get('Spielmodus', 'Unknown Mode')})"
-        if key not in normal_group:
-            normal_group[key] = {"count": 0, "diff": 0.0}
-        normal_group[key]["count"] += 1
-        normal_group[key]["diff"] += float(win.get("Schwierigkeit", 0))
+        win_entry = seg["wins"][0] # This is the full entry from 'entries'
+        game_name_key = f"{win_entry.get('Spiel', 'Unknown Game')} ({win_entry.get('Spielmodus', 'Unknown Mode')})"
+        
+        # Use a unique ID for the game in the challenge context.
+        # If the original entry has an 'id' (e.g., from DB), use it. Otherwise, generate one.
+        # For progressDisplay.js, we need a consistent ID for each game type.
+        # The 'key' used in normal_group_processed will be the game_name_key.
+        # The 'id' inside game_info will be the unique identifier for this game type.
+        game_id_in_challenge = win_entry.get('id', game_name_key) # Prefer original ID if present
 
-    # Group B2B segments (length > 1)
-    for seg_idx, seg in enumerate([s for s in segments if s["length"] > 1]):
-        group_counts_in_segment = {}
-        for win in seg["wins"]:
-            key = f"{win.get('Spiel', 'Unknown Game')} ({win.get('Spielmodus', 'Unknown Mode')})"
-            group_counts_in_segment[key] = group_counts_in_segment.get(key, 0) + 1
+        if game_name_key not in normal_group_processed:
+            normal_group_processed[game_name_key] = {
+                "id": game_id_in_challenge, # Unique ID for this game type
+                "name": game_name_key, # Display name
+                "tags": win_entry.get('tags', []),
+                "count": 0,
+                "total_difficulty_for_this_game_type": 0.0,
+                "diff_per_instance": float(win_entry.get("Schwierigkeit", 0)) # Store individual diff
+                # "individual_wins_details": [] # Optional: if you need to store each win's details
+            }
+        normal_group_processed[game_name_key]["count"] += 1
+        normal_group_processed[game_name_key]["total_difficulty_for_this_game_type"] += float(win_entry.get("Schwierigkeit", 0))
+        # If diff_per_instance wasn't set on first encounter (e.g. if logic changes), ensure it's set.
+        if "diff_per_instance" not in normal_group_processed[game_name_key]:
+            normal_group_processed[game_name_key]["diff_per_instance"] = float(win_entry.get("Schwierigkeit", 0))
 
-        b2b_grouped.append({
+
+    # Process B2B segments (length > 1)
+    for seg_idx, seg_data in enumerate([s for s in segments if s["length"] > 1]):
+        games_in_segment_processed = {}
+        for win_entry in seg_data["wins"]:
+            game_name_key = f"{win_entry.get('Spiel', 'Unknown Game')} ({win_entry.get('Spielmodus', 'Unknown Mode')})"
+            game_id_in_challenge = win_entry.get('id', game_name_key)
+
+            if game_name_key not in games_in_segment_processed:
+                games_in_segment_processed[game_name_key] = {
+                    "id": game_id_in_challenge,
+                    "name": game_name_key,
+                    "tags": win_entry.get('tags', []),
+                    "count": 0, # This will be count of this game type *within this segment*
+                    # "individual_wins_details": []
+                }
+            games_in_segment_processed[game_name_key]["count"] += 1
+            # games_in_segment_processed[game_name_key]["individual_wins_details"].append(win_entry)
+        
+        b2b_grouped_processed.append({
             "segment_index_1_based": seg_idx + 1,
-            "group": group_counts_in_segment,
-            "length": seg["length"],
-            "seg_diff": seg["seg_diff"]
+            "group": games_in_segment_processed, # This now holds objects with id, name, tags, count
+            "length": seg_data["length"], # Total wins in this B2B segment
+            "seg_diff": seg_data["seg_diff"]
         })
     # --- End Post-processing ---
 
     return {
-        "normal": normal_group,
-        "b2b": b2b_grouped,
-        "total_difficulty": total_diff # Return the actual generated difficulty
+        "normal": normal_group_processed, # Use the new structure
+        "b2b": b2b_grouped_processed,   # Use the new structure
+        "total_difficulty": total_diff 
     }

@@ -69,7 +69,8 @@ async function handleResetTabToDefault(event) {
             gameMode: entry.Spielmodus,
             difficulty: !isNaN(difficultyVal) ? difficultyVal.toFixed(1) : "1.0",
             numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
-            weight: parseFloat(entry.weight) || 1.0
+            weight: parseFloat(entry.weight) || 1.0,
+            tags: Array.isArray(entry.tags) ? entry.tags : [] // Add tags here too
         };
     });
     console.log(`[Reset Tab] Resetting tab "${tabIdToReset}" with ${transformedEntries.length} transformed entries.`);
@@ -179,7 +180,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                             gameMode: entry.Spielmodus,
                             difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
                             numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
-                            weight: parseFloat(entry.weight) || 1.0
+                            weight: parseFloat(entry.weight) || 1.0,
+                            tags: Array.isArray(entry.tags) ? entry.tags : [] // Add tags
                         }));
 
                         const savePayload = {
@@ -244,7 +246,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         gameMode: entry.Spielmodus,
                         difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
                         numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
-                        weight: parseFloat(entry.weight) || 1.0
+                        weight: parseFloat(entry.weight) || 1.0,
+                        tags: Array.isArray(entry.tags) ? entry.tags : [] // Add tags
                     }));
                     updatedLocal = true;
                 }
@@ -440,8 +443,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const gameNameHidden = document.getElementById("editGameNameHidden");
                 const modesContainer = document.getElementById("editGameModesContainer");
                 const alertContainer = document.getElementById("editGameAlert");
+                const gameTagsInput = document.getElementById("editGameTags"); // Get the tags input
 
-                if (!modal || !gameNameDisplay || !gameNameHidden || !modesContainer || !alertContainer) {
+                if (!modal || !gameNameDisplay || !gameNameHidden || !modesContainer || !alertContainer || !gameTagsInput) {
                     console.error("Edit modal core elements are missing!");
                     showFlash("Error opening edit form - UI elements missing.", "danger");
                     return;
@@ -451,6 +455,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 alertContainer.replaceChildren();
                 gameNameDisplay.textContent = gameName;
                 gameNameHidden.value = gameName;
+                gameTagsInput.value = ""; // Clear previous tags
 
                 let originalEntriesForModal = [];
                 try {
@@ -469,6 +474,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                     modesContainer.innerHTML = '<p class="text-warning p-3">Could not find specific entries for this game.</p>';
                     return;
                 }
+                
+                // Populate general game tags from the first entry (assuming tags are consistent for the game name)
+                if (originalEntriesForModal.length > 0 && Array.isArray(originalEntriesForModal[0].tags) && gameTagsInput.options) {
+                    const tagsToSelect = originalEntriesForModal[0].tags;
+                    for (let i = 0; i < gameTagsInput.options.length; i++) {
+                        gameTagsInput.options[i].selected = tagsToSelect.includes(gameTagsInput.options[i].value);
+                    }
+                } else if (gameTagsInput.options) { // Clear selection if no tags
+                    for (let i = 0; i < gameTagsInput.options.length; i++) {
+                        gameTagsInput.options[i].selected = false;
+                    }
+                }
+
 
                 let modesHtml = '';
                 originalEntriesForModal.sort((a, b) => (a.gameMode || '').localeCompare(b.gameMode || '')).forEach((entry) => {

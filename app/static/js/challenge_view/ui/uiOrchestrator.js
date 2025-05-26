@@ -134,12 +134,23 @@ export function orchestrateGroupUIRefresh(challengeConfig, myGroupContainerEl, o
  * @param {HTMLElement} penaltyDisplayDiv - The specific .active-penalty-display element for the group.
  * @param {string} penaltyText - The text of the penalty to display (empty string hides).
  * @param {boolean} canInteract - Whether the user can clear the penalty.
+ * @param {number|null} durationSeconds - The duration of the penalty in seconds.
+ * @param {string|null} appliedAtUtcIso - The ISO string timestamp when the penalty was applied.
  */
-export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract) {
+import { startPenaltyTimer, stopPenaltyTimer } from '../realtime/timerHandler.js'; // Import penalty timer functions
+
+export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract, durationSeconds = null, appliedAtUtcIso = null) {
     if (!penaltyDisplayDiv) return;
 
+    const groupId = penaltyDisplayDiv.dataset.groupId; // Assuming groupId is available for unique timer IDs
+    const penaltyTimerId = `penalty-timer-group-${groupId}`;
+
+    // Clear any existing timer for this specific penalty display
+    stopPenaltyTimer(penaltyTimerId); // Use the new centralized stop function
+
     const textContentP = penaltyDisplayDiv.querySelector('.penalty-text-content');
-    let clearButton = penaltyDisplayDiv.querySelector('.clear-penalty-btn'); // Query within the specific div
+    let timerDisplaySpan = penaltyDisplayDiv.querySelector('.penalty-timer-countdown');
+    let clearButton = penaltyDisplayDiv.querySelector('.clear-penalty-btn');
     const btnContainer = penaltyDisplayDiv.querySelector('.penalty-clear-button-container');
 
     const hasPenalty = penaltyText && penaltyText.trim().length > 0;
@@ -148,14 +159,51 @@ export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract
         textContentP.textContent = hasPenalty ? penaltyText : '';
     }
 
+    if (hasPenalty && durationSeconds && appliedAtUtcIso && groupId) {
+        if (!timerDisplaySpan) {
+            timerDisplaySpan = document.createElement('span');
+            timerDisplaySpan.className = 'penalty-timer-countdown ms-2 badge bg-danger';
+            if (btnContainer) {
+                textContentP.parentNode.insertBefore(timerDisplaySpan, btnContainer);
+            } else {
+                textContentP.parentNode.appendChild(timerDisplaySpan);
+            }
+        }
+        timerDisplaySpan.style.display = 'inline-block';
+        
+        const appliedTime = new Date(appliedAtUtcIso).getTime();
+        const totalDurationMs = durationSeconds * 1000;
+        const now = Date.now();
+        const elapsedMs = now - appliedTime;
+        const initialRemainingSeconds = Math.max(0, Math.floor((totalDurationMs - elapsedMs) / 1000));
+
+        console.log(`[updatePenaltyDisplay] Timer Values for group ${groupId}:`);
+        console.log(`  - appliedAtUtcIso: ${appliedAtUtcIso}`);
+        console.log(`  - durationSeconds: ${durationSeconds}`);
+        console.log(`  - appliedTime (ms): ${appliedTime}`);
+        console.log(`  - now (ms): ${now}`);
+        console.log(`  - elapsedMs: ${elapsedMs}`);
+        console.log(`  - totalDurationMs: ${totalDurationMs}`);
+        console.log(`  - initialRemainingSeconds: ${initialRemainingSeconds}`);
+
+        startPenaltyTimer(penaltyTimerId, initialRemainingSeconds, timerDisplaySpan, () => {
+            // Optional: Callback when timer expires naturally
+            if (timerDisplaySpan) timerDisplaySpan.textContent = "Expired";
+            console.log(`[updatePenaltyDisplay] Penalty timer ${penaltyTimerId} expired naturally.`);
+        });
+
+    } else if (timerDisplaySpan) {
+        timerDisplaySpan.style.display = 'none';
+        timerDisplaySpan.textContent = '';
+    }
+
     penaltyDisplayDiv.style.display = hasPenalty ? 'block' : 'none';
-    penaltyDisplayDiv.style.backgroundColor = hasPenalty ? 'rgba(255, 193, 7, 0.1)' : 'transparent'; // Example style
+    penaltyDisplayDiv.style.backgroundColor = hasPenalty ? 'rgba(255, 193, 7, 0.1)' : 'transparent';
 
     if (canInteract && hasPenalty) {
         if (!clearButton && btnContainer) {
             clearButton = document.createElement('button');
-            clearButton.className = 'btn btn-xs btn-outline-light clear-penalty-btn mt-1'; // Ensure btn-xs or similar for small
-            // data-group-id is already on penaltyDisplayDiv, but can be added to button if needed by event handler
+            clearButton.className = 'btn btn-xs btn-outline-light clear-penalty-btn mt-1';
             clearButton.dataset.groupId = penaltyDisplayDiv.dataset.groupId;
             clearButton.innerHTML = `<span class="spinner-border spinner-border-sm" style="display: none;"></span><span>Clear</span>`;
             btnContainer.appendChild(clearButton);

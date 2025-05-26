@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 # Import db instance from app
 from app import db 
 # Import necessary models
-from app.models import Penalty, SavedPenaltyTab 
+from app.models import Penalty, SavedPenaltyTab, Tag
 from app.utils.subscription_helpers import get_user_limit # Import for plan limits
 
 # Import the new default penalty tab definitions
@@ -116,12 +116,22 @@ def save_penalty_tab():
                     # The frontend should generate this for new local entries.
                     # For entries derived from DB master list, it might be `db-p-ID`.
                     penalty_id = p.get('id') or f"local-p-{hash(p['name'])}" # Fallback ID generation
+                    # Ensure tags is a list of strings
+                    raw_tags = p.get('tags', [])
+                    processed_tags = []
+                    if isinstance(raw_tags, list):
+                        for tag_item in raw_tags:
+                            if isinstance(tag_item, str):
+                                processed_tags.append(tag_item.strip())
+                            elif isinstance(tag_item, dict) and 'name' in tag_item: # If client sends tag objects
+                                processed_tags.append(str(tag_item['name']).strip())
                     
                     validated_penalties.append({
                         'id': penalty_id,
                         'name': str(p['name']).strip(),
                         'probability': float(p['probability']),
-                        'description': str(p.get('description', '')).strip()
+                        'description': str(p.get('description', '')).strip(),
+                        'tags': processed_tags # Add processed tags here
                     })
                 except (ValueError, TypeError) as conv_err:
                      logger.warning("Skipping penalty due to conversion error: %s, Error: %s", p, conv_err)

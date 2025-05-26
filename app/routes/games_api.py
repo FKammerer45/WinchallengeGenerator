@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify, current_app
 # Import db instance from app
 from app import db 
 # Import necessary models
-from app.models import GameEntry
+from app.models import GameEntry, Tag
 
 # Import the new default game tab definitions
 from app.modules.default_definitions import DEFAULT_GAME_TAB_DEFINITIONS
@@ -102,13 +102,26 @@ def save_game():
             Schwierigkeit=difficulty,
             Spieleranzahl=players
         )
+        
+        # Handle tags
+        tag_names = data.get('tags', [])
+        if isinstance(tag_names, list):
+            for tag_name in tag_names:
+                if isinstance(tag_name, str) and tag_name.strip():
+                    tag = db.session.query(Tag).filter_by(name=tag_name.strip()).first()
+                    if not tag:
+                        tag = Tag(name=tag_name.strip())
+                        db.session.add(tag)
+                        # Flush to ensure tag is in session for relationship append if it's new
+                        # db.session.flush() # Not strictly necessary if commit is soon, but can be safer
+                    if tag not in new_entry.tags: # Avoid duplicates if tag already processed
+                        new_entry.tags.append(tag)
+        
         db.session.add(new_entry)
-        db.session.flush() # To get ID before commit if needed, though not used here
-        new_id = new_entry.id
-        db.session.commit()
+        db.session.commit() # Commit after adding entry and processing tags
 
-        logger.info("Successfully saved new GameEntry with ID %s to master list.", new_id)
-        return jsonify({'success': True, 'entry_id': new_id, 'message': 'Game entry added to master list.'}), 201
+        logger.info("Successfully saved new GameEntry with ID %s to master list.", new_entry.id)
+        return jsonify({'success': True, 'entry': new_entry.to_dict(), 'message': 'Game entry added to master list.'}), 201
 
     except ValueError as e:
         db.session.rollback()
@@ -173,13 +186,29 @@ def update_game():
 
 
         entry.Spiel = game_name
+        entry.Spiel = game_name
         entry.Spielmodus = game_mode
         entry.Schwierigkeit = difficulty
         entry.Spieleranzahl = players
+
+        # Handle tags update
+        tag_names = data.get('tags', [])
+        updated_tags = []
+        if isinstance(tag_names, list):
+            for tag_name in tag_names:
+                if isinstance(tag_name, str) and tag_name.strip():
+                    tag = db.session.query(Tag).filter_by(name=tag_name.strip()).first()
+                    if not tag:
+                        tag = Tag(name=tag_name.strip())
+                        db.session.add(tag)
+                        # db.session.flush() # Optional: if immediate access to tag.id is needed before commit
+                    updated_tags.append(tag)
+        entry.tags = updated_tags # Replace existing tags with the new set
+
         db.session.commit()
 
         logger.info("GameEntry with ID %s updated successfully in master list.", entry_id)
-        return jsonify({'success': True, 'message': 'Game entry in master list updated.'})
+        return jsonify({'success': True, 'entry': entry.to_dict(), 'message': 'Game entry in master list updated.'})
 
     except ValueError as e:
         db.session.rollback()

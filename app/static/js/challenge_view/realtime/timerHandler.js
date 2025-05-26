@@ -262,3 +262,60 @@ export function handleServerTimerReset(data) {
          console.warn(`[TimerHandler - ${timerIdSuffix}] 'timer_reset' event received invalid data. State may be inconsistent.`);
     }
 }
+
+// --- Penalty Timer Specific Functions ---
+const activePenaltyTimers = new Map(); // Stores { timerId: intervalId }
+
+/**
+ * Starts a countdown timer for a penalty.
+ * @param {string} penaltyTimerId - A unique ID for this penalty timer instance (e.g., `penalty-timer-group-${groupId}`).
+ * @param {number} durationSeconds - The total duration of the penalty in seconds.
+ * @param {HTMLElement} displayElement - The HTML element where the countdown should be displayed.
+ * @param {function} [onExpiryCallback] - Optional callback function when the timer expires.
+ */
+export function startPenaltyTimer(penaltyTimerId, durationSeconds, displayElement, onExpiryCallback) {
+    if (!displayElement) {
+        console.error(`[PenaltyTimer] No display element provided for timer ID: ${penaltyTimerId}`);
+        return;
+    }
+    if (activePenaltyTimers.has(penaltyTimerId)) {
+        clearInterval(activePenaltyTimers.get(penaltyTimerId)); // Clear existing timer for this ID
+    }
+
+    let remainingSeconds = parseInt(durationSeconds, 10);
+    if (isNaN(remainingSeconds) || remainingSeconds <= 0) {
+        displayElement.textContent = "00:00";
+        if (typeof onExpiryCallback === 'function') onExpiryCallback();
+        return;
+    }
+
+    const updateDisplay = () => {
+        if (remainingSeconds <= 0) {
+            clearInterval(intervalId);
+            activePenaltyTimers.delete(penaltyTimerId);
+            displayElement.textContent = "Expired!";
+            if (typeof onExpiryCallback === 'function') onExpiryCallback();
+        } else {
+            const minutes = Math.floor(remainingSeconds / 60);
+            const seconds = remainingSeconds % 60;
+            displayElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            remainingSeconds--;
+        }
+    };
+
+    updateDisplay(); // Initial display
+    const intervalId = setInterval(updateDisplay, 1000);
+    activePenaltyTimers.set(penaltyTimerId, intervalId);
+}
+
+/**
+ * Stops and clears a specific penalty timer.
+ * @param {string} penaltyTimerId - The unique ID of the penalty timer to stop.
+ */
+export function stopPenaltyTimer(penaltyTimerId) {
+    if (activePenaltyTimers.has(penaltyTimerId)) {
+        clearInterval(activePenaltyTimers.get(penaltyTimerId));
+        activePenaltyTimers.delete(penaltyTimerId);
+        console.log(`[PenaltyTimer] Stopped and cleared timer: ${penaltyTimerId}`);
+    }
+}

@@ -65,7 +65,7 @@
                          {{ info.count }} Win{{ 's' if info.count != 1 else '' }}
                      </span>
                      <span class="badge bg-secondary rounded-pill">
-                        <i class="{{ bi_icon_prefix }}speedometer2 me-1"></i>Total Diff: {{ info.diff|round(1) }}
+                        <i class="{{ bi_icon_prefix }}speedometer2 me-1"></i>Total Diff: {{ info.total_difficulty_for_this_game_type|round(1) }}
                      </span>
                  </div>
             </li>
@@ -102,7 +102,7 @@
                  {# Right side: Wins #}
                  <div class="text-end">
                      <span class="badge bg-light text-dark rounded-pill">
-                         {{ wins_count }} Win{{ 's' if wins_count != 1 else '' }}
+                         {{ wins_count.count }} Win{{ 's' if wins_count.count != 1 else '' }}
                      </span>
                  </div>
             </li>
@@ -117,7 +117,7 @@
     <div class="alert alert-info d-flex align-items-center glass-effect fade-in-up" style="animation-delay: 0.2s;" role="alert"> {# Changed to alert-info #}
         <i class="{{ bi_icon_prefix }}shield-slash-fill flex-shrink-0 me-2"></i> {# Changed icon #}
         <div>
-            Penalties Active (Source: <strong>{{ penalty_info.tab_id|e }}</strong>)
+            Penalties Active (Source: <strong>{{ penalty_info.source_tab_name|default(penalty_info.source_tab_id, true)|e }}</strong>)
         </div>
     </div>
     {% endif %}

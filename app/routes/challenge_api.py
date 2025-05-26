@@ -17,7 +17,9 @@ from app.sockets import (
     emit_penalty_spin_result, connected_overlays,
     get_challenge_state_for_overlay, socketio,
     emit_group_created, emit_group_membership_update, emit_player_names_updated,
-    emit_timer_update_to_room # Import new emitters
+    emit_timer_update_to_room, 
+    emit_current_game_updated, # Added for Phase 2
+    emit_timed_penalty_applied # Added for Phase 3
 )
 # Import necessary models
 from app.models import SavedPenaltyTab, SharedChallenge, ChallengeGroup, User
@@ -99,7 +101,13 @@ def generate_challenge():
             logger.warning(f"Invalid value for num_players: {raw_num_players}. Defaulting to 1.")
             gd['num_players'] = 1
         
-        gd['desired_diff']         = float(get("desired_diff", 10.0))
+        raw_desired_diff = get("desired_diff")
+        try:
+            gd['desired_diff'] = float(raw_desired_diff) if raw_desired_diff is not None and raw_desired_diff != "" else 10.0
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid value for desired_diff: '{raw_desired_diff}'. Defaulting to 10.0.")
+            gd['desired_diff'] = 10.0
+
         gd['raw_b2b']              = int(get("raw_b2b", 1))
         gd['generation_pool_entries'] = (json.loads(get("entries")) 
                                         if from_form else get("entries", []))
@@ -926,6 +934,59 @@ def delete_group(public_id, group_id):
         logger.exception(f"Unexpected error deleting group {group_id} from challenge {public_id}: {e}")
         return jsonify({"error": "An unexpected server error occurred."}), 500
 
+@challenge_api.route("/<public_id>/groups/<int:group_id>/select_game", methods=["POST"])
+@login_required
+def select_game_for_group(public_id, group_id):
+    data = request.get_json()
+    if not data or 'game_info' not in data:
+        logger.warning(f"Select game request for {public_id}/group/{group_id} missing JSON or 'game_info'.")
+        return jsonify({"error": "Invalid request. JSON data with 'game_info' required."}), 400
+
+    game_info = data['game_info']
+    if not isinstance(game_info, dict) or 'id' not in game_info or 'name' not in game_info or 'tags' not in game_info:
+        logger.warning(f"Invalid 'game_info' structure for {public_id}/group/{group_id}: {game_info}")
+        return jsonify({"error": "Invalid 'game_info' structure. Must include id, name, and tags."}), 400
+    
+    logger.debug(f"User {current_user.id} selecting game {game_info.get('name')} for challenge {public_id}, group {group_id}")
+
+    try:
+        group = db.session.query(ChallengeGroup).join(SharedChallenge, SharedChallenge.id == ChallengeGroup.shared_challenge_id).options(
+            selectinload(ChallengeGroup.members),
+            joinedload(ChallengeGroup.shared_challenge)
+        ).filter(ChallengeGroup.id == group_id, SharedChallenge.public_id == public_id).first()
+
+        if not group:
+            logger.warning(f"Challenge or Group not found for {public_id}/group/{group_id} during game selection.")
+            return jsonify({"error": "Challenge or Group not found."}), 404
+        
+        challenge = group.shared_challenge
+        if not is_user_authorized(challenge, current_user):
+            logger.warning(f"User {current_user.username} unauthorized to select game for challenge {challenge.public_id}.")
+            return jsonify({"error": "You are not authorized for this challenge."}), 403
+        
+        is_member = any(member.id == current_user.id for member in group.members)
+        if not is_member:
+            logger.warning(f"Forbidden: User {current_user.username} tried to select game for group {group_id} but is not a member.")
+            return jsonify({"error": "You must be a member of this group to select a game."}), 403
+
+        group.current_game_info = game_info
+        flag_modified(group, "current_game_info")
+        db.session.commit()
+        logger.info(f"Current game for group {group_id} (challenge {public_id}) set to: {game_info}")
+
+        emit_current_game_updated(public_id, group_id, game_info)
+
+        return jsonify({"status": "success", "message": "Current game selected."}), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.exception(f"Database error selecting game for {public_id}/group/{group_id}: {e}")
+        return jsonify({"error": "Database error selecting game."}), 500
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Unexpected error selecting game for {public_id}/group/{group_id}: {e}")
+        return jsonify({"error": "An unexpected server error occurred."}), 500
+
 @challenge_api.route("/<public_id>", methods=["DELETE"]) 
 @login_required
 def delete_shared_challenge(public_id):
@@ -1213,12 +1274,24 @@ def remove_authorized_user(public_id, user_id):
 def record_penalty_spin_result(group_id):
     """Records the penalty result determined client-side and emits it."""
     data = request.get_json()
-    penalty_result = data.get('penalty_result') # Expect object like {'name':.., 'description':.., 'stopAngle':.., 'winningSegmentIndex':..}
+    penalty_result = data.get('penalty_result') 
+    # Expect object like {'name':.., 'description':.., 'duration_seconds': ..., 'stopAngle':.., 'winningSegmentIndex':..}
 
-    if not penalty_result or not isinstance(penalty_result, dict) or 'name' not in penalty_result:
-        return jsonify({"error": "Invalid 'penalty_result' data provided."}), 400
+    if not penalty_result or not isinstance(penalty_result, dict) or \
+       'name' not in penalty_result or 'duration_seconds' not in penalty_result:
+        logger.warning(f"Invalid 'penalty_result' data for group {group_id}: Missing name or duration_seconds. Data: {data}")
+        return jsonify({"error": "Invalid 'penalty_result' data. Name and duration_seconds are required."}), 400
 
-    logger.info(f"Received penalty spin result for group {group_id} from user {current_user.id}: {penalty_result.get('name')}")
+    duration_seconds = penalty_result.get('duration_seconds')
+    try:
+        duration_seconds = int(duration_seconds)
+        if not (60 <= duration_seconds <= 1800): # 1 min to 30 mins
+            raise ValueError("Duration out of range")
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid 'duration_seconds' for group {group_id}: {duration_seconds}")
+        return jsonify({"error": "Invalid 'duration_seconds'. Must be an integer between 60 and 1800."}), 400
+
+    logger.info(f"Received penalty spin result for group {group_id} from user {current_user.id}: {penalty_result.get('name')} for {duration_seconds}s")
 
     try:
         # Find group, check authorization (user must be member)
@@ -1246,18 +1319,28 @@ def record_penalty_spin_result(group_id):
              if penalty_result.get('description'):
                  penalty_text_to_save += f" ({penalty_result['description']})"
 
-        # Save the text to the group's active_penalty_text field
-        if group.active_penalty_text != penalty_text_to_save:
-             group.active_penalty_text = penalty_text_to_save if penalty_text_to_save else None
-             flag_modified(group, "active_penalty_text")
-             db.session.commit() # Commit FIRST
-             logger.info(f"Saved active penalty text for group {group_id}: '{group.active_penalty_text}'")
-             # Emit update for the text display as well
-             emit_active_penalty_update(challenge.public_id, group_id, group.active_penalty_text)
-        else:
-             logger.debug(f"No change needed for active penalty text after spin result for group {group_id}")
+        # Save the penalty details
+        group.active_penalty_text = penalty_text_to_save if penalty_text_to_save else None
+        group.active_penalty_duration_seconds = duration_seconds if penalty_text_to_save else None
+        group.penalty_applied_at_utc = datetime.datetime.now(datetime.timezone.utc) if penalty_text_to_save else None
+        
+        flag_modified(group, "active_penalty_text")
+        flag_modified(group, "active_penalty_duration_seconds")
+        flag_modified(group, "penalty_applied_at_utc")
+        
+        db.session.commit() 
+        logger.info(f"Saved timed penalty for group {group_id}: '{group.active_penalty_text}' for {group.active_penalty_duration_seconds}s, applied at {group.penalty_applied_at_utc}")
 
-        # --- Emit WebSocket Event with Full Result (including animation data) ---
+        # Emit update for the timed penalty
+        emit_timed_penalty_applied(
+            challenge_public_id=challenge.public_id,
+            group_id=group_id,
+            penalty_text=group.active_penalty_text,
+            duration_seconds=group.active_penalty_duration_seconds,
+            applied_at_utc_iso=group.penalty_applied_at_utc.isoformat() + "Z" if group.penalty_applied_at_utc else None
+        )
+        
+        # --- Emit WebSocket Event with Full Spin Result (including animation data for wheel) ---
         # The penalty_result object received from the client contains all necessary animation details.
         # We add initiator_user_id for client-side logic.
         # Note: The actual construction of the event payload including initiator_user_id
@@ -1267,8 +1350,20 @@ def record_penalty_spin_result(group_id):
         # The client's triggerRemotePenaltySpinAnimation expects: { challenge_id, group_id, result, initiator_user_id }
         # The emit_penalty_spin_result function in sockets.py likely takes (challenge_id, group_id, data_to_merge)
         # where data_to_merge contains 'result' and 'initiator_user_id'.
+        
+        # Augment penalty_result with final text and applied_at_utc for the animation handler
+        # penalty_result already contains: name, description, player, duration_seconds, chosenTimeText, 
+        #                                all_players, playerWinningSegmentIndex, playerStopAngle,
+        #                                all_penalties_for_wheel, penaltyWinningSegmentIndex, penaltyStopAngle,
+        #                                timeWinningSegmentIndex, timeStopAngle
+        
+        augmented_penalty_result_for_socket = penalty_result.copy() # Start with client's full payload
+        augmented_penalty_result_for_socket['final_penalty_text'] = group.active_penalty_text # The text saved to DB
+        augmented_penalty_result_for_socket['final_applied_at_utc'] = group.penalty_applied_at_utc.isoformat() + "Z" if group.penalty_applied_at_utc else None
+        # duration_seconds is already in penalty_result from client
+
         data_for_socket_event_payload = {
-            'result': penalty_result, # This is the dict from the client's penaltyResultPayload
+            'result': augmented_penalty_result_for_socket, 
             'initiator_user_id': current_user.id
         }
         emit_penalty_spin_result(challenge.public_id, group_id, data_for_socket_event_payload)

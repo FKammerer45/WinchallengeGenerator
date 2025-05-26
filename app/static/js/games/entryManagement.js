@@ -146,14 +146,23 @@ function groupEntriesForDisplay(entries) {
         return grouped;
     }
     entries.forEach(entry => {
-        if (!entry || !entry.game) return; // Basic validation for entry object and game name
-        const gameName = String(entry.game).trim(); // Ensure gameName is a string
+        if (!entry || !entry.game) return; 
+        const gameName = String(entry.game).trim(); 
         if (!gameName) return;
 
         if (!grouped[gameName]) {
-            grouped[gameName] = { modes: new Set(), difficulties: [], players: [], entryIds: [] };
+            // Initialize with a Set for tags to store unique tag names for the game group
+            grouped[gameName] = { modes: new Set(), difficulties: [], players: [], entryIds: [], tags: new Set() };
         }
         if (entry.gameMode) grouped[gameName].modes.add(String(entry.gameMode).trim());
+        // Collect tags from each entry associated with this game name
+        if (Array.isArray(entry.tags)) {
+            entry.tags.forEach(tag => {
+                if (typeof tag === 'string' && tag.trim()) {
+                    grouped[gameName].tags.add(tag.trim());
+                }
+            });
+        }
 
         const difficulty = parseFloat(entry.difficulty);
         if (!isNaN(difficulty)) grouped[gameName].difficulties.push(difficulty);
@@ -175,6 +184,8 @@ function groupEntriesForDisplay(entries) {
         data.playerRange = uniquePlayers.length === 0 ? 'N/A' :
                            uniquePlayers.length === 1 ? uniquePlayers[0].toString() :
                            `${uniquePlayers[0]} - ${uniquePlayers[uniquePlayers.length - 1]}`;
+        // Convert Set of tags to sorted array for consistent display
+        data.displayTags = Array.from(data.tags).sort();
     }
     return grouped;
 }
@@ -219,16 +230,21 @@ export function renderGamesForTab(tabId) {
             row.dataset.entryIds = JSON.stringify(data.entryIds || []);
             // row.setAttribute('title', 'Double-click to edit entries for this game'); // REMOVE old hover hint
 
+            const tagsHtml = data.displayTags && data.displayTags.length > 0
+                ? data.displayTags.map(tag => `<span class="badge bg-secondary me-1">${escapeHtml(tag)}</span>`).join(' ')
+                : 'N/A';
+
             row.innerHTML = `
                 <td>${escapeHtml(gameName)}</td>
                 <td>${escapeHtml(data.modes)}</td>
                 <td>${escapeHtml(data.diffRange)}</td>
                 <td>${escapeHtml(data.playerRange)}</td>
+                <td>${tagsHtml}</td>
             `;
             tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-3">No entries added to this tab yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-secondary py-3">No entries added to this tab yet.</td></tr>`; // Colspan updated to 5
     }
 }
 
@@ -238,11 +254,13 @@ export function handleSaveNewGame() {
     const modeInput = form.elements.newGameMode;
     const diffInput = form.elements.newDifficulty;
     const playersInput = form.elements.newPlayers;
+    const tagsSelect = form.elements.newGameTags; // Get tags select element
 
     const game = gameInput?.value.trim();
     const gameMode = modeInput?.value.trim();
     const difficulty = parseFloat(diffInput?.value);
     const numberOfPlayers = parseInt(playersInput?.value, 10);
+    const tags = tagsSelect ? Array.from(tagsSelect.selectedOptions).map(option => option.value) : [];
 
     showNewGameAlert(null); // Clear previous alerts
     let errors = [];
@@ -273,6 +291,7 @@ export function handleSaveNewGame() {
         gameMode,
         difficulty: difficulty.toFixed(1), // Store with consistent precision
         numberOfPlayers,
+        tags, // Add tags to the new entry object
         weight: 1.0 // Default weight
     };
 
@@ -291,16 +310,19 @@ export function handleSaveNewGame() {
 export function handleUpdateGame() {
     const form = document.getElementById("editGameForm");
     const gameNameDisplay = document.getElementById("editGameNameDisplay"); // This is just a display span
-    const gameNameHidden = document.getElementById("editGameNameHidden"); // Hidden input holds the actual game name
+    const gameNameHidden = document.getElementById("editGameNameHidden"); 
     const modesContainer = document.getElementById("editGameModesContainer");
-    const currentTab = window.currentTargetTab; // Set by games.js
+    const gameTagsSelect = form.elements.editGameTags; // General tags for the game entry (now a select)
+    const currentTab = window.currentTargetTab; 
 
-    if (!form || !gameNameHidden || !modesContainer || !currentTab) {
+    if (!form || !gameNameHidden || !modesContainer || !currentTab || !gameTagsSelect) {
         showEditGameAlert("Error: Edit form components missing or tab context lost.", "danger");
         return;
     }
-    const gameName = gameNameHidden.value; // Get game name from hidden input
-    showEditGameAlert(null); // Clear previous alerts
+    const gameName = gameNameHidden.value; 
+    const gameOverallTags = gameTagsSelect ? Array.from(gameTagsSelect.selectedOptions).map(option => option.value) : [];
+    
+    showEditGameAlert(null); 
 
     const modeSections = modesContainer.querySelectorAll(".edit-mode-section");
     let allEntriesToUpdate = [];
@@ -334,11 +356,12 @@ export function handleUpdateGame() {
         if (modeErrors.length === 0) {
             allEntriesToUpdate.push({
                 id: entryId, // This ID is crucial for updating the correct entry
-                game: gameName, // Game name is fixed for all modes in this modal
+                game: gameName, 
                 gameMode,
                 difficulty: difficulty.toFixed(1),
                 numberOfPlayers,
-                weight: 1.0 // Assuming weight is fixed or handled elsewhere
+                tags: gameOverallTags, // Apply the overall game tags to each mode's entry
+                weight: 1.0 
             });
         } else {
             formErrors.push(`Mode "${escapeHtml(gameMode) || `Entry ${index + 1}`}": ${modeErrors.join(' ')}`);

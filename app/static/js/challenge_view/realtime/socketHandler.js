@@ -48,7 +48,11 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
         console.info(`[SocketHandler] Connected to WebSocket. SID: ${socket.id}`);
         listenersAttached = false; // Reset on new connection before joining room
         if (challengeId) {
-            socket.emit("join_challenge_room", { challenge_id: challengeId });
+            const payload = { challenge_id: challengeId };
+            if (window.challengeConfig && window.challengeConfig.currentUserId) {
+                payload.user_id = window.challengeConfig.currentUserId;
+            }
+            socket.emit("join_challenge_room", payload);
         } else {
             console.error("[SocketHandler] Cannot join room: challengeId is missing.");
             showError(statusDisplayElement, "Error: Missing challenge ID for real-time updates.", "danger");
@@ -59,8 +63,8 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
         console.warn("[SocketHandler] Disconnected from WebSocket. Reason: %s", reason);
         listenersAttached = false;
         if (statusDisplayElement) {
-            const message = reason === "io server disconnect" ? "Lost real-time connection (server)." : `Real-time connection lost: ${reason}. Reconnecting...`; // User-facing, template literal is fine
-            if (reason !== "io client disconnect") { // Avoid error on manual/programmatic disconnect
+            const message = reason === "io server disconnect" ? "Lost real-time connection (server)." : `Real-time connection lost: ${reason}. Reconnecting...`;
+            if (reason !== "io client disconnect") { 
                 showError(statusDisplayElement, message, "warning");
             }
         }
@@ -70,25 +74,22 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
         console.error("[SocketHandler] WebSocket Connection Error: %s", error.message, error);
         listenersAttached = false;
         if (statusDisplayElement) {
-            showError(statusDisplayElement, `Connection Error: ${error.message}. Updates may be unavailable.`, "danger"); // User-facing, template literal is fine
+            showError(statusDisplayElement, `Connection Error: ${error.message}. Updates may be unavailable.`, "danger");
         }
     });
 
-    // Manager events for reconnection attempts
     socket.io.on("reconnect_attempt", (attempt) => console.info("[SocketHandler] Reconnect attempt %s", attempt));
     socket.io.on("reconnect_failed", () => {
         console.error("[SocketHandler] Reconnection failed permanently.");
         if (statusDisplayElement) showError(statusDisplayElement, "Failed to reconnect to real-time updates. Please refresh.", "danger");
     });
-    socket.io.on("reconnect_error", (error) => console.error("[SocketHandler] Reconnection error:", error.message)); // error.message is usually safe
-    socket.io.on("error", (error) => console.error("[SocketHandler Manager Error]:", error.message, error)); // error.message is usually safe
+    socket.io.on("reconnect_error", (error) => console.error("[SocketHandler] Reconnection error:", error.message));
+    socket.io.on("error", (error) => console.error("[SocketHandler Manager Error]:", error.message, error));
 
 
-    // --- Application-Specific Event Handlers ---
-    // These are only attached ONCE after a successful room join.
     socket.on("room_joined", (data) => {
         console.info("[SocketHandler] Successfully joined room: %s. SID: %s.", data.room, socket.id);
-        if (statusDisplayElement) showError(statusDisplayElement, null); // Clear any previous errors
+        if (statusDisplayElement) showError(statusDisplayElement, null); 
 
         if (!listenersAttached) {
             console.log("[SocketHandler] Attaching application-specific event listeners for room:", data.room);
@@ -126,6 +127,13 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
                     document.dispatchEvent(new CustomEvent("socketActivePenaltyUpdateReceived", { detail: eventData }));
                 }
             });
+            
+            socket.on("timed_penalty_applied", (eventData) => { // New listener for timed penalties
+                console.debug("[SocketHandler] Event: timed_penalty_applied", eventData);
+                if (eventData && eventData.challenge_id === challengeId) {
+                    document.dispatchEvent(new CustomEvent("socketTimedPenaltyAppliedReceived", { detail: eventData }));
+                }
+            });
 
             socket.on("group_created", (eventData) => {
                 console.debug("[SocketHandler] Event: group_created", eventData);
@@ -154,13 +162,36 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
                     document.dispatchEvent(new CustomEvent("socketChallengePenaltiesUpdatedReceived", { detail: eventData }));
                 }
             });
-             socket.on("penalty_result", (eventData) => { // Listener for penalty wheel spin results
+             socket.on("penalty_result", (eventData) => { 
                 console.debug("[SocketHandler] Event: penalty_result (for wheel animation)", eventData);
                 if (eventData && eventData.challenge_id === challengeId && eventData.result) {
                     document.dispatchEvent(new CustomEvent("socketPenaltySpinResultReceived", { detail: eventData }));
                 }
             });
+            
+            socket.on('current_game_updated', (data) => {
+                console.log('[SocketHandler] Received current_game_updated from server:', data); // Log before dispatch
+                if (data && data.challenge_id === challengeId) {
+                    console.log('[SocketHandler] Dispatching socketCurrentGameUpdatedReceived event with detail:', data); // Log what's being dispatched
+                    document.dispatchEvent(new CustomEvent('socketCurrentGameUpdatedReceived', { detail: data }));
+                } else {
+                    console.log('[SocketHandler] current_game_updated event ignored (wrong challenge_id or no data).');
+                }
+            });
 
+            socket.on('group_deleted', (data) => {
+                console.log('[SocketHandler] Received group_deleted:', data);
+                if (data && data.challenge_id === challengeId) {
+                    document.dispatchEvent(new CustomEvent('socketGroupDeletedReceived', { detail: data }));
+                }
+            });
+            
+            socket.on('user_kicked_from_group', (data) => {
+                console.log('[SocketHandler] Received user_kicked_from_group:', data);
+                if (data && data.challenge_id === challengeId) {
+                    document.dispatchEvent(new CustomEvent('socketUserKickedFromGroupReceived', { detail: data }));
+                }
+            });
 
             listenersAttached = true;
         } else {
@@ -170,20 +201,17 @@ export function initializeChallengeSockets(challengeId, isLocal, statusDisplayEl
 
     socket.on("room_join_error", (data) => {
         console.error("[SocketHandler] Room Join Error: %s. SID: %s", data.error, socket?.id);
-        if (statusDisplayElement) showError(statusDisplayElement, `Could not join challenge updates: ${data.error}`, "danger"); // User-facing, template literal is fine
+        if (statusDisplayElement) showError(statusDisplayElement, `Could not join challenge updates: ${data.error}`, "danger");
     });
 }
 
-/**
- * Disconnects the socket if it's active and clears the reference.
- */
 export function disconnectChallengeSockets() {
     if (socket) {
         console.info("[SocketHandler] Explicitly disconnecting socket.");
         if (socket.connected) {
             socket.disconnect();
         }
-        socket.off(); // Remove all listeners
+        socket.off(); 
         socket = null;
     }
     listenersAttached = false;

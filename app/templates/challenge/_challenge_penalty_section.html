@@ -41,12 +41,25 @@
          <div class="card h-100 glass-effect shadow-sm"> {# Card with glass + shadow #}
               <div class="card-header bg-transparent text-secondary fw-bold d-flex align-items-center justify-content-center py-2"> {# Styled header #}
                    <i class="{{ bi_icon_prefix }}shield-exclamation me-2 fs-5"></i> {# Icon #}
-                   Selecting Penalty...
+                   <span id="penaltyWheelTitle-{{ challenge_index }}">Selecting Penalty...</span> {# Title with ID #}
               </div>
               <div class="card-body d-flex align-items-center justify-content-center p-2"> {# Reduced padding #}
                    <canvas id="penaltyWheelCanvas-{{ challenge_index }}" width="280" height="280" style="max-width: 100%; max-height: 280px;">Canvas not supported</canvas>
               </div>
          </div>
+    </div>
+
+    {# Time Wheel Container - using card structure #}
+    <div class="col-md-6 col-lg-5 text-center wheel-container mb-4" id="timeWheelContainer-{{ challenge_index }}" style="display: none;">
+        <div class="card h-100 glass-effect shadow-sm">
+            <div class="card-header bg-transparent text-secondary fw-bold d-flex align-items-center justify-content-center py-2">
+                <i class="{{ bi_icon_prefix }}clock-history me-2 fs-5"></i> {# Icon for Time #}
+                <span id="timeWheelTitle-{{ challenge_index }}">Selecting Duration...</span> {# Title #}
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center p-2">
+                <canvas id="timeWheelCanvas-{{ challenge_index }}" width="280" height="280" style="max-width: 100%; max-height: 280px;">Canvas not supported</canvas>
+            </div>
+        </div>
     </div>
 </div>
 

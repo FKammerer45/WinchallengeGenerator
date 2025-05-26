@@ -31,6 +31,16 @@
               <input type="number" class="form-control" id="newPlayers" name="newPlayers" step="1" min="1" max="99" placeholder="1" required>
             </div>
           </div>
+          <div class="mb-3">
+            <label for="newGameTags" class="form-label"><i class="bi bi-tags-fill me-1"></i>Tags</label>
+            <select multiple class="form-select" id="newGameTags" name="newGameTags" aria-label="Game Tags" size="3">
+              <option value="FirstPerson">FirstPerson</option>
+              <option value="Strategy">Strategy</option>
+              <option value="Party">Party</option>
+              {# Add other predefined tags here if necessary #}
+            </select>
+            <small class="form-text text-muted">Select one or more tags. Hold Ctrl/Cmd to select multiple.</small>
+          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -58,7 +68,21 @@
         {# The form tag was missing an ID. Added id="editGameForm" #}
         <form id="editGameForm"> 
             <input type="hidden" id="editGameNameHidden" name="editGameNameHidden">
+            {# Hidden input to store the GameEntry ID for updates, will be populated by JS #}
+            <input type="hidden" id="editGameEntryId" name="editGameEntryId"> 
             <div id="editGameAlert" class="mb-3"></div>
+
+            {# General Tags for the Game Entry #}
+            <div class="mb-3">
+              <label for="editGameTags" class="form-label"><i class="bi bi-tags-fill me-1"></i>Game Tags</label>
+              <select multiple class="form-select" id="editGameTags" name="editGameTags" aria-label="Edit Game Tags" size="3">
+                <option value="FirstPerson">FirstPerson</option>
+                <option value="Strategy">Strategy</option>
+                <option value="Party">Party</option>
+                {# Add other predefined tags here if necessary #}
+              </select>
+              <small class="form-text text-muted">Select one or more tags. Hold Ctrl/Cmd to select multiple.</small>
+            </div>
             
             <h6 class="mb-3"><i class="bi bi-gear-fill me-2"></i>Game Modes:</h6>
             <div id="editGameModesContainer">

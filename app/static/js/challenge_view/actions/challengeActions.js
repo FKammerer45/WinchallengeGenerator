@@ -25,22 +25,30 @@ export async function handleProgressUpdate(itemData, isComplete, checkboxEl) { /
     let progressKey;
     let payload;
     try {
-        const type = itemData.itemType;
-        const key = itemData.itemKey;
-        const index = parseInt(itemData.itemIndex, 10);
-        payload = { item_type: type, item_key: key, item_index: index, is_complete: isComplete };
+        const type = itemData.itemType; // 'normal' or 'b2b'
+        const gameIdOrName = itemData.itemKey; // This is gameInfo.id or gameKey from progressDisplay
+        const checkboxIndex = parseInt(itemData.itemIndex, 10); // This is the 'i' from the loop in progressDisplay
+
+        if (isNaN(checkboxIndex)) throw new Error("Invalid item index.");
+
+        payload = { 
+            item_type: type, 
+            item_key: gameIdOrName, // Send the game's unique ID/name
+            item_index: checkboxIndex, // Send the checkbox's own index for that game
+            is_complete: isComplete 
+        };
 
         if (type === 'b2b') {
             const segmentIndex_1based = parseInt(itemData.segmentIndex, 10);
             if (isNaN(segmentIndex_1based) || segmentIndex_1based < 1) throw new Error("Invalid segment index for B2B item.");
-            payload.segment_index = segmentIndex_1based;
-            progressKey = `${type}_${segmentIndex_1based - 1}_${key}_${index}`; // 0-based for local state
+            payload.segment_index = segmentIndex_1based; // Keep 1-based for API
+            // Progress key for local state uses 0-based segment index
+            progressKey = `${type}_${segmentIndex_1based - 1}_${gameIdOrName}_${checkboxIndex}`; 
         } else if (type === 'normal') {
-            progressKey = `${type}_${key}_${index}`;
+            progressKey = `${type}_${gameIdOrName}_${checkboxIndex}`;
         } else {
             throw new Error("Unknown progress item type.");
         }
-        if (isNaN(index)) throw new Error("Invalid item index.");
     } catch (e) {
         console.error("Error constructing progress payload:", e);
         showError(statusDiv, `Cannot save progress: ${e.message}`, 'warning');

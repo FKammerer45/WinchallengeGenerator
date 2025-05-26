@@ -312,35 +312,44 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
   gameOptionsHtml += '<option value="custom">Add Custom Game...</option>';
 
   gameRow.innerHTML = `
-    <div class="col-md-6" data-col-type="game-selection-area">
-      <select class="form-control form-control-sm custom-game-select">
-        ${gameOptionsHtml}
-      </select>
-      <div class="custom-game-inputs mt-2" style="display: none; gap: 0.5rem;">
-        <input type="text" class="form-control form-control-sm custom-game-name" placeholder="Game Name" style="flex-grow: 1;">
-        <input type="number" class="form-control form-control-sm custom-game-difficulty" placeholder="Difficulty" min="0.1" step="0.1" style="width: 60px;">
+    <div class="col-md-7" data-col-type="game-and-mode-area"> 
+      <!-- This div will hold either game+mode selects OR custom name+diff inputs -->
+      <div class="game-mode-select-group" style="display: flex; gap: 0.5rem;">
+        <select class="form-control form-control-sm custom-game-select" style="flex-basis: 60%; flex-grow: 1;">
+          ${gameOptionsHtml}
+        </select>
+        <select class="form-control form-control-sm custom-game-mode-select" style="flex-basis: 40%; flex-grow: 1;" disabled>
+          <option value="">N/A</option>
+        </select>
+      </div>
+      <div class="custom-game-inputs mt-1" style="display: none; gap: 0.5rem;">
+        <input type="text" class="form-control form-control-sm custom-game-name" placeholder="Custom Game Name" style="flex-grow: 1;">
+        <input type="number" class="form-control form-control-sm custom-game-difficulty" placeholder="Diff" min="0.1" step="0.1" style="width: 70px;">
       </div>
     </div>
-    <div class="col-md-2" data-col-type="wins-input">
-      <input type="number" class="form-control form-control-sm game-wins-input" value="1" min="1" placeholder="Wins">
+    <div class="col-md-1" data-col-type="wins-input">
+      <input type="number" class="form-control form-control-sm game-wins-input" value="1" min="1" placeholder="W" title="Number of wins">
     </div>
     <div class="col-md-2" data-col-type="difficulty-display">
       <p class="mb-0 game-difficulty-display text-muted small" style="font-size: 0.75rem;">Diff: -</p>
     </div>
     <div class="col-md-2 text-end" data-col-type="remove-button">
-      <button type="button" class="btn btn-outline-danger btn-sm remove-game-row-btn">
+      <button type="button" class="btn btn-outline-danger btn-sm remove-game-row-btn" title="Remove game">
         <i class="bi bi-trash"></i>
       </button>
     </div>
   `;
   container.appendChild(gameRow);
 
-  const gameSelectionArea = gameRow.querySelector('[data-col-type="game-selection-area"]');
+  // const gameSelectionArea = gameRow.querySelector('[data-col-type="game-selection-area"]'); // Not needed with new structure
+  const gameModeSelectGroup = gameRow.querySelector(".game-mode-select-group");
   const customGameSelect = gameRow.querySelector(".custom-game-select");
+  const customGameModeSelect = gameRow.querySelector(".custom-game-mode-select");
   const customGameInputs = gameRow.querySelector(".custom-game-inputs");
-  const winsInputColumn = gameRow.querySelector('[data-col-type="wins-input"]');
-  const gameDifficultyDisplayColumn = gameRow.querySelector('[data-col-type="difficulty-display"]');
-  const removeButtonColumn = gameRow.querySelector('[data-col-type="remove-button"]');
+  // const winsInputColumn = gameRow.querySelector('[data-col-type="wins-input"]'); // Not needed for class changes
+  // const gameDifficultyDisplayColumn = gameRow.querySelector('[data-col-type="difficulty-display"]');
+  // const removeButtonColumn = gameRow.querySelector('[data-col-type="remove-button"]');
+
 
   const customGameNameInput = gameRow.querySelector(".custom-game-name");
   const customGameDifficultyInput = gameRow.querySelector(".custom-game-difficulty");
@@ -348,42 +357,24 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
 
   function updateRowDisplayAndTotalDifficulty() {
     const selectedGameName = customGameSelect.value;
+    const selectedGameMode = customGameModeSelect.value;
     const winsInput = gameRow.querySelector(".game-wins-input");
     const wins = parseInt(winsInput.value) || 0;
+    let baseDifficulty = 0;
 
     if (selectedGameName === "custom") {
-      customGameSelect.style.display = "none";
-      customGameInputs.style.display = "flex";
-      gameSelectionArea.classList.remove('col-md-6');
-      gameSelectionArea.classList.add('col-md-7'); // Adjusted from 8 to 7
-
-      winsInputColumn.classList.remove('col-md-2'); // No change needed if already col-md-2
-      winsInputColumn.classList.add('col-md-2');
-      gameDifficultyDisplayColumn.classList.remove('col-md-2'); // Was col-md-1, now col-md-2
-      gameDifficultyDisplayColumn.classList.add('col-md-2');
-      removeButtonColumn.classList.remove('col-md-2'); // Was col-md-3, now col-md-1
-      removeButtonColumn.classList.add('col-md-1');
-
-
-      const customDifficulty = parseFloat(customGameDifficultyInput.value) || 0;
-      gameDifficultyDisplay.textContent = `Diff: ${(customDifficulty * wins).toFixed(1) || '-'}`;
+      gameModeSelectGroup.style.display = "none"; // Hide game and mode selects
+      customGameInputs.style.display = "flex";   // Show custom inputs
+      
+      baseDifficulty = parseFloat(customGameDifficultyInput.value) || 0;
+      gameDifficultyDisplay.textContent = `Diff: ${(baseDifficulty * wins).toFixed(1) || '-'}`;
     } else {
-      customGameSelect.style.display = "block";
-      customGameInputs.style.display = "none";
-      gameSelectionArea.classList.remove('col-md-7'); // Revert from custom state
-      gameSelectionArea.classList.add('col-md-6');   // Back to non-custom state
-
-      winsInputColumn.classList.remove('col-md-2'); // No change needed if already col-md-2
-      winsInputColumn.classList.add('col-md-2');
-      gameDifficultyDisplayColumn.classList.remove('col-md-1'); // Revert from custom state (if it was col-md-1)
-      gameDifficultyDisplayColumn.classList.add('col-md-2');   // Back to non-custom state
-      removeButtonColumn.classList.remove('col-md-1'); // Revert from custom state
-      removeButtonColumn.classList.add('col-md-2');   // Back to non-custom state
-
+      gameModeSelectGroup.style.display = "flex"; // Show game and mode selects
+      customGameInputs.style.display = "none";  // Hide custom inputs
 
       if (selectedGameName) {
-        const gameData = findGameData(selectedGameName);
-        const baseDifficulty = gameData ? parseFloat(gameData.difficulty) : 0;
+        const gameData = findGameData(selectedGameName, selectedGameMode); // Pass mode
+        baseDifficulty = gameData ? parseFloat(gameData.difficulty) : 0;
         gameDifficultyDisplay.textContent = `Diff: ${(baseDifficulty * wins).toFixed(1) || '-'}`;
       } else {
         gameDifficultyDisplay.textContent = "Diff: -";
@@ -397,11 +388,26 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
     if (selectedGameName === "custom") {
       customGameNameInput.value = ""; 
       customGameDifficultyInput.value = "";
+      populateGameModeDropdown(customGameModeSelect, []); 
+      customGameModeSelect.disabled = true;
     } else if (selectedGameName) {
-      const gameData = findGameData(selectedGameName);
+      const gameData = findGameData(selectedGameName); 
+      if (gameData && gameData.availableModes && gameData.availableModes.length > 0) {
+        populateGameModeDropdown(customGameModeSelect, gameData.availableModes, gameData.availableModes[0]);
+        customGameModeSelect.disabled = false;
+      } else {
+        populateGameModeDropdown(customGameModeSelect, ["Default"], "Default"); // Add a "Default" mode if none found
+        customGameModeSelect.disabled = false; // Enable even for default
+      }
     } else {
+      populateGameModeDropdown(customGameModeSelect, []);
+      customGameModeSelect.disabled = true;
     }
-    updateRowDisplayAndTotalDifficulty();
+    updateRowDisplayAndTotalDifficulty(); 
+  });
+
+  customGameModeSelect.addEventListener("change", function() {
+    updateRowDisplayAndTotalDifficulty(); 
   });
   
   customGameDifficultyInput.addEventListener('input', function() {
@@ -410,7 +416,11 @@ export function addSingleGameRowToContainer(container, isB2B = false) {
     }
   });
   
-  customGameNameInput.addEventListener('input', updateCustomChallengeSummary);
+  customGameNameInput.addEventListener('input', function() { // Also update row display for custom name changes
+    if (customGameSelect.value === 'custom') {
+        updateRowDisplayAndTotalDifficulty(); // Recalculates summary
+    }
+  });
   gameRow.querySelector(".game-wins-input").addEventListener("input", function() {
     updateRowDisplayAndTotalDifficulty();
     updateCustomChallengeSummary();
@@ -488,7 +498,15 @@ export function handleCreateCustomChallenge() {
     }
     challengeDataForDisplay.normal.push({ game: gameName, wins: wins, difficulty: gameDifficulty, mode: gameMode, custom: isCustomGame });
     const payloadKeyNormal = `${gameName} (${gameMode === "custom" || gameMode === "N/A" ? "Default" : gameMode})`;
-    payloadChallengeData.normal[payloadKeyNormal] = { count: wins, diff: gameDifficulty };
+    // Construct the full object for normal wins payload
+    const gameDataForPayloadNormal = findGameData(gameName, (gameMode === "custom" || gameMode === "N/A" ? null : gameMode));
+    payloadChallengeData.normal[payloadKeyNormal] = { 
+        count: wins, 
+        diff_per_instance: gameDifficulty, // Corrected key
+        id: gameDataForPayloadNormal?.id || payloadKeyNormal, // Use an ID, fallback to key
+        name: payloadKeyNormal, // Full name with mode
+        tags: gameDataForPayloadNormal?.tags || [] // Add tags if available
+    };
   });
 
   let segmentIndex = 0;
@@ -524,7 +542,15 @@ export function handleCreateCustomChallenge() {
       }
       segmentGamesForDisplay.push({ game: gameName, wins: wins, difficulty: gameDifficulty, mode: gameMode, custom: isCustomGame });
       const payloadKeyB2B = `${gameName} (${gameMode === "custom" || gameMode === "N/A" ? "Default" : gameMode})`;
-      segmentGamesForPayloadGroup[payloadKeyB2B] = wins;
+      const gameDataForPayloadB2B = findGameData(gameName, (gameMode === "custom" || gameMode === "N/A" ? null : gameMode));
+      segmentGamesForPayloadGroup[payloadKeyB2B] = {
+          count: wins,
+          id: gameDataForPayloadB2B?.id || payloadKeyB2B,
+          name: payloadKeyB2B,
+          tags: gameDataForPayloadB2B?.tags || []
+          // Note: individual difficulty for B2B items is not typically shown in rules,
+          // but could be added here if needed: diff_per_instance: gameDifficulty 
+      };
       segmentTotalWins += wins;
       segmentTotalDifficulty += wins * gameDifficulty;
     });

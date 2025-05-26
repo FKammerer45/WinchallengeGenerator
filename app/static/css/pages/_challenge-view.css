@@ -176,3 +176,17 @@
   font-size: 0.85em;
   padding: 0.2rem 0.6rem;
 }
+
+/* Highlight for currently selected game in progress list */
+.progress-category.current-game-highlight,
+.challenge-item-wrapper.current-game-highlight { /* Fallback if only span is wrapped */
+  background-color: rgba(var(--warning-color-rgb), 0.15) !important; /* Light orange/yellowish tint */
+  border-left: 3px solid var(--warning-color) !important;
+  padding-left: calc(1rem - 3px); /* Adjust padding to account for border */
+  border-radius: var(--border-radius-sm);
+}
+
+.game-selectable-item.current-game-highlight { /* If only the span itself gets the class */
+    font-weight: bold;
+    color: var(--warning-color) !important;
+}

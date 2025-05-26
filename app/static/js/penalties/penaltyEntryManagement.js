@@ -127,26 +127,28 @@ export function renderPenaltiesForTab(tabId) {
         entries.forEach(penalty => {
             const row = document.createElement('tr');
             row.dataset.penaltyId = penalty.id; // For editing/deleting later
-            // row.setAttribute('title', 'Double-click to edit this penalty'); // REMOVE old hover hint
 
-            // Ensure probability is a number and format it
             let probabilityDisplay = "N/A";
             const prob = parseFloat(penalty.probability);
             if (!isNaN(prob)) {
-                probabilityDisplay = (prob * 100).toFixed(0) + "%"; // Display as percentage
+                probabilityDisplay = (prob * 100).toFixed(0) + "%";
             }
+
+            const tagsHtml = Array.isArray(penalty.tags) && penalty.tags.length > 0
+                ? penalty.tags.map(tag => `<span class="badge bg-secondary me-1">${escapeHtml(tag)}</span>`).join(' ')
+                : 'N/A';
 
             row.innerHTML = `
                 <td data-label="Name">${escapeHtml(penalty.name || 'N/A')}</td>
                 <td data-label="Probability">${escapeHtml(probabilityDisplay)}</td>
                 <td data-label="Description" class="text-break">${escapeHtml(penalty.description || 'N/A')}</td>
+                <td data-label="Tags">${tagsHtml}</td>
             `;
-            // Add dblclick listener for editing directly on the row
             row.addEventListener('dblclick', () => handleEditPenaltyModalOpen(tabId, penalty.id));
             tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-secondary py-3">No penalties added to this tab yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-3">No penalties added to this tab yet.</td></tr>`; // colspan updated to 4
     }
 }
 
@@ -155,10 +157,12 @@ export function handleSaveNewPenalty() {
     const nameInput = form.elements.newPenaltyName;
     const probInput = form.elements.newPenaltyProbability;
     const descInput = form.elements.newPenaltyDescription;
+    const tagsSelect = form.elements.newPenaltyTags; // Get tags select element
 
     const name = nameInput?.value.trim();
     const probability = parseFloat(probInput?.value);
     const description = descInput?.value.trim();
+    const tags = tagsSelect ? Array.from(tagsSelect.selectedOptions).map(option => option.value) : [];
 
     showNewPenaltyAlert(null);
     let errors = [];
@@ -184,7 +188,8 @@ export function handleSaveNewPenalty() {
         id: newEntryId,
         name,
         probability: probability, // Store as decimal
-        description
+        description,
+        tags // Add tags to the new entry object
     };
 
     if (saveOrUpdatePenaltyEntryData(currentTab, newEntry, false)) {
@@ -223,6 +228,14 @@ function handleEditPenaltyModalOpen(tabId, penaltyId) {
     form.elements.editPenaltyProbability.value = penaltyToEdit.probability !== undefined ? penaltyToEdit.probability : "";
     form.elements.editPenaltyDescription.value = penaltyToEdit.description || "";
     
+    const editTagsSelect = form.elements.editPenaltyTags;
+    if (editTagsSelect && editTagsSelect.options) {
+        const tagsToSelect = Array.isArray(penaltyToEdit.tags) ? penaltyToEdit.tags : [];
+        for (let i = 0; i < editTagsSelect.options.length; i++) {
+            editTagsSelect.options[i].selected = tagsToSelect.includes(editTagsSelect.options[i].value);
+        }
+    }
+    
     showEditPenaltyAlert(null); // Clear previous alerts in edit modal
     if (typeof $ !== 'undefined' && $.fn.modal) $('#editPenaltyModal').modal('show');
 }
@@ -234,6 +247,8 @@ export function handleUpdatePenalty() {
     const name = form.elements.editPenaltyName.value.trim();
     const probability = parseFloat(form.elements.editPenaltyProbability.value);
     const description = form.elements.editPenaltyDescription.value.trim();
+    const tagsSelect = form.elements.editPenaltyTags;
+    const tags = tagsSelect ? Array.from(tagsSelect.selectedOptions).map(option => option.value) : [];
     const currentTab = window.currentPenaltyTargetTab;
 
     showEditPenaltyAlert(null);
@@ -253,7 +268,7 @@ export function handleUpdatePenalty() {
         return;
     }
 
-    const updatedEntry = { id, name, probability, description };
+    const updatedEntry = { id, name, probability, description, tags }; // Add tags to the updated entry object
 
     if (saveOrUpdatePenaltyEntryData(currentTab, updatedEntry, true)) { // isUpdate = true
         renderPenaltiesForTab(currentTab);

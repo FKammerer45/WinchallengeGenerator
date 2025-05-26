@@ -1,6 +1,6 @@
 // app/static/js/challenge_view/ui/groupCard.js
 import { escapeHtml, setLoading, showError } from '../../utils/helpers.js'; // Adjusted path
-import { renderProgressItems, renderOrUpdateProgressBar } from './progressDisplay.js'; // Assuming progressDisplay.js
+import { renderProgressItems, renderOrUpdateProgressBar, highlightCurrentGame } from './progressDisplay.js'; // Assuming progressDisplay.js and added highlightCurrentGame
 import { updatePenaltyDisplay, JOINED_GROUP_COL_CLASSES, OTHER_GROUP_COL_CLASSES } from './uiOrchestrator.js';
 
 /**
@@ -76,6 +76,7 @@ export function renderNewGroupCard(group, challengeConfig, myGroupContainerEl, o
  * @param {object} challengeConfig - The overall challenge configuration.
  */
 export function updateGroupCardContents(cardWrapper, groupData, challengeConfig) {
+    console.log(`[GroupCard updateGroupCardContents] Updating card for group ID: ${groupData?.id}. Received currentGameInfo:`, JSON.parse(JSON.stringify(groupData?.currentGameInfo || null)));
     if (!cardWrapper || !groupData || !challengeConfig) {
         console.error("[GroupCard] Missing cardWrapper, groupData, or challengeConfig for update.", { cardWrapper, groupData, challengeConfig });
         return;
@@ -112,10 +113,18 @@ export function updateGroupCardContents(cardWrapper, groupData, challengeConfig)
         progressBarContainer.innerHTML = '<p class="text-muted small mb-0">Progress unavailable.</p>';
     }
 
-    // 2. Update Progress Items (Checkboxes)
+    // 2. Update Progress Items (Checkboxes / Clickable Game Items)
     const progressItemsContainer = card.querySelector('.group-progress-container');
     if (progressItemsContainer && challengeConfig.coreChallengeStructure) {
-        renderProgressItems(progressItemsContainer, challengeConfig.coreChallengeStructure, groupId, groupData.progress || {}, canInteractGenerally); // Use general canInteract
+        // Pass groupData.currentGameInfo to renderProgressItems
+        renderProgressItems(
+            progressItemsContainer, 
+            challengeConfig.coreChallengeStructure, 
+            groupId, 
+            groupData.progress || {}, 
+            canInteractGenerally,
+            groupData.currentGameInfo // Pass current game info for highlighting
+        ); 
     } else if (progressItemsContainer) {
         progressItemsContainer.innerHTML = '<p class="text-muted small">Challenge items unavailable.</p>';
     }
@@ -136,7 +145,13 @@ export function updateGroupCardContents(cardWrapper, groupData, challengeConfig)
         const penaltyDisplayDiv = card.querySelector('.active-penalty-display');
         if (penaltyDisplayDiv) {
             penaltyDisplayDiv.dataset.groupId = groupId; // Ensure group ID is set
-            updatePenaltyDisplay(penaltyDisplayDiv, groupData.active_penalty_text || '', canInteractGenerally); // Use general canInteract for clearing penalty
+            updatePenaltyDisplay(
+                penaltyDisplayDiv, 
+                groupData.active_penalty_text || '', 
+                canInteractGenerally,
+                groupData.active_penalty_duration_seconds, // Pass duration
+                groupData.penalty_applied_at_utc          // Pass applied_at time
+            );
         }
 
         // 5. Update Footer Buttons

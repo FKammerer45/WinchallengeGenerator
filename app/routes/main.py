@@ -301,7 +301,9 @@ def challenge_view(challenge_id):
                     "progress": g.progress_data or {}, # Use refreshed progress data
                     "member_count": len(g.members), # Count loaded members
                     "player_names": g.player_names or [],
-                    "active_penalty_text": g.active_penalty_text or ""
+                    "active_penalty_text": g.active_penalty_text or "",
+                    "active_penalty_duration_seconds": g.active_penalty_duration_seconds,
+                    "penalty_applied_at_utc": g.penalty_applied_at_utc.isoformat() + "Z" if g.penalty_applied_at_utc else None
                 }
                 # Iterate over the refreshed groups list
                 for g in shared_challenge.groups

@@ -8,112 +8,88 @@ users when they first interact with the respective configuration pages.
 
 # --- Default Game Tab Definitions ---
 
-# Define content for specific game categories first
 SHOOTER_GAMES_ENTRIES = [
-    {'Spiel': 'CSGO', 'Spielmodus': 'Ranked', 'Schwierigkeit': 7.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-csgo-ranked'},
-    {'Spiel': 'CSGO', 'Spielmodus': 'Premier', 'Schwierigkeit': 7.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-csgo-premier'},
-    {'Spiel': 'Valorant', 'Spielmodus': 'Ranked', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-valorant-ranked'},
-    {'Spiel': 'Apex Legends', 'Spielmodus': 'Trios', 'Schwierigkeit': 7.0, 'Spieleranzahl': 3, 'weight': 1.0, 'id': 'db-apex-trios'},
-    {'Spiel': 'Apex Legends', 'Spielmodus': 'Duos', 'Schwierigkeit': 7.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-apex-duos'},
-    {'Spiel': 'Fortnite', 'Spielmodus': 'Battle Royale (Solo)', 'Schwierigkeit': 5.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-fortnite-solo'},
-    {'Spiel': 'Overwatch 2', 'Spielmodus': 'Competitive', 'Schwierigkeit': 7.5, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-overwatch2-comp'},
-    {'Spiel': 'PUBG', 'Spielmodus': 'Squad', 'Schwierigkeit': 8.0, 'Spieleranzahl': 4, 'weight': 1.0, 'id': 'db-pubg-squad'}, # Corrected 'squad'
-    {'Spiel': 'Rainbow6Siege', 'Spielmodus': 'Ranked', 'Schwierigkeit': 5.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-r6s-ranked'},
+    {'Spiel': 'CSGO', 'Spielmodus': 'Ranked', 'Schwierigkeit': 7.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-csgo-ranked', 'tags': ["FirstPerson"]},
+    {'Spiel': 'CSGO', 'Spielmodus': 'Premier', 'Schwierigkeit': 7.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-csgo-premier', 'tags': ["FirstPerson"]},
+    {'Spiel': 'Valorant', 'Spielmodus': 'Ranked', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-valorant-ranked', 'tags': ["FirstPerson"]},
+    {'Spiel': 'Apex Legends', 'Spielmodus': 'Trios', 'Schwierigkeit': 7.0, 'Spieleranzahl': 3, 'weight': 1.0, 'id': 'db-apex-trios', 'tags': ["FirstPerson"]},
+    {'Spiel': 'Apex Legends', 'Spielmodus': 'Duos', 'Schwierigkeit': 7.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-apex-duos', 'tags': ["FirstPerson"]},
+    {'Spiel': 'Fortnite', 'Spielmodus': 'Battle Royale (Solo)', 'Schwierigkeit': 5.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-fortnite-solo', 'tags': ["FirstPerson"]},
+    {'Spiel': 'Overwatch 2', 'Spielmodus': 'Competitive', 'Schwierigkeit': 7.5, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-overwatch2-comp', 'tags': ["FirstPerson"]},
+    {'Spiel': 'PUBG', 'Spielmodus': 'Squad', 'Schwierigkeit': 8.0, 'Spieleranzahl': 4, 'weight': 1.0, 'id': 'db-pubg-squad', 'tags': ["FirstPerson"]},
+    {'Spiel': 'Rainbow6Siege', 'Spielmodus': 'Ranked', 'Schwierigkeit': 5.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-r6s-ranked', 'tags': ["FirstPerson"]},
 ]
 
 PARTY_GAMES_ENTRIES = [
-    {'Spiel': 'Fallguys', 'Spielmodus': 'Normal', 'Schwierigkeit': 2.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-fallguys-normal'}, # Corrected 'normal'
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'Aram', 'Schwierigkeit': 3.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-lol-aram'},
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'URF', 'Schwierigkeit': 4.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-lol-urf'},
-    {'Spiel': 'RocketLeague', 'Spielmodus': 'Duos', 'Schwierigkeit': 2.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-rl-duos'},
-    {'Spiel': 'RocketLeague', 'Spielmodus': 'Trios', 'Schwierigkeit': 2.0, 'Spieleranzahl': 3, 'weight': 1.0, 'id': 'db-rl-trios'},
+    {'Spiel': 'Fallguys', 'Spielmodus': 'Normal', 'Schwierigkeit': 2.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-fallguys-normal', 'tags': ["Party"]},
+    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'Aram', 'Schwierigkeit': 3.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-lol-aram', 'tags': ["Strategy", "Party"]},
+    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'URF', 'Schwierigkeit': 4.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-lol-urf', 'tags': ["Strategy", "Party"]},
+    {'Spiel': 'RocketLeague', 'Spielmodus': 'Duos', 'Schwierigkeit': 2.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-rl-duos', 'tags': ["Party"]},
+    {'Spiel': 'RocketLeague', 'Spielmodus': 'Trios', 'Schwierigkeit': 2.0, 'Spieleranzahl': 3, 'weight': 1.0, 'id': 'db-rl-trios', 'tags': ["Party"]},
 ]
 
 STRATEGY_GAMES_ENTRIES = [
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'FlexQ', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-lol-flexq'},
-    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'DuoQ', 'Schwierigkeit': 8.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-lol-duoq'},
-    {'Spiel': 'Dota 2', 'Spielmodus': 'All Pick', 'Schwierigkeit': 8.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-dota2-allpick'},
-    {'Spiel': 'Dota 2', 'Spielmodus': 'Turbo', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-dota2-turbo'},
-    {'Spiel': 'AgeOfEmpires', 'Spielmodus': 'Ranked', 'Schwierigkeit': 5.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-aoe-ranked'},
-    {'Spiel': 'Teamfight Tactics', 'Spielmodus': 'Ranked', 'Schwierigkeit': 6.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-tft-ranked'},
-    {'Spiel': 'Teamfight Tactics', 'Spielmodus': 'Hyper Roll', 'Schwierigkeit': 4.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-tft-hyperroll'},
+    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'FlexQ', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-lol-flexq', 'tags': ["Strategy"]},
+    {'Spiel': 'LeagueOfLegends', 'Spielmodus': 'DuoQ', 'Schwierigkeit': 8.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-lol-duoq', 'tags': ["Strategy"]},
+    {'Spiel': 'Dota 2', 'Spielmodus': 'All Pick', 'Schwierigkeit': 8.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-dota2-allpick', 'tags': ["Strategy"]},
+    {'Spiel': 'Dota 2', 'Spielmodus': 'Turbo', 'Schwierigkeit': 6.0, 'Spieleranzahl': 5, 'weight': 1.0, 'id': 'db-dota2-turbo', 'tags': ["Strategy"]},
+    {'Spiel': 'AgeOfEmpires', 'Spielmodus': 'Ranked', 'Schwierigkeit': 5.0, 'Spieleranzahl': 2, 'weight': 1.0, 'id': 'db-aoe-ranked', 'tags': ["Strategy"]},
+    {'Spiel': 'Teamfight Tactics', 'Spielmodus': 'Ranked', 'Schwierigkeit': 6.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-tft-ranked', 'tags': ["Strategy"]},
+    {'Spiel': 'Teamfight Tactics', 'Spielmodus': 'Hyper Roll', 'Schwierigkeit': 4.0, 'Spieleranzahl': 1, 'weight': 1.0, 'id': 'db-tft-hyperroll', 'tags': ["Strategy"]},
 ]
 
-# Combine all unique game entries for the "All Games" tab
-# Using a dictionary to ensure uniqueness by a composite key (Spiel + Spielmodus) before creating the final list
 temp_all_games_dict = {}
 for entry_list in [SHOOTER_GAMES_ENTRIES, PARTY_GAMES_ENTRIES, STRATEGY_GAMES_ENTRIES]:
     for entry in entry_list:
-        key = f"{entry['Spiel']}_{entry['Spielmodus']}" # Create a unique key
+        key = f"{entry['Spiel']}_{entry['Spielmodus']}"
         if key not in temp_all_games_dict:
+            if 'tags' not in entry: entry['tags'] = []
             temp_all_games_dict[key] = entry
 ALL_GAMES_ENTRIES = list(temp_all_games_dict.values())
 
-
 DEFAULT_GAME_TAB_DEFINITIONS = {
-    "default-all-games": {
-        "client_tab_id": "default-all-games", # This will be the key in SavedGameTab.client_tab_id
-        "name": "All Games",
-        "entries": ALL_GAMES_ENTRIES
-    },
-    "default-shooters": {
-        "client_tab_id": "default-shooters",
-        "name": "Shooters",
-        "entries": SHOOTER_GAMES_ENTRIES
-    },
-    "default-party-games": {
-        "client_tab_id": "default-party-games",
-        "name": "Party Games",
-        "entries": PARTY_GAMES_ENTRIES
-    },
-    "default-strategy-games": {
-        "client_tab_id": "default-strategy-games",
-        "name": "Strategy Games",
-        "entries": STRATEGY_GAMES_ENTRIES
-    }
+    "default-all-games": {"client_tab_id": "default-all-games", "name": "All Games", "entries": ALL_GAMES_ENTRIES},
+    "default-shooters": {"client_tab_id": "default-shooters", "name": "Shooters", "entries": SHOOTER_GAMES_ENTRIES},
+    "default-party-games": {"client_tab_id": "default-party-games", "name": "Party Games", "entries": PARTY_GAMES_ENTRIES},
+    "default-strategy-games": {"client_tab_id": "default-strategy-games", "name": "Strategy Games", "entries": STRATEGY_GAMES_ENTRIES}
 }
 
-# --- Default Penalty Tab Definitions ---
+# --- New Default Penalty Tab Definitions ---
 
 EASY_PENALTIES_ENTRIES = [
-    {'name': 'Hydration Check', 'description': 'Take a good sip of water!', 'probability': 1.0, 'id': 'db-p-hydrate'},
-    {'name': 'Posture Check', 'description': 'Sit up straight, shoulders back!', 'probability': 1.0, 'id': 'db-p-posture'},
-    {'name': 'Quick Stretch', 'description': 'Stretch your arms, neck, or back for 10 seconds.', 'probability': 1.0, 'id': 'db-p-stretch'},
-    {'name': 'Deep Breath', 'description': 'Take 3 slow, deep breaths.', 'probability': 1.0, 'id': 'db-p-breath'},
-    {'name': 'Stand Up', 'description': 'Briefly stand up from your chair.', 'probability': 1.0, 'id': 'db-p-standup'},
+    {'id': 'db-p-easy-brightness-low', 'name': 'Dim Monitor', 'description': 'Set monitor brightness to 10% for the penalty duration.', 'probability': 0.7, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-onecolor', 'name': 'Monochrome Mode', 'description': 'If possible with OS/filter, set screen to grayscale for the penalty duration.', 'probability': 0.5, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-standup', 'name': 'Stand Up & Play', 'description': 'If you normally sit, stand up while playing for the penalty duration.', 'probability': 0.8, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-chatspam', 'name': 'Positive Chat Spam', 'description': 'Send 3 positive, encouraging (but distinct) messages in team chat now.', 'probability': 0.9, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-soundeffect', 'name': 'Vocal Sound Effect', 'description': 'Make a relevant game sound effect with your voice after your next 3 significant actions.', 'probability': 0.6, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-stretch', 'name': 'Quick Stretch Break', 'description': 'Perform a 20-second stretch (arms, neck, back).', 'probability': 1.0, 'tags': ["Universal"]},
 ]
 
 MEDIUM_PENALTIES_ENTRIES = [
-    {'name': 'Compliment Teammate', 'description': 'Give a genuine compliment to a teammate (in voice or chat).', 'probability': 0.75, 'id': 'db-p-compteam'},
-    {'name': 'Compliment Opponent', 'description': 'Acknowledge a good play by an opponent (in chat).', 'probability': 0.6, 'id': 'db-p-compopp'},
-    {'name': 'Laugh it Off', 'description': 'Force a smile or a chuckle, even if tilted.', 'probability': 0.8, 'id': 'db-p-laugh'},
-    {'name': 'Positive Affirmation', 'description': 'Say one positive thing about your own gameplay out loud.', 'probability': 0.8, 'id': 'db-p-affirm'},
-    {'name': 'Clean Your Space', 'description': 'Quickly tidy one small thing near your keyboard/mouse.', 'probability': 0.5, 'id': 'db-p-clean'},
+    {'id': 'db-p-med-sens-change', 'name': 'Mouse Sensitivity Change', 'description': 'Increase or decrease your mouse sensitivity by 30% for the penalty duration.', 'probability': 0.5, 'tags': ["FirstPerson", "Universal"]},
+    {'id': 'db-p-med-key-swap-ad', 'name': 'Swap A & D Keys', 'description': 'Remap your A and D (strafe left/right) keys for the penalty duration.', 'probability': 0.4, 'tags': ["FirstPerson", "Strategy", "Universal"]},
+    {'id': 'db-p-med-monitor-close', 'name': 'Monitor Too Close', 'description': 'Move your monitor 6 inches closer than usual for the penalty duration.', 'probability': 0.6, 'tags': ["Universal"]},
+    {'id': 'db-p-med-no-zoom', 'name': 'No Scope/ADS', 'description': 'Cannot use scope or Aim Down Sights for the penalty duration.', 'probability': 0.5, 'tags': ["FirstPerson"]},
+    {'id': 'db-p-med-onehand-type', 'name': 'One-Handed Typing', 'description': 'Your next 2 typed messages must be typed one-handed.', 'probability': 0.7, 'tags': ["Universal"]},
+    {'id': 'db-p-med-voice-change', 'name': 'Funny Voice', 'description': 'Use a silly voice for all comms for the penalty duration.', 'probability': 0.4, 'tags': ["Universal"]},
 ]
 
 HARD_PENALTIES_ENTRIES = [
-    {'name': 'One-Handed Play (1 min)', 'description': 'Play using only one hand for the next minute.', 'probability': 0.2, 'id': 'db-p-onehand'},
-    {'name': 'Inverted Mouse (30s)', 'description': 'Invert your mouse Y-axis for 30 seconds (if game supports).', 'probability': 0.1, 'id': 'db-p-invertmouse'},
-    {'name': 'No Minimap (1 round/2 mins)', 'description': 'Play without looking at the minimap for the next round or 2 minutes.', 'probability': 0.25, 'id': 'db-p-nomap'},
-    {'name': 'Sing a Song', 'description': 'Sing a short song out loud (if streaming, to your audience).', 'probability': 0.15, 'id': 'db-p-singsong'},
-    {'name': 'Push-ups x5', 'description': 'Do 5 push-ups (or jumping jacks).', 'probability': 0.3, 'id': 'db-p-pushups'},
+    {'id': 'db-p-hard-mouse-sideways', 'name': 'Mouse Sideways', 'description': 'Hold and use your mouse turned 90 degrees for the penalty duration.', 'probability': 0.2, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-key-swap-ws', 'name': 'Swap W & S Keys', 'description': 'Remap your W and S (move forward/backward) keys for the penalty duration.', 'probability': 0.3, 'tags': ["FirstPerson", "Strategy", "Universal"]},
+    {'id': 'db-p-hard-brightness-max', 'name': 'Max Brightness', 'description': 'Set monitor brightness to 100% for the penalty duration.', 'probability': 0.3, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-monitor-far', 'name': 'Monitor Far Away', 'description': 'Move your monitor an extra foot further away for the penalty duration.', 'probability': 0.4, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-inverted-mouse', 'name': 'Inverted Mouse Y-Axis', 'description': 'Play with inverted mouse Y-axis for the penalty duration (if game supports).', 'probability': 0.2, 'tags': ["FirstPerson", "Universal"]},
+    {'id': 'db-p-hard-no-sound', 'name': 'No Game Sound', 'description': 'Mute all game sounds (not comms) for the penalty duration.', 'probability': 0.25, 'tags': ["FirstPerson", "Strategy", "Universal"]},
 ]
 
-# Combine all unique penalty entries for the "All Penalties" tab
-temp_all_penalties_dict = {}
-for entry_list in [EASY_PENALTIES_ENTRIES, MEDIUM_PENALTIES_ENTRIES, HARD_PENALTIES_ENTRIES]:
-    for entry in entry_list:
-        key = entry['name'] # Assuming name is unique enough for this purpose
-        if key not in temp_all_penalties_dict:
-            temp_all_penalties_dict[key] = entry
-ALL_PENALTIES_ENTRIES = list(temp_all_penalties_dict.values())
-
+ALL_PENALTIES_ENTRIES = EASY_PENALTIES_ENTRIES + MEDIUM_PENALTIES_ENTRIES + HARD_PENALTIES_ENTRIES
 
 DEFAULT_PENALTY_TAB_DEFINITIONS = {
-    "default-all-penalties": {
+    "default-all-penalties": { # Changed key to match old structure if necessary, or keep new if it's fine
         "client_tab_id": "default-all-penalties",
         "name": "All Penalties",
-        "penalties": ALL_PENALTIES_ENTRIES # Note the key is 'penalties'
+        "penalties": ALL_PENALTIES_ENTRIES
     },
     "default-easy-penalties": {
         "client_tab_id": "default-easy-penalties",
@@ -131,20 +107,3 @@ DEFAULT_PENALTY_TAB_DEFINITIONS = {
         "penalties": HARD_PENALTIES_ENTRIES
     }
 }
-
-# Helper function to ensure all game entries have a unique 'id' if not provided.
-# This is more for the seed_db command if it were to directly use these.
-# For frontend initialization, the JS will generate local IDs if needed.
-def _ensure_ids(entries, prefix="game"):
-    for i, entry in enumerate(entries):
-        if 'id' not in entry:
-            entry['id'] = f"def-{prefix}-{i}-{entry.get('Spiel', entry.get('name', 'unknown')).replace(' ', '-').lower()}"
-    return entries
-
-# You could call _ensure_ids on your entry lists if you want them to have IDs here,
-# but it's not strictly necessary if the `seed-db` command handles ID generation
-# for the master GameEntry/Penalty tables, and the frontend handles IDs for user tabs.
-# For clarity, I've added example 'id' fields (like 'db-csgo-ranked') to the definitions above.
-# These would correspond to IDs you might give them in your `GameEntry`/`Penalty` master tables
-# if you want these default tab entries to directly reference those master records.
-# If they are just initial content that becomes user-owned, the IDs are less critical at this definition stage.

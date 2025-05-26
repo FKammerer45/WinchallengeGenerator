@@ -24,11 +24,11 @@
               </div>
               {# Right: Count and Difficulty Badges #}
               <div class="text-end d-flex gap-1"> {# Group badges #}
-                  <span class="badge bg-light text-dark rounded-pill px-2 py-1"> {# Adjusted padding #}
+                   <span class="badge bg-light text-dark rounded-pill px-2 py-1"> {# Adjusted padding #}
                        {{ info.count }}x Wins
-                  </span>
+                   </span>
                    <span class="badge bg-secondary rounded-pill px-2 py-1"> {# Adjusted padding #}
-                       Diff: {{ "%.1f"|format(info.diff|float) if info.diff is defined else 'N/A' }}
+                       Diff: {{ "%.1f"|format(info.diff_per_instance|float) if info.diff_per_instance is defined else 'N/A' }}
                    </span>
               </div>
           </li>
@@ -64,7 +64,7 @@
                {# Right: Count Badge #}
               <div class="text-end">
                    <span class="badge bg-light text-dark rounded-pill px-2 py-1"> {# Adjusted padding #}
-                       {{ count }}x Wins
+                       {{ count.count }}x Wins
                    </span>
               </div>
           </li>
