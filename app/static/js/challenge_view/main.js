@@ -51,7 +51,11 @@ let statusDiv = null;
 const TIMER_ID = 'main';
 
 async function autoJoinGroupIfApplicable() {
-    if (challengeConfig.isLocal || !challengeConfig.isLoggedIn || !challengeConfig.isAuthorized || challengeConfig.userJoinedGroupId !== null) {
+    if (challengeConfig.isLocal || 
+        !challengeConfig.isLoggedIn || 
+        !challengeConfig.isAuthorized || 
+        challengeConfig.isCreator || // Do not auto-join if the current user is the creator
+        challengeConfig.userJoinedGroupId !== null) {
         return;
     }
     const singleGroupToJoin = (!challengeConfig.isMultigroup && challengeConfig.initialGroups?.length === 1) ? challengeConfig.initialGroups[0] : null;
@@ -356,11 +360,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         orchestrateUIAfterStateChange(challengeConfig, myGroupContainerEl, otherGroupsContainerEl);
         updateGroupCountDisplay(challengeConfig.initialGroupCount, challengeConfig.maxGroups);
-        autoJoinGroupIfApplicable();
+        // autoJoinGroupIfApplicable(); // Auto-join removed as per user request
         initializeChallengeSockets(challengeConfig.id, challengeConfig.isLocal, statusDiv);
     }
 
     updatePenaltyHandlerConfig(challengeConfig);
+
+    // Conditionally show/hide penalty section
+    const penaltyContainer = document.getElementById('local-penalty-section-container');
+    if (penaltyContainer) {
+        const hasPenalties = challengeConfig.penaltyInfo && 
+                             challengeConfig.penaltyInfo.penalties && 
+                             challengeConfig.penaltyInfo.penalties.length > 0;
+        if (!hasPenalties) {
+            penaltyContainer.style.display = 'none';
+        } else {
+            penaltyContainer.style.display = ''; // Or 'block' if it's a block-level element by default
+        }
+    }
 
     const addGroupForm = document.getElementById('addGroupForm');
     if (addGroupForm && challengeConfig.isCreator && !challengeConfig.isLocal) {

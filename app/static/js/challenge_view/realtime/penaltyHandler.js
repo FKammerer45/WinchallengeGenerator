@@ -2,12 +2,8 @@
 import { getLocalOnlyEntries as getLocalPenalties } from '../../penalties/penaltyLocalStorageUtils.js';
 import { escapeHtml, showError, showFlash } from '../../utils/helpers.js';
 import { apiFetch } from '../../utils/api.js';
-// Removed direct import of updatePenaltyDisplay from here, as it was causing an error.
-// It's correctly imported and used in uiOrchestrator.js, which is called by main.js
-// The call to updateGlobalPenaltyDisplay in afterAllSpinsReplay needs to be fixed.
-// For now, let's re-import it directly for penaltyHandler's use.
 import { updatePenaltyDisplay as updateGlobalPenaltyDisplay } from '../ui/uiOrchestrator.js';
-
+import { updateGroupCardContents } from '../ui/groupCard.js'; // Added import
 
 let winwheelLoaded = (typeof Winwheel !== 'undefined');
 
@@ -42,24 +38,17 @@ export function updatePenaltyConfig(newChallengeConfig) {
     penaltyPageConfig.isLocal = newChallengeConfig.isLocal === true;
     penaltyPageConfig.challengeId = newChallengeConfig.id || null;
     penaltyPageConfig.challengeConfigData = newChallengeConfig;
-
-    if (penaltyPageConfig.userJoinedGroupId && penaltyPageConfig.initialGroups) {
-        const joinedGroup = penaltyPageConfig.initialGroups.find(g => g.id === penaltyPageConfig.userJoinedGroupId);
-        // if (joinedGroup) {
-        //     console.log(`[PenaltyHandler updatePenaltyConfig] Joined Group ID: ${penaltyPageConfig.userJoinedGroupId}, currentGameInfo:`, JSON.parse(JSON.stringify(joinedGroup.currentGameInfo || null)));
-        // }
-    }
 }
 
 const TIME_SEGMENTS_DATA = [
-    { text: "1 Min", seconds: 60, fillStyle: '#FFFACD', textFontSize: 10 },   // LemonChiffon
-    { text: "3 Mins", seconds: 180, fillStyle: '#FFB6C1', textFontSize: 10 }, // LightPink
-    { text: "5 Mins", seconds: 300, fillStyle: '#ADD8E6', textFontSize: 10 }, // LightBlue
-    { text: "10 Mins", seconds: 600, fillStyle: '#98FB98', textFontSize: 10 },// PaleGreen
-    { text: "15 Mins", seconds: 900, fillStyle: '#FFDEAD', textFontSize: 10 },// NavajoWhite
-    { text: "20 Mins", seconds: 1200, fillStyle: '#DDA0DD', textFontSize: 10 },// Plum
-    { text: "25 Mins", seconds: 1500, fillStyle: '#B0E0E6', textFontSize: 10 },// PowderBlue
-    { text: "30 Mins", seconds: 1800, fillStyle: '#FFA07A', textFontSize: 10 } // LightSalmon
+    { text: "1 Min", seconds: 60, fillStyle: '#FFFACD', textFontSize: 10 },
+    { text: "3 Mins", seconds: 180, fillStyle: '#FFB6C1', textFontSize: 10 },
+    { text: "5 Mins", seconds: 300, fillStyle: '#ADD8E6', textFontSize: 10 },
+    { text: "10 Mins", seconds: 600, fillStyle: '#98FB98', textFontSize: 10 },
+    { text: "15 Mins", seconds: 900, fillStyle: '#FFDEAD', textFontSize: 10 },
+    { text: "20 Mins", seconds: 1200, fillStyle: '#DDA0DD', textFontSize: 10 },
+    { text: "25 Mins", seconds: 1500, fillStyle: '#B0E0E6', textFontSize: 10 },
+    { text: "30 Mins", seconds: 1800, fillStyle: '#FFA07A', textFontSize: 10 }
 ];
 
 function createSegments(items, defaultColors, useItemFillStyle = false) {
@@ -67,10 +56,10 @@ function createSegments(items, defaultColors, useItemFillStyle = false) {
     const safeColors = defaultColors && defaultColors.length > 0 ? defaultColors : ['#888888'];
     return items.map((item, index) => ({
         'fillStyle': useItemFillStyle && item.fillStyle ? item.fillStyle : safeColors[index % safeColors.length],
-        'text': String(item.text || item.name || item || '?'), // Prefer item.text, then item.name, then item itself
+        'text': String(item.text || item.name || item || '?'),
         'textFontSize': item.textFontSize || 12,
         'textFontFamily': 'Arial, Helvetica, sans-serif',
-        'originalData': typeof item === 'object' ? item : { text: String(item || '?') } // Ensure originalData exists
+        'originalData': typeof item === 'object' ? item : { text: String(item || '?') }
     }));
 }
 
@@ -99,7 +88,7 @@ function shuffleArray(array) { for (let i = array.length - 1; i > 0; i--) { cons
 function resetPenaltyUI(idx) {
     ['player', 'penalty', 'time'].forEach(type => {
         const container = document.getElementById(`${type}WheelContainer-${idx}`);
-        if (container) container.style.display = 'none'; // Use direct style manipulation
+        if (container) container.style.display = 'none';
         getWheel(type, idx)?.stopAnimation?.(false);
         setWheel(type, idx, null);
     });
@@ -115,7 +104,6 @@ function configureWheel(segments, winningIndex, callbackFn, idx, wheelType = 'Pe
     const numSegments = segments.length;
     let stopAngle = customStopAngle ?? (winningIndex === 0 ? Math.random() * 360 : calculateStopAngle(numSegments, winningIndex));
     
-    // Log for debugging re-spins
     console.log(`[configureWheel - ${wheelType}-${idx}] Received customStopAngle: ${customStopAngle}, winningIndex: ${winningIndex}. Calculated stopAngle: ${stopAngle}`);
 
     let canvasId, outerRadius, innerRadius, duration, spins, textFontSize = 12, textFillStyle = '#ffffff';
@@ -126,7 +114,6 @@ function configureWheel(segments, winningIndex, callbackFn, idx, wheelType = 'Pe
     const canvasElement = document.getElementById(canvasId);
     if (!canvasElement) {
         console.error(`Wheel canvas element with ID '${canvasId}' not found in the DOM.`);
-        // Returning null or throwing an error here will prevent Winwheel instantiation with a null canvas
         throw new Error(`Canvas element '${canvasId}' not found for ${wheelType} wheel.`); 
     }
 
@@ -182,29 +169,20 @@ async function handleLostGameClick(event) {
         }
     }
 
-    const chosenPenalty = selectWeightedPenalty(finalPenaltyListForSelection); // This is the first declaration
+    const chosenPenalty = selectWeightedPenalty(finalPenaltyListForSelection);
     if (!chosenPenalty?.name) { showError(errorTarget, "Could not determine penalty.", "danger"); button.disabled = false; return; }
 
-    // Determine chosen player
     const chosenPlayer = participants.length > 1 
         ? participants[Math.floor(Math.random() * participants.length)] 
         : participants[0];
     const playerSegments = createSegments(participants, ['#8dd3c7', '#ffffb3', '#bebada']);
     const playerWinningSegmentIndex = participants.length > 1 
         ? (playerSegments.findIndex(s => s.text === chosenPlayer) + 1)
-        : 0; // No player wheel if only one participant
+        : 0; 
     const playerStopAngle = playerWinningSegmentIndex > 0 
         ? calculateStopAngle(playerSegments.length, playerWinningSegmentIndex) 
         : 0;
 
-    // Use the already determined chosenPenalty from above
-    // No need to redeclare or re-check chosenPenalty here as it's done above.
-    // if (!chosenPenalty?.name) { 
-    //     showError(errorTarget, "Could not determine penalty (already checked).", "danger"); 
-    //     button.disabled = false; 
-    //     return; 
-    // }
-    // Prepare segments for penalty wheel (for payload, even if not spun locally)
     let segmentsForPenaltyWheel = [];
     const NUM_PENALTY_SEGMENTS = 8;
     if (chosenPenalty.name !== "No Penalty") {
@@ -223,7 +201,6 @@ async function handleLostGameClick(event) {
     const penaltyWinningSegmentIndex = penaltyWheelAnimSegments.findIndex(s => s.text.trim() === chosenPenalty.name.trim()) + 1;
     const penaltyStopAngle = calculateStopAngle(penaltyWheelAnimSegments.length, penaltyWinningSegmentIndex);
 
-    // Determine chosen time
     const chosenTimeSegmentData = TIME_SEGMENTS_DATA[Math.floor(Math.random() * TIME_SEGMENTS_DATA.length)];
     const timeSegmentsForAnim = createSegments(TIME_SEGMENTS_DATA, [], true);
     const timeWinningSegmentIndex = TIME_SEGMENTS_DATA.findIndex(t => t.seconds === chosenTimeSegmentData.seconds) + 1;
@@ -236,29 +213,24 @@ async function handleLostGameClick(event) {
         id: chosenPenalty.id,
         duration_seconds: chosenTimeSegmentData.seconds,
         chosenTimeText: chosenTimeSegmentData.text,
-        
         all_players: participants,
         playerWinningSegmentIndex: playerWinningSegmentIndex,
         playerStopAngle: playerStopAngle,
-        
-        all_penalties_for_wheel: segmentsForPenaltyWheel, // The actual penalty objects for segments
+        all_penalties_for_wheel: segmentsForPenaltyWheel, 
         penaltyWinningSegmentIndex: penaltyWinningSegmentIndex,
         penaltyStopAngle: penaltyStopAngle,
-        
         timeWinningSegmentIndex: timeWinningSegmentIndex,
         timeStopAngle: timeStopAngle
     };
     
-    console.log(`[handleLostGameClick - ${idx}] Determined payload (no local spin):`, JSON.parse(JSON.stringify(finalPayloadForBackend)));
+    console.log(`[handleLostGameClick - ${idx}] Determined payload:`, JSON.parse(JSON.stringify(finalPayloadForBackend)));
 
     if (isLocalClick) {
-        if(resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning locally... (All wheels together)</span>`;
-        // For local, directly trigger the animation sequence with the determined results
+        if(resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning...</span>`;
         triggerRemotePenaltySpinAnimation({
-            group_id: penaltyPageConfig.challengeId, // Local group ID is challenge ID
+            group_id: penaltyPageConfig.challengeId, 
             result: { result: finalPayloadForBackend, initiator_user_id: 'local_user' }
         }, button);
-        // Button re-enabling is handled by triggerRemotePenaltySpinAnimation's final callback for local
     } else {
         if (!penaltyPageConfig.userJoinedGroupId) {
             showError(errorTarget, "You must be in a group to spin for a shared challenge.", "danger");
@@ -267,22 +239,14 @@ async function handleLostGameClick(event) {
         if(resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Sending spin data to server...</span>`;
         const recordUrl = `/api/challenge/groups/${penaltyPageConfig.userJoinedGroupId}/penalty_spin_result`;
         try {
-            // No local animation, just send data. Server emits 'penalty_result' to all.
             await apiFetch(recordUrl, { method: 'POST', body: { penalty_result: finalPayloadForBackend } }, penaltyPageConfig.challengeConfigData.csrfToken);
-            // Button re-enabling for initiator will happen when their own 'penalty_result' event is processed by triggerRemotePenaltySpinAnimation
-            // (or if it's decided initiator doesn't replay, then after API success).
-            // For now, let's assume initiator also waits for socket event to animate.
-            // The button will be re-enabled in triggerRemotePenaltySpinAnimation's final callback.
         } catch (error) {
             console.error("[LostGameClick - Shared] Failed to send penalty data to backend:", error);
             showError(errorTarget, `Error sending spin data: ${error.message}`, "danger");
-            if (button) button.disabled = false; // Re-enable on API error
+            if (button) button.disabled = false; 
         }
     }
 }
-
-// This function is now redundant as handleLostGameClick directly prepares the payload
-// function triggerSpinSequence(idx, currentPayload, availablePenalties, originalButton) { ... }
 
 function initializePenaltyHandler() {
     if (bailIfLibMissing(document.body)) return;
@@ -300,18 +264,26 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     const actualPenaltyData = eventResultContainer?.result; 
     const received_initiator_user_id = eventResultContainer?.initiator_user_id;
     
-    // ALL clients, including initiator for shared challenges, will now run this animation sequence.
-    // The initiator no longer spins locally first.
     const isLocalSpin = received_initiator_user_id === 'local_user';
     const idx = (penaltyPageConfig.isLocal && penaltyPageConfig.challengeId === group_id) ? 'local' : 'shared';
     
     let buttonOnThisClient = null;
-    if (isLocalSpin && initiatorButton) buttonOnThisClient = initiatorButton;
-    else if (idx === 'shared' && penaltyPageConfig.userJoinedGroupId === group_id) {
-        buttonOnThisClient = document.querySelector(`.lostGameBtn-Shared[data-group-id="${group_id}"]`);
+    if (isLocalSpin && initiatorButton) {
+        buttonOnThisClient = initiatorButton;
+        console.log(`[PenaltyHandler triggerRemotePenaltySpinAnimation] Local spin, buttonOnThisClient set from initiatorButton:`, buttonOnThisClient);
+    } else if (idx === 'shared') { 
+        // For shared challenges, the button is global, not per-card.
+        // The group_id check is relevant for *if* this client's joined group is affected,
+        // but the button element itself is singular for ".lostGameBtn-Shared".
+        buttonOnThisClient = document.querySelector('.lostGameBtn-Shared');
+        console.log(`[PenaltyHandler triggerRemotePenaltySpinAnimation] Shared spin, buttonOnThisClient queried globally:`, buttonOnThisClient);
     }
     
-    if (buttonOnThisClient && !isLocalSpin && received_initiator_user_id !== penaltyPageConfig.challengeConfigData?.currentUserId?.toString()) {
+    // This logic correctly disables the button if another user initiated the spin for the current user's group.
+    // It should only apply if the penalty event's group_id matches the current user's joined group.
+    if (buttonOnThisClient && !isLocalSpin && 
+        penaltyPageConfig.userJoinedGroupId === group_id && // Only disable if it's for *my* group
+        received_initiator_user_id !== penaltyPageConfig.challengeConfigData?.currentUserId?.toString()) {
         buttonOnThisClient.disabled = true;
     }
 
@@ -327,78 +299,105 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     resetPenaltyUI(idx); 
 
     if (!resultDisplay) { if (buttonOnThisClient) buttonOnThisClient.disabled = false; return; }
-    resultDisplay.style.display = 'block'; resultDisplay.className = 'mt-3 penalty-result-display alert alert-info';
-    resultDisplay.innerHTML = `<span class="text-info">Replaying penalty sequence for ${escapeHtml(chosenEntity)}...</span>`;
+    resultDisplay.style.display = 'block'; 
+    resultDisplay.className = 'mt-3 penalty-result-display alert alert-info text-center fs-5 fw-semibold glass-effect shadow';
+    // Initial message before any wheel spins for replayed sequence
+    // resultDisplay.innerHTML = `<span class="text-info">Replaying penalty sequence for ${escapeHtml(chosenEntity)}...</span>`; // Original generic message
 
     const afterAllSpinsReplay = () => {
-        if (resultDisplay) resultDisplay.style.display = 'none';
-        if (buttonOnThisClient) buttonOnThisClient.disabled = false;
-        
-        // If it was a local spin, the UI update for penalty text/timer is now done here,
-        // after all animations are complete.
-        // For SHARED challenges, we will also do it here, using the augmented data from actualPenaltyData.
-        
-        const penaltyTextToDisplay = actualPenaltyData?.final_penalty_text || ""; // From augmented payload
-        const durationToUse = actualPenaltyData?.duration_seconds; // Already in payload
-        const appliedAtToUse = actualPenaltyData?.final_applied_at_utc || new Date().toISOString(); // From augmented payload
-
-        let targetCardId = null;
-        if (isLocalSpin) {
-            targetCardId = 'local-group-card';
+        console.log("[PenaltyHandler afterAllSpinsReplay] Entered. buttonOnThisClient:", buttonOnThisClient);
+        if (buttonOnThisClient) {
+            console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient found. Current disabled state BEFORE change:", buttonOnThisClient.disabled);
+            buttonOnThisClient.disabled = false;
+            console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient.disabled set to false. New state AFTER change:", buttonOnThisClient.disabled);
         } else {
-            // For shared challenges, find the card for the specific group_id
-            const groupCardWrapper = document.querySelector(`.group-card-wrapper[data-group-id="${group_id}"]`);
-            if (groupCardWrapper) {
-                 // The penalty display div is inside the card body, which is inside the wrapper
-                const cardBody = groupCardWrapper.querySelector('.card-body');
-                if (cardBody) targetCardId = cardBody.closest('.card.group-card')?.id; // Get ID of the .card.group-card
-                if (!targetCardId && groupCardWrapper.querySelector('.card.group-card')) { // Fallback if structure is slightly different
-                    targetCardId = groupCardWrapper.querySelector('.card.group-card').id;
-                }
-                 if (!targetCardId) { // If card has no ID, try to get the penalty display div directly
-                    const penaltyDisplayEl = groupCardWrapper.querySelector('.active-penalty-display');
-                    if (penaltyDisplayEl) {
-                        const canInteract = penaltyPageConfig.isLocal || (penaltyPageConfig.isLoggedIn && penaltyPageConfig.isAuthorized && penaltyPageConfig.userJoinedGroupId === group_id);
-                        updateGlobalPenaltyDisplay(penaltyDisplayEl, penaltyTextToDisplay, canInteract, durationToUse, appliedAtToUse);
-                    } else {
-                        console.error(`[afterAllSpinsReplay] Could not find .active-penalty-display for group ${group_id}`);
-                    }
-                }
+            console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient is null or undefined, cannot re-enable.");
+        }
+
+        if (resultDisplay) {
+            resultDisplay.innerHTML = `<span class="text-success h5">Penalty for ${escapeHtml(chosenEntity)}: ${escapeHtml(actualPenaltyData.name)} (${actualPenaltyData.chosenTimeText})</span>`;
+            resultDisplay.className = 'mt-3 penalty-result-display alert alert-success text-center fs-5 fw-semibold glass-effect shadow';
+            resultDisplay.style.display = 'block';
+            setTimeout(() => {
+                if (resultDisplay) resultDisplay.style.display = 'none';
+            }, 5000);
+        }
+
+        // --- New logic to refresh the entire card ---
+        let targetGroupDataForRefresh = null;
+        let cardWrapperForRefresh = null;
+        const fullChallengeConfig = penaltyPageConfig.challengeConfigData;
+
+        if (isLocalSpin) {
+            // Attempt to find a card wrapper for the local challenge.
+            // Example: document.getElementById('local-group-card-wrapper'); or query by data-group-id if applicable
+            cardWrapperForRefresh = document.querySelector(`.group-card-wrapper[data-group-id="${group_id}"]`);
+            if (!cardWrapperForRefresh) { // Fallback if a specific ID is used for local card wrapper
+                cardWrapperForRefresh = document.getElementById('local-challenge-card-wrapper'); // Hypothetical ID
+            }
+
+            // Construct groupData for local challenge to pass to updateGroupCardContents
+            targetGroupDataForRefresh = {
+                id: group_id, // This is penaltyPageConfig.challengeId for local
+                name: fullChallengeConfig.name || "Local Challenge",
+                active_penalty_text: actualPenaltyData?.name ? `Penalty: ${actualPenaltyData.name}` : "",
+                active_penalty_description: actualPenaltyData?.description || null,
+                active_penalty_duration_seconds: actualPenaltyData?.duration_seconds,
+                penalty_applied_at_utc: actualPenaltyData?.final_applied_at_utc || new Date().toISOString(),
+                progress: fullChallengeConfig.localProgress || {}, // Placeholder
+                player_names: [{ display_name: chosenEntity, account_name: null }], // Placeholder
+                member_count: 1, // Placeholder
+                currentGameInfo: fullChallengeConfig.localCurrentGameInfo || null, // Placeholder
+                // Ensure all fields required by updateGroupCardContents are present
+            };
+        } else { // Shared challenge
+            cardWrapperForRefresh = document.querySelector(`.group-card-wrapper[data-group-id="${group_id}"]`);
+            const groupFromConfig = penaltyPageConfig.initialGroups.find(g => g.id === group_id);
+            if (groupFromConfig) {
+                // ASSUMPTION: groupFromConfig is already updated by a socket event handler
+                // with the new penalty information and any other consequential state changes.
+                targetGroupDataForRefresh = groupFromConfig;
             } else {
-                 console.error(`[afterAllSpinsReplay] Could not find group card wrapper for group ${group_id}`);
+                console.error(`[afterAllSpinsReplay] Shared group ${group_id} not found in penaltyPageConfig.initialGroups.`);
             }
         }
 
-        if (targetCardId) {
-            const targetCard = document.getElementById(targetCardId);
-            const penaltyDisplayEl = targetCard?.querySelector('.active-penalty-display');
+        if (cardWrapperForRefresh && targetGroupDataForRefresh) {
+            console.log(`[afterAllSpinsReplay] Performing full card refresh for group ${targetGroupDataForRefresh.id}.`);
+            updateGroupCardContents(cardWrapperForRefresh, targetGroupDataForRefresh, fullChallengeConfig);
+        } else {
+            console.warn(`[afterAllSpinsReplay] Could not perform full card refresh for group ${group_id}. Falling back to direct penalty display update. CardWrapper: ${!!cardWrapperForRefresh}, GroupData: ${!!targetGroupDataForRefresh}`);
+            const penaltyDisplayEl = cardWrapperForRefresh 
+                ? cardWrapperForRefresh.querySelector('.active-penalty-display') 
+                : document.querySelector(`.group-card-wrapper[data-group-id="${group_id}"] .active-penalty-display`);
+                
             if (penaltyDisplayEl) {
-                const canInteract = penaltyPageConfig.isLocal || (penaltyPageConfig.isLoggedIn && penaltyPageConfig.isAuthorized && penaltyPageConfig.userJoinedGroupId === group_id);
-                updateGlobalPenaltyDisplay(penaltyDisplayEl, penaltyTextToDisplay, canInteract, durationToUse, appliedAtToUse);
+                const canInteract = penaltyPageConfig.isLocal || (fullChallengeConfig.isLoggedIn && fullChallengeConfig.isAuthorized && fullChallengeConfig.userJoinedGroupId === group_id);
+                const penaltyTextForCard = actualPenaltyData?.name ? `Penalty: ${actualPenaltyData.name}` : "";
+                const penaltyDescriptionForTooltip = actualPenaltyData?.description || "";
+                updateGlobalPenaltyDisplay(penaltyDisplayEl, penaltyTextForCard, canInteract, actualPenaltyData?.duration_seconds, actualPenaltyData?.final_applied_at_utc || new Date().toISOString(), penaltyDescriptionForTooltip);
             } else {
-                 console.error(`[afterAllSpinsReplay] Could not find .active-penalty-display in card ${targetCardId}`);
+                console.error(`[afterAllSpinsReplay] Fallback failed: .active-penalty-display not found for group ${group_id}`);
             }
-        } else if (!isLocalSpin && !document.querySelector(`.group-card-wrapper[data-group-id="${group_id}"] .active-penalty-display`)) {
-            // Log error only if it's not local and we couldn't find the display by other means
-            console.error(`[afterAllSpinsReplay] Target card ID not found for group ${group_id} and direct query failed.`);
         }
     };
 
     const afterTimeWheelReplay = () => {
         const timeWheelContainer = document.getElementById(`timeWheelContainer-${idx}`);
         if (timeWheelContainer) timeWheelContainer.style.display = 'none';
-        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-success">Penalty sequence complete.</span>`;
-        setTimeout(afterAllSpinsReplay, 1000);
+        // The final result display and card refresh is now handled in afterAllSpinsReplay
+        afterAllSpinsReplay(); 
     };
     
     const afterPenaltyWheelReplay = () => {
         const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
         if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'none';
-        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Penalty: ${escapeHtml(penaltyName)}. Animating duration: ${escapeHtml(chosenTimeText || (finalDurationSeconds/60) + " Mins")}...</span>`;
+        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning duration...</span>`;
 
         const timeWheelContainer = document.getElementById(`timeWheelContainer-${idx}`);
         if (timeWheelContainer) timeWheelContainer.style.display = 'block';
-        document.getElementById(`timeWheelTitle-${idx}`).textContent = `Duration: ${escapeHtml(chosenTimeText || (finalDurationSeconds/60) + " Mins")}`;
+        // Make title generic during spin
+        document.getElementById(`timeWheelTitle-${idx}`).textContent = `Spinning for Duration...`; 
         
         const timeSegments = createSegments(TIME_SEGMENTS_DATA, [], true);
         if (getWheel('time', idx)) { getWheel('time', idx).stopAnimation?.(false); setWheel('time', idx, null); }
@@ -412,11 +411,12 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     const afterPlayerWheelReplay = () => {
         const playerWheelContainer = document.getElementById(`playerWheelContainer-${idx}`);
         if (playerWheelContainer) playerWheelContainer.style.display = 'none';
-        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Player: ${escapeHtml(chosenEntity)}. Animating penalty: ${escapeHtml(penaltyName)}...</span>`;
+        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning penalty...</span>`;
 
         const penaltyWheelContainer = document.getElementById(`penaltyWheelContainer-${idx}`);
         if (penaltyWheelContainer) penaltyWheelContainer.style.display = 'block';
-        document.getElementById(`penaltyWheelTitle-${idx}`).textContent = `Penalty: ${escapeHtml(penaltyName)}`;
+        // Make title generic during spin
+        document.getElementById(`penaltyWheelTitle-${idx}`).textContent = `Spinning for Penalty...`;
         
         const penaltySegs = createSegments(wheelSegmentPenaltiesData, ['#e41a1c', '#377eb8']);
         if (getWheel('penalty', idx)) { getWheel('penalty', idx).stopAnimation?.(false); setWheel('penalty', idx, null); }
@@ -430,8 +430,9 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     if (participants && participants.length > 1 && playerWinningSegmentIndex > 0) {
         const playerWheelContainer = document.getElementById(`playerWheelContainer-${idx}`);
         if (playerWheelContainer) playerWheelContainer.style.display = 'block';
-        document.getElementById(`playerWheelTitle-${idx}`).textContent = `Player: ${escapeHtml(chosenEntity)}`;
-        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Animating player: ${escapeHtml(chosenEntity)}...</span>`;
+        // Make title generic during spin
+        document.getElementById(`playerWheelTitle-${idx}`).textContent = `Spinning for Player...`;
+        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning for player...</span>`; 
         
         const playerSegs = createSegments(participants, ['#8dd3c7', '#ffffb3']);
         if (getWheel('player', idx)) { getWheel('player', idx).stopAnimation?.(false); setWheel('player', idx, null); }
@@ -441,6 +442,7 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
             const pWheel = new Winwheel(playerCfg); setWheel('player', idx, pWheel); pWheel.startAnimation();
         } catch (e) { console.error("Error replaying Player Wheel:", e); afterAllSpinsReplay(); }
     } else {
-        afterPlayerWheelReplay(); // Skip player animation
+        if (resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning penalty...</span>`;
+        afterPlayerWheelReplay(); 
     }
 }

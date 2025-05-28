@@ -466,31 +466,14 @@ def add_group_to_challenge(public_id):
         new_group.player_names = [{"display_name": "", "account_name": None} for _ in range(challenge.num_players_per_group)]
 
         db.session.add(new_group)
-        db.session.flush()
+        db.session.flush() # Flush to get new_group.id
 
-        user_added_to_group = False
-        if challenge.max_groups == 1 and challenge.creator_id == current_user.id:
-            user_to_add = db.session.get(User, current_user.id)
-            if user_to_add:
-                new_group.members.append(user_to_add)
-                user_added_to_group = True
-                slots = new_group.player_names or _initialize_player_slots_for_emit(new_group, challenge.num_players_per_group)
-                placed = False
-                for slot in slots:
-                    if not slot.get("account_name"):
-                        slot["account_name"] = current_user.username
-                        slot["display_name"] = current_user.username
-                        placed = True
-                        break
-                if placed:
-                    new_group.player_names = slots
-                    flag_modified(new_group, "player_names") 
-                logger.info(f"Auto-adding creator {current_user.username} to single group {new_group.id}")
-            else:
-                logger.error(f"Could not find user {current_user.id} to auto-add to single group.")
+        # Auto-join logic removed as per user request.
+        # The creator (or any user) will now need to manually join the group via the UI.
+        user_added_to_group = False 
 
         db.session.commit()
-        logger.info(f"Successfully added group '{group_name}' (ID: {new_group.id}) to challenge {public_id}")
+        logger.info(f"Successfully added group '{group_name}' (ID: {new_group.id}) to challenge {public_id}. Auto-join for creator removed.")
         
         db.session.refresh(new_group)
         db.session.refresh(challenge) 

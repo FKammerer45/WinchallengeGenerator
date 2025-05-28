@@ -389,3 +389,62 @@
 #customChallengeBuilderWrapper .game-difficulty-display {
     font-style: italic;
 }
+
+/* Floating Login Reminder Box */
+.floating-reminder-box {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 300px;
+  background-color: var(--surface-bg-opaque);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--border-radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 1050; /* Ensure it's above most content, but below modals if necessary */
+  color: var(--text-primary);
+}
+
+.floating-reminder-box h5 {
+  color: var(--accent-secondary);
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.floating-reminder-box .feature-list {
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.floating-reminder-box .feature-list li {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.floating-reminder-box .feature-list li i {
+  color: var(--accent-primary);
+  margin-right: 0.75rem;
+  font-size: 1.1em;
+}
+
+.floating-reminder-box .close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.floating-reminder-box .close-btn:hover {
+  color: var(--text-primary);
+}

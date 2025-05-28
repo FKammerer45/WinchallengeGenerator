@@ -136,10 +136,11 @@ export function orchestrateGroupUIRefresh(challengeConfig, myGroupContainerEl, o
  * @param {boolean} canInteract - Whether the user can clear the penalty.
  * @param {number|null} durationSeconds - The duration of the penalty in seconds.
  * @param {string|null} appliedAtUtcIso - The ISO string timestamp when the penalty was applied.
+ * @param {string|null} penaltyDescription - The full description of the penalty for a tooltip.
  */
 import { startPenaltyTimer, stopPenaltyTimer } from '../realtime/timerHandler.js'; // Import penalty timer functions
 
-export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract, durationSeconds = null, appliedAtUtcIso = null) {
+export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract, durationSeconds = null, appliedAtUtcIso = null, penaltyDescription = null) {
     if (!penaltyDisplayDiv) return;
 
     const groupId = penaltyDisplayDiv.dataset.groupId; // Assuming groupId is available for unique timer IDs
@@ -157,6 +158,12 @@ export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract
 
     if (textContentP) {
         textContentP.textContent = hasPenalty ? penaltyText : '';
+        // Add tooltip for penalty description
+        if (hasPenalty && penaltyDescription) {
+            penaltyDisplayDiv.title = penaltyDescription;
+        } else {
+            penaltyDisplayDiv.removeAttribute('title');
+        }
     }
 
     if (hasPenalty && durationSeconds && appliedAtUtcIso && groupId) {

@@ -378,6 +378,22 @@
     window.shareChallengeUrl = "{{ url_for('challenge_api.share_challenge') }}";
     window.IS_AUTHENTICATED = {% if current_user.is_authenticated %}true{% else %}false{% endif %};
 </script>
+
+{% if not current_user.is_authenticated %}
+<div id="loginReminderBox" class="floating-reminder-box">
+    <button id="closeLoginReminderBox" class="close-btn" aria-label="Close">&times;</button>
+    <h5><i class="bi bi-unlock-fill me-2"></i>Login for More Features!</h5>
+    <ul class="feature-list">
+        <li><i class="bi bi-people-fill me-1"></i> Share and use challenges with friends</li>
+        <li><i class="bi bi-cloud-arrow-up-fill me-1"></i> Everything saved on server</li>
+        <li><i class="bi bi-broadcast me-1"></i> Synchronized events for everyone</li>
+        <li><i class="bi bi-display me-1"></i> OBS overlay integration</li>
+        <li><i class="bi bi-joystick me-1"></i> Penalties matched to your current game</li>
+    </ul>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-sm w-100 mt-2">Login / Register</a>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}

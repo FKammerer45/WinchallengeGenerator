@@ -61,4 +61,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await initializeChallengeForm();
   initializeCustomChallengeBuilder();
+
+  // Floating reminder box logic
+  const loginReminderBox = document.getElementById('loginReminderBox');
+  const closeLoginReminderBoxBtn = document.getElementById('closeLoginReminderBox');
+
+  if (loginReminderBox && closeLoginReminderBoxBtn) {
+    // Check if the box was closed previously in this session
+    if (sessionStorage.getItem('loginReminderClosed') === 'true') {
+      loginReminderBox.style.display = 'none';
+    } else {
+      loginReminderBox.style.display = 'block'; // Or 'flex' if it's a flex container
+    }
+
+    closeLoginReminderBoxBtn.addEventListener('click', () => {
+      loginReminderBox.style.display = 'none';
+      // Optionally, remember this for the session
+      sessionStorage.setItem('loginReminderClosed', 'true');
+    });
+  }
 });

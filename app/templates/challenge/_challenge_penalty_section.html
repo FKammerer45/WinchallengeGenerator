@@ -4,8 +4,8 @@
 
 {% set bi_icon_prefix = 'bi bi-' %} {# Define icon prefix #}
 
-{# --- Trigger Button --- #}
-<div class="text-center mb-4 pb-2"> {# Added some bottom padding #}
+    {# --- Trigger Button --- #}
+    <div class="text-center mb-4 pb-2"> {# Added some bottom padding #}
     <button class="btn btn-lg btn-warning lostGameBtn-{{ 'Shared' if challenge_index == 'shared' else 'Local' }} shadow-md d-inline-flex align-items-center justify-content-center" {# Added flex alignment #}
             data-penalty-tab-id="{{ penalty_tab_id }}"
             data-players="{{ players|tojson|safe if players else '[]' }}" {# Ensure valid JSON even if players is None #}
