@@ -1,0 +1,58 @@
+name: Deploy to Live Environment
+
+on:
+  push:
+    branches:
+      - website # Trigger on the same branch as the test script
+
+jobs:
+  deploy_live:
+    # Only run this job if the commit message contains "LIVE" (case-insensitive)
+    if: ${{ contains(github.event.head_commit.message, 'LIVE') }}
+    runs-on: ubuntu-latest
+    environment: testing-vps # Assumes 'liveserver' environment exists or will be created in GitHub settings
+                           # Secrets will be drawn from this environment. User specified they are same as test.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Deployment to Live VPS
+      # Uses the same secrets as the test environment, but referenced through the 'liveserver' environment context.
+      - name: Deploy to Live VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }} # Using same secret names as test-deploy.yml
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script: |
+            echo "Starting deployment to Live Environment..."
+            # Standard application directory (no _Live suffix)
+            APP_DIR="/srv/myflaskapp/WinchallengeGenerator/" 
+            # Standard venv name (no _live suffix)
+            VENV_NAME="venv" 
+            # Standard service name (no _live suffix)
+            SERVICE_NAME="myflaskapp.service" 
+
+            echo "Navigating to application directory: $APP_DIR"
+            cd $APP_DIR
+
+            echo "Pulling latest changes from Git (website branch)..."
+            # Ensure this matches the branch specified in the 'on' trigger
+            git checkout website 
+            git pull origin website
+
+            echo "Activating virtual environment and installing dependencies..."
+            source $VENV_NAME/bin/activate 
+            pip install -r requirements.txt
+
+            echo "Applying database migrations..."
+            flask db upgrade 
+            flask seed-db
+            echo "Deactivating virtual environment..."
+            deactivate
+
+            echo "Restarting the application service: $SERVICE_NAME"
+            sudo systemctl restart $SERVICE_NAME
+
+            echo "Deployment to Live Environment finished!"
