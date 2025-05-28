@@ -76,7 +76,7 @@ export function renderNewGroupCard(group, challengeConfig, myGroupContainerEl, o
  * @param {object} challengeConfig - The overall challenge configuration.
  */
 export function updateGroupCardContents(cardWrapper, groupData, challengeConfig) {
-    console.log(`[GroupCard updateGroupCardContents] Updating card for group ID: ${groupData?.id}. Received currentGameInfo:`, JSON.parse(JSON.stringify(groupData?.currentGameInfo || null)));
+    // console.log(`[GroupCard updateGroupCardContents] Updating card for group ID: ${groupData?.id}. Received currentGameInfo:`, JSON.parse(JSON.stringify(groupData?.currentGameInfo || null))); // Removed log
     if (!cardWrapper || !groupData || !challengeConfig) {
         console.error("[GroupCard] Missing cardWrapper, groupData, or challengeConfig for update.", { cardWrapper, groupData, challengeConfig });
         return;
@@ -254,7 +254,7 @@ export function renderPlayerNameInputs(sectionWrapper, groupId, playerSlots = []
     showError(errorContainer, null);
 
     const numberOfSlotsToRender = playerSlots.length > 0 ? playerSlots.length : numPlayersAllowed;
-    console.log(`[GroupCard] renderPlayerNameInputs for group ${groupId}: numberOfSlotsToRender = ${numberOfSlotsToRender}`);
+    // console.log(`[GroupCard] renderPlayerNameInputs for group ${groupId}: numberOfSlotsToRender = ${numberOfSlotsToRender}`); // Removed log
 
 
     if (numberOfSlotsToRender <= 0) {

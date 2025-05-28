@@ -184,19 +184,19 @@ export function updatePenaltyDisplay(penaltyDisplayDiv, penaltyText, canInteract
         const elapsedMs = now - appliedTime;
         const initialRemainingSeconds = Math.max(0, Math.floor((totalDurationMs - elapsedMs) / 1000));
 
-        console.log(`[updatePenaltyDisplay] Timer Values for group ${groupId}:`);
-        console.log(`  - appliedAtUtcIso: ${appliedAtUtcIso}`);
-        console.log(`  - durationSeconds: ${durationSeconds}`);
-        console.log(`  - appliedTime (ms): ${appliedTime}`);
-        console.log(`  - now (ms): ${now}`);
-        console.log(`  - elapsedMs: ${elapsedMs}`);
-        console.log(`  - totalDurationMs: ${totalDurationMs}`);
-        console.log(`  - initialRemainingSeconds: ${initialRemainingSeconds}`);
+        // console.log(`[updatePenaltyDisplay] Timer Values for group ${groupId}:`); // Removed block
+        // console.log(`  - appliedAtUtcIso: ${appliedAtUtcIso}`);
+        // console.log(`  - durationSeconds: ${durationSeconds}`);
+        // console.log(`  - appliedTime (ms): ${appliedTime}`);
+        // console.log(`  - now (ms): ${now}`);
+        // console.log(`  - elapsedMs: ${elapsedMs}`);
+        // console.log(`  - totalDurationMs: ${totalDurationMs}`);
+        // console.log(`  - initialRemainingSeconds: ${initialRemainingSeconds}`);
 
         startPenaltyTimer(penaltyTimerId, initialRemainingSeconds, timerDisplaySpan, () => {
             // Optional: Callback when timer expires naturally
             if (timerDisplaySpan) timerDisplaySpan.textContent = "Expired";
-            console.log(`[updatePenaltyDisplay] Penalty timer ${penaltyTimerId} expired naturally.`);
+            // console.log(`[updatePenaltyDisplay] Penalty timer ${penaltyTimerId} expired naturally.`); // Removed log
         });
 
     } else if (timerDisplaySpan) {

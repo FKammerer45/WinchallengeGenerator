@@ -104,7 +104,7 @@ function configureWheel(segments, winningIndex, callbackFn, idx, wheelType = 'Pe
     const numSegments = segments.length;
     let stopAngle = customStopAngle ?? (winningIndex === 0 ? Math.random() * 360 : calculateStopAngle(numSegments, winningIndex));
     
-    console.log(`[configureWheel - ${wheelType}-${idx}] Received customStopAngle: ${customStopAngle}, winningIndex: ${winningIndex}. Calculated stopAngle: ${stopAngle}`);
+    // console.log(`[configureWheel - ${wheelType}-${idx}] Received customStopAngle: ${customStopAngle}, winningIndex: ${winningIndex}. Calculated stopAngle: ${stopAngle}`); // Removed log
 
     let canvasId, outerRadius, innerRadius, duration, spins, textFontSize = 12, textFillStyle = '#ffffff';
     if (wheelType === 'Player') { canvasId = `playerWheelCanvas-${idx}`; outerRadius = 100; innerRadius = 10; duration = 3; spins = 5; }
@@ -223,7 +223,7 @@ async function handleLostGameClick(event) {
         timeStopAngle: timeStopAngle
     };
     
-    console.log(`[handleLostGameClick - ${idx}] Determined payload:`, JSON.parse(JSON.stringify(finalPayloadForBackend)));
+    // console.log(`[handleLostGameClick - ${idx}] Determined payload:`, JSON.parse(JSON.stringify(finalPayloadForBackend))); // Removed log
 
     if (isLocalClick) {
         if(resultDisplay) resultDisplay.innerHTML = `<span class="text-info">Spinning...</span>`;
@@ -270,13 +270,13 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     let buttonOnThisClient = null;
     if (isLocalSpin && initiatorButton) {
         buttonOnThisClient = initiatorButton;
-        console.log(`[PenaltyHandler triggerRemotePenaltySpinAnimation] Local spin, buttonOnThisClient set from initiatorButton:`, buttonOnThisClient);
+        // console.log(`[PenaltyHandler triggerRemotePenaltySpinAnimation] Local spin, buttonOnThisClient set from initiatorButton:`, buttonOnThisClient); // Removed log
     } else if (idx === 'shared') { 
         // For shared challenges, the button is global, not per-card.
         // The group_id check is relevant for *if* this client's joined group is affected,
         // but the button element itself is singular for ".lostGameBtn-Shared".
         buttonOnThisClient = document.querySelector('.lostGameBtn-Shared');
-        console.log(`[PenaltyHandler triggerRemotePenaltySpinAnimation] Shared spin, buttonOnThisClient queried globally:`, buttonOnThisClient);
+        // console.log(`[PenaltyHandler triggerRemotePenaltySpinAnimation] Shared spin, buttonOnThisClient queried globally:`, buttonOnThisClient); // Removed log
     }
     
     // This logic correctly disables the button if another user initiated the spin for the current user's group.
@@ -305,13 +305,13 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
     // resultDisplay.innerHTML = `<span class="text-info">Replaying penalty sequence for ${escapeHtml(chosenEntity)}...</span>`; // Original generic message
 
     const afterAllSpinsReplay = () => {
-        console.log("[PenaltyHandler afterAllSpinsReplay] Entered. buttonOnThisClient:", buttonOnThisClient);
+        // console.log("[PenaltyHandler afterAllSpinsReplay] Entered. buttonOnThisClient:", buttonOnThisClient); // Removed log
         if (buttonOnThisClient) {
-            console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient found. Current disabled state BEFORE change:", buttonOnThisClient.disabled);
+            // console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient found. Current disabled state BEFORE change:", buttonOnThisClient.disabled); // Removed log
             buttonOnThisClient.disabled = false;
-            console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient.disabled set to false. New state AFTER change:", buttonOnThisClient.disabled);
+            // console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient.disabled set to false. New state AFTER change:", buttonOnThisClient.disabled); // Removed log
         } else {
-            console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient is null or undefined, cannot re-enable.");
+            // console.log("[PenaltyHandler afterAllSpinsReplay] buttonOnThisClient is null or undefined, cannot re-enable."); // Removed log
         }
 
         if (resultDisplay) {
@@ -363,10 +363,10 @@ export function triggerRemotePenaltySpinAnimation(eventData, initiatorButton = n
         }
 
         if (cardWrapperForRefresh && targetGroupDataForRefresh) {
-            console.log(`[afterAllSpinsReplay] Performing full card refresh for group ${targetGroupDataForRefresh.id}.`);
+            // console.log(`[afterAllSpinsReplay] Performing full card refresh for group ${targetGroupDataForRefresh.id}.`); // Removed log
             updateGroupCardContents(cardWrapperForRefresh, targetGroupDataForRefresh, fullChallengeConfig);
         } else {
-            console.warn(`[afterAllSpinsReplay] Could not perform full card refresh for group ${group_id}. Falling back to direct penalty display update. CardWrapper: ${!!cardWrapperForRefresh}, GroupData: ${!!targetGroupDataForRefresh}`);
+            // console.warn(`[afterAllSpinsReplay] Could not perform full card refresh for group ${group_id}. Falling back to direct penalty display update. CardWrapper: ${!!cardWrapperForRefresh}, GroupData: ${!!targetGroupDataForRefresh}`); // Removed log
             const penaltyDisplayEl = cardWrapperForRefresh 
                 ? cardWrapperForRefresh.querySelector('.active-penalty-display') 
                 : document.querySelector(`.group-card-wrapper[data-group-id="${group_id}"] .active-penalty-display`);

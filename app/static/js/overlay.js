@@ -174,7 +174,7 @@ function renderOverlayRules(container, challengeStructure, groupProgressData = {
             // Attempt a specific workaround for "AgeOfEmpires (Ranked)"
             if (key === "AgeOfEmpires (Ranked)") {
                 lookupKey = "db-aoe-ranked";
-                console.log(`[Overlay renderOverlayRules] Applying workaround for key: "${key}" -> "${lookupKey}"`);
+                // console.log(`[Overlay renderOverlayRules] Applying workaround for key: "${key}" -> "${lookupKey}"`); // Removed log
             }
 
             const progressKey = segmentIndex0Based !== null
@@ -182,7 +182,7 @@ function renderOverlayRules(container, challengeStructure, groupProgressData = {
                 : `${itemType}_${lookupKey}_${i}`;
             
             const isChecked = groupProgressData[progressKey] === true;
-            console.log("[Overlay renderOverlayRules] Item DisplayKey:", key, "LookupKey:", lookupKey, "GeneratedProgressKey:", progressKey, "IsChecked:", isChecked, "RawValue:", groupProgressData[progressKey]);
+            // console.log("[Overlay renderOverlayRules] Item DisplayKey:", key, "LookupKey:", lookupKey, "GeneratedProgressKey:", progressKey, "IsChecked:", isChecked, "RawValue:", groupProgressData[progressKey]); // Removed log
             itemHtml += `<div class="progress-item ${isChecked ? 'completed' : ''}" title="Win ${i + 1} for ${escapeHtml(key)}">`;
             itemHtml += `<i class="${biIconPrefix}${isChecked ? 'check-square-fill' : 'square'}"></i>`;
             itemHtml += `</div>`;
@@ -210,8 +210,10 @@ function renderOverlayRules(container, challengeStructure, groupProgressData = {
             if (Object.keys(groupItems).length > 0) {
                 html += `<div class="mb-3 ms-2"><strong class="small d-block text-white-50 mb-2">Segment ${displaySegmentIdx} (${segmentLength} wins):</strong>`;
                 Object.entries(groupItems).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-                    .forEach(([key, count]) => {
-                        html += createRuleItemHtml(key, count || 0, 'b2b', segIndex0Based);
+                    .forEach(([key, itemInfo]) => { // Changed 'count' to 'itemInfo'
+                        // Assuming itemInfo could be an object like { count: X } or just X
+                        const actualCount = (typeof itemInfo === 'object' && itemInfo !== null && itemInfo.hasOwnProperty('count')) ? itemInfo.count : itemInfo;
+                        html += createRuleItemHtml(key, actualCount || 0, 'b2b', segIndex0Based);
                     });
                 html += `</div>`;
             }
@@ -461,7 +463,7 @@ function triggerPenaltySpinAnimation(data) {
         return;
     }
     const actualPenaltyData = eventResultContainer.result;
-    console.log("[Overlay Spin] Full penalty data for animation:", JSON.parse(JSON.stringify(actualPenaltyData)));
+    // console.log("[Overlay Spin] Full penalty data for animation:", JSON.parse(JSON.stringify(actualPenaltyData))); // Removed log
 
     const {
         player: chosenPlayerName, name: chosenPenaltyName, description: chosenPenaltyDescription,
@@ -684,7 +686,7 @@ function connectWebSocket() {
         // Timer events
         socket.on('timer_started', (data) => {
             if (data.challenge_id !== challengeId) return;
-            console.log('[OverlayWS] Received timer_started:', JSON.parse(JSON.stringify(data)));
+            // console.log('[OverlayWS] Received timer_started:', JSON.parse(JSON.stringify(data))); // Removed log
             // Ensure all necessary fields are updated, especially current_value_seconds if provided
             overlayServerTimerData = { 
                 ...overlayServerTimerData, // Keep existing values like lastStartedAtUTC if not in data
@@ -696,7 +698,7 @@ function connectWebSocket() {
         });
         socket.on('timer_stopped', (data) => {
             if (data.challenge_id !== challengeId) return;
-            console.log('[OverlayWS] Received timer_stopped:', JSON.parse(JSON.stringify(data)));
+            // console.log('[OverlayWS] Received timer_stopped:', JSON.parse(JSON.stringify(data))); // Removed log
             overlayServerTimerData = { 
                 ...overlayServerTimerData, 
                 currentValueSeconds: data.current_value_seconds !== undefined ? parseInt(data.current_value_seconds, 10) : overlayServerTimerData.currentValueSeconds, // Crucial: update to the time it was stopped
@@ -707,7 +709,7 @@ function connectWebSocket() {
         });
         socket.on('timer_reset', (data) => {
             if (data.challenge_id !== challengeId) return;
-            console.log('[OverlayWS] Received timer_reset:', JSON.parse(JSON.stringify(data)));
+            // console.log('[OverlayWS] Received timer_reset:', JSON.parse(JSON.stringify(data))); // Removed log
             overlayServerTimerData = { 
                 currentValueSeconds: 0, 
                 isRunning: false, 
@@ -771,7 +773,7 @@ function connectWebSocket() {
                         renderOverlayProgressBar(streamerProgressBar, streamerProgressLabel, data.progress_stats);
                     }
                     if (rulesListEl && data.progress_data) {
-                        console.log("[OverlayWS progress_update] Received progress_data for streamer's group:", JSON.parse(JSON.stringify(data.progress_data)));
+                        // console.log("[OverlayWS progress_update] Received progress_data for streamer's group:", JSON.parse(JSON.stringify(data.progress_data))); // Removed log
                         renderOverlayRules(rulesListEl, currentChallengeStructure, data.progress_data);
                     }
                 }
