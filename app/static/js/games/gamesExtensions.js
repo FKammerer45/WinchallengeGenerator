@@ -809,7 +809,8 @@ export async function ensureUserDefaultGameTabs() {
                         gameMode: entry.Spielmodus,
                         difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
                         numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
-                        weight: parseFloat(entry.weight) || 1.0
+                        weight: parseFloat(entry.weight) || 1.0,
+                        tags: Array.isArray(entry.tags) ? entry.tags : [] // Add tags
                     }));
 
                     const savePayload = {
@@ -847,7 +848,8 @@ export async function ensureUserDefaultGameTabs() {
                     gameMode: entry.Spielmodus,
                     difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
                     numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
-                    weight: parseFloat(entry.weight) || 1.0
+                    weight: parseFloat(entry.weight) || 1.0,
+                    tags: Array.isArray(entry.tags) ? entry.tags : [] // Add tags
                 }));
                 updatedLocal = true;
             }

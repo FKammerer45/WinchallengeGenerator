@@ -210,7 +210,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                             gameMode: entry.Spielmodus,
                             difficulty: (parseFloat(entry.Schwierigkeit) || 1.0).toFixed(1),
                             numberOfPlayers: parseInt(entry.Spieleranzahl, 10) || 1,
-                            weight: parseFloat(entry.weight) || 1.0
+                            weight: parseFloat(entry.weight) || 1.0,
+                            tags: Array.isArray(entry.tags) ? entry.tags : [] // Ensure tags are present in fallback
                         }));
                     }
                 } else { // System default tab already exists for the user, load it (it should already be in correct JS format from backend)
