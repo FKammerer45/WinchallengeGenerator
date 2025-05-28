@@ -57,9 +57,9 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: "app/static/js/" # Source from runner's workspace (contains obfuscated files)
-          target: "/srv/myflaskapp/WinchallengeGenerator/app/static/js/" # Destination on server
-          strip_components: 2 # Copies contents of local 'app/static/js' into remote '.../app/static/js/'
+          source: "app/static/js/" # Source directory from runner's workspace
+          target: "/srv/myflaskapp/WinchallengeGenerator/app/static/" # Target directory on server (one level up)
+          strip_components: 2 # This will strip "app/static/" from source paths, so "js/*" gets copied
           overwrite: true
           
       - name: Finalize Deployment on Server
