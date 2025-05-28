@@ -239,7 +239,7 @@ export function renderGamesForTab(tabId) {
                 <td>${escapeHtml(data.modes)}</td>
                 <td>${escapeHtml(data.diffRange)}</td>
                 <td>${escapeHtml(data.playerRange)}</td>
-                <td>${tagsHtml}</td>
+                <td data-label="TAG">${tagsHtml}</td>
             `;
             tbody.appendChild(row);
         });

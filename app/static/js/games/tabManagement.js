@@ -177,10 +177,11 @@ export function createTabFromLocalData(tabId, tabName, referenceNodeForInsertion
                       <th scope="col"><i class="bi bi-gear-wide-connected me-2"></i>Game Mode</th>
                       <th scope="col"><i class="bi bi-graph-up me-2"></i>Difficulty</th>
                       <th scope="col"><i class="bi bi-people-fill me-2"></i>Players</th>
+                      <th scope="col"><i class="bi bi-tags-fill me-2"></i>TAG</th>
                   </tr>
               </thead>
               <tbody class="gamesTable">
-                  <tr><td colspan="4" class="text-center text-secondary py-4">Loading entries...</td></tr>
+                  <tr><td colspan="5" class="text-center text-secondary py-4">Loading entries...</td></tr>
               </tbody>
           </table>
       </div>
@@ -267,8 +268,8 @@ export async function createNewTab() {
     <div class="glass-effect p-1 rounded shadow-sm">
       <div class="table-responsive">
           <table class="table table-hover table-sm config-table mb-0">
-              <thead> <tr> <th><i class="bi bi-joystick me-2"></i>Game</th> <th><i class="bi bi-gear-wide-connected me-2"></i>Game Mode</th> <th><i class="bi bi-graph-up me-2"></i>Difficulty</th> <th><i class="bi bi-people-fill me-2"></i>Players</th> </tr> </thead>
-              <tbody class="gamesTable"> <tr><td colspan="4" class="text-center text-secondary py-3">No entries yet.</td></tr> </tbody>
+              <thead> <tr> <th><i class="bi bi-joystick me-2"></i>Game</th> <th><i class="bi bi-gear-wide-connected me-2"></i>Game Mode</th> <th><i class="bi bi-graph-up me-2"></i>Difficulty</th> <th><i class="bi bi-people-fill me-2"></i>Players</th> <th><i class="bi bi-tags-fill me-2"></i>TAG</th> </tr> </thead>
+              <tbody class="gamesTable"> <tr><td colspan="5" class="text-center text-secondary py-3">No entries yet.</td></tr> </tbody>
           </table>
       </div>
     </div>`;

@@ -142,7 +142,7 @@ export function renderPenaltiesForTab(tabId) {
                 <td data-label="Name">${escapeHtml(penalty.name || 'N/A')}</td>
                 <td data-label="Probability">${escapeHtml(probabilityDisplay)}</td>
                 <td data-label="Description" class="text-break">${escapeHtml(penalty.description || 'N/A')}</td>
-                <td data-label="Tags">${tagsHtml}</td>
+                <td data-label="TAG">${tagsHtml}</td>
             `;
             row.addEventListener('dblclick', () => handleEditPenaltyModalOpen(tabId, penalty.id));
             tbody.appendChild(row);

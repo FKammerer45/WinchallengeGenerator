@@ -173,13 +173,14 @@ export function createTabFromLocalData(tabId, tabName, isSystemDefault) {
             <table class="table table-hover table-sm config-table mb-0">
                 <thead>
                     <tr>
-                        <th scope="col" style="width: 30%;"><i class="bi bi-tag-fill me-2"></i>Name</th>
+                        <th scope="col" style="width: 25%;"><i class="bi bi-tag-fill me-2"></i>Name</th>
                         <th scope="col" style="width: 15%;"><i class="bi bi-percent me-2"></i>Probability</th>
-                        <th scope="col" style="width: 55%;"><i class="bi bi-card-text me-2"></i>Description</th>
+                        <th scope="col" style="width: 35%;"><i class="bi bi-card-text me-2"></i>Description</th>
+                        <th scope="col" style="width: 25%;"><i class="bi bi-tags-fill me-2"></i>TAG</th>
                     </tr>
                 </thead>
                 <tbody class="penaltiesTable">
-                    <tr><td colspan="3" class="text-center text-secondary py-4">Loading penalties...</td></tr>
+                    <tr><td colspan="4" class="text-center text-secondary py-4">Loading penalties...</td></tr>
                 </tbody>
             </table>
         </div>
