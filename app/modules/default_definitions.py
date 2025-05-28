@@ -57,30 +57,37 @@ DEFAULT_GAME_TAB_DEFINITIONS = {
 # --- New Default Penalty Tab Definitions ---
 
 EASY_PENALTIES_ENTRIES = [
-    {'id': 'db-p-easy-brightness-low', 'name': 'Dim Monitor', 'description': 'Set monitor brightness to 10% for the penalty duration.', 'probability': 0.7, 'tags': ["Universal"]},
-    {'id': 'db-p-easy-onecolor', 'name': 'Monochrome Mode', 'description': 'If possible with OS/filter, set screen to grayscale for the penalty duration.', 'probability': 0.5, 'tags': ["Universal"]},
-    {'id': 'db-p-easy-standup', 'name': 'Stand Up & Play', 'description': 'If you normally sit, stand up while playing for the penalty duration.', 'probability': 0.8, 'tags': ["Universal"]},
-    {'id': 'db-p-easy-chatspam', 'name': 'Positive Chat Spam', 'description': 'Send 3 positive, encouraging (but distinct) messages in team chat now.', 'probability': 0.9, 'tags': ["Universal"]},
-    {'id': 'db-p-easy-soundeffect', 'name': 'Vocal Sound Effect', 'description': 'Make a relevant game sound effect with your voice after your next 3 significant actions.', 'probability': 0.6, 'tags': ["Universal"]},
-    {'id': 'db-p-easy-stretch', 'name': 'Quick Stretch Break', 'description': 'Perform a 20-second stretch (arms, neck, back).', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-brightness-low', 'name': 'Dim Monitor', 'description': 'Set monitor brightness to 50%.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-keycap-1', 'name': 'Keycap Removal ', 'description': 'Remove 1 keycap of a key you use ingame.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-narrate', 'name': 'Sports Commentator', 'description': 'Describe all your in-game actions out loud like a sports commentator.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-no-minimap', 'name': 'No Minimap', 'description': 'Disable Minimap/Map.', 'probability': 1.0, 'tags': ["Universal"]}, 
+    {'id': 'db-p-easy-polite-gamer', 'name': 'Polite Gamer', 'description': 'Must say "please" and "thank you" in all team communications.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-suboptimal-weapon', 'name': 'Suboptimal Weapon', 'description': 'If your game allows, you must primarily use your secondary or least favorite weapon.', 'probability': 1.0, 'tags': ["FirstPerson"]},
+    {'id': 'db-p-easy-emote-action', 'name': 'Emote After Action', 'description': 'After your next kill or significant game action, perform an in-game emote or taunt.', 'probability': 1.0, 'tags': ["FirstPerson"]}, 
 ]
 
 MEDIUM_PENALTIES_ENTRIES = [
-    {'id': 'db-p-med-sens-change', 'name': 'Mouse Sensitivity Change', 'description': 'Increase or decrease your mouse sensitivity by 30% for the penalty duration.', 'probability': 0.5, 'tags': ["FirstPerson", "Universal"]},
-    {'id': 'db-p-med-key-swap-ad', 'name': 'Swap A & D Keys', 'description': 'Remap your A and D (strafe left/right) keys for the penalty duration.', 'probability': 0.4, 'tags': ["FirstPerson", "Strategy", "Universal"]},
-    {'id': 'db-p-med-monitor-close', 'name': 'Monitor Too Close', 'description': 'Move your monitor 6 inches closer than usual for the penalty duration.', 'probability': 0.6, 'tags': ["Universal"]},
-    {'id': 'db-p-med-no-zoom', 'name': 'No Scope/ADS', 'description': 'Cannot use scope or Aim Down Sights for the penalty duration.', 'probability': 0.5, 'tags': ["FirstPerson"]},
-    {'id': 'db-p-med-onehand-type', 'name': 'One-Handed Typing', 'description': 'Your next 2 typed messages must be typed one-handed.', 'probability': 0.7, 'tags': ["Universal"]},
-    {'id': 'db-p-med-voice-change', 'name': 'Funny Voice', 'description': 'Use a silly voice for all comms for the penalty duration.', 'probability': 0.4, 'tags': ["Universal"]},
+    {'id': 'db-p-med-brightness-low', 'name': 'Dim Monitor', 'description': 'Set monitor brightness to 30%.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-onecolor', 'name': 'Monochrome Mode', 'description': 'If possible with OS/filter, set screen to grayscale.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-easy-standup', 'name': 'Stand Up & Play', 'description': 'If you normally sit, stand up while playing.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-med-sens-change', 'name': 'Mouse Sensitivity Change', 'description': 'Increase or decrease your mouse sensitivity by 50%.', 'probability': 1.0, 'tags': ["FirstPerson", "Universal"]},
+    {'id': 'db-p-med-key-swap-ad', 'name': 'Swap A & D Keys', 'description': 'Remap your A and D (strafe left/right) keys.', 'probability': 1.0, 'tags': ["FirstPerson"]},
+    {'id': 'db-p-med-monitor-close', 'name': 'Monitor Too Close', 'description': 'Move your monitor 15 cm closer than usual.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-med-voice-change', 'name': 'Funny Voice', 'description': 'Use a silly voice for all comms.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-keycap-2', 'name': 'Keycap Removal ', 'description': 'Remove 2 keycaps of keys you use ingame.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-med-one-eye', 'name': 'One-Eye Challenge', 'description': 'Play with one eye closed until you next score or get a kill.', 'probability': 1.0, 'tags': ["Universal"]}, 
 ]
 
 HARD_PENALTIES_ENTRIES = [
-    {'id': 'db-p-hard-mouse-sideways', 'name': 'Mouse Sideways', 'description': 'Hold and use your mouse turned 90 degrees for the penalty duration.', 'probability': 0.2, 'tags': ["Universal"]},
-    {'id': 'db-p-hard-key-swap-ws', 'name': 'Swap W & S Keys', 'description': 'Remap your W and S (move forward/backward) keys for the penalty duration.', 'probability': 0.3, 'tags': ["FirstPerson", "Strategy", "Universal"]},
-    {'id': 'db-p-hard-brightness-max', 'name': 'Max Brightness', 'description': 'Set monitor brightness to 100% for the penalty duration.', 'probability': 0.3, 'tags': ["Universal"]},
-    {'id': 'db-p-hard-monitor-far', 'name': 'Monitor Far Away', 'description': 'Move your monitor an extra foot further away for the penalty duration.', 'probability': 0.4, 'tags': ["Universal"]},
-    {'id': 'db-p-hard-inverted-mouse', 'name': 'Inverted Mouse Y-Axis', 'description': 'Play with inverted mouse Y-axis for the penalty duration (if game supports).', 'probability': 0.2, 'tags': ["FirstPerson", "Universal"]},
-    {'id': 'db-p-hard-no-sound', 'name': 'No Game Sound', 'description': 'Mute all game sounds (not comms) for the penalty duration.', 'probability': 0.25, 'tags': ["FirstPerson", "Strategy", "Universal"]},
+    {'id': 'db-p-hard-brightness-low', 'name': 'Dim Monitor', 'description': 'Set monitor brightness to 10%.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-sens-change', 'name': 'Mouse Sensitivity Change', 'description': 'Increase or decrease your mouse sensitivity by 100%.', 'probability': 1.0, 'tags': ["FirstPerson", "Universal"]},
+    {'id': 'db-p-med-no-zoom', 'name': 'No Scope/ADS', 'description': 'Cannot use scope or Aim Down Sights.', 'probability': 1.0, 'tags': ["FirstPerson"]},
+    {'id': 'db-p-hard-mouse-sideways', 'name': 'Mouse Sideways', 'description': 'Hold and use your mouse turned 90 degrees.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-key-swap-ws', 'name': 'Swap W & S Keys', 'description': 'Remap your W and S (move forward/backward) keys.', 'probability': 1.0, 'tags': ["FirstPerson"]},
+    {'id': 'db-p-hard-monitor-far', 'name': 'Monitor Far Away', 'description': 'Move your monitor 30cm further away.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-inverted-mouse', 'name': 'Inverted Mouse Y-Axis', 'description': 'Play with inverted mouse Y-axis.', 'probability': 1.0, 'tags': ["Universal"]},
+    {'id': 'db-p-hard-no-sound', 'name': 'No Game Sound', 'description': 'Mute all game sounds.', 'probability': 1.0, 'tags': ["FirstPerson", "Universal"]},
+    {'id': 'db-p-keycap-3', 'name': 'Keycap Removal ', 'description': 'Remove 3 keycaps of keys you use ingame.', 'probability': 1.0, 'tags': ["Universal"]},     
 ]
 
 ALL_PENALTIES_ENTRIES = EASY_PENALTIES_ENTRIES + MEDIUM_PENALTIES_ENTRIES + HARD_PENALTIES_ENTRIES
