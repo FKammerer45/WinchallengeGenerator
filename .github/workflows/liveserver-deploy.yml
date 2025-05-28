@@ -1,4 +1,4 @@
-name: Deploy to Live Environment
+name: Deploy to Live Environment with JS Obfuscation
 
 on:
   push:
@@ -6,52 +6,90 @@ on:
       - website # Trigger on the same branch as the test script
 
 jobs:
-  deploy_live:
+  deploy_live_obfuscated:
     # Only run this job if the commit message contains "LIVE" (case-insensitive)
     if: ${{ contains(github.event.head_commit.message, 'LIVE') }}
     runs-on: ubuntu-latest
-    environment: testing-vps # Assumes 'liveserver' environment exists or will be created in GitHub settings
-                           # Secrets will be drawn from this environment. User specified they are same as test.
+    environment: testing-vps # Ensure 'liveserver' environment is created in GitHub repo settings
+                           # Secrets (VPS_HOST, etc.) will be drawn from this environment.
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Deployment to Live VPS
-      # Uses the same secrets as the test environment, but referenced through the 'liveserver' environment context.
-      - name: Deploy to Live VPS
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Specify a Node.js version
+
+      - name: Install JavaScript Obfuscator
+        run: npm install -g javascript-obfuscator
+
+      - name: Obfuscate JavaScript files
+        # This command finds all .js files in app/static/js, excluding the libs subdirectory,
+        # and obfuscates them in place.
+        run: |
+          echo "Starting JavaScript obfuscation..."
+          find ${{ github.workspace }}/app/static/js -path ${{ github.workspace }}/app/static/js/libs -prune -o -type f -name "*.js" -exec echo "Obfuscating {}" \; -exec javascript-obfuscator {} --output {} --compact true --simplify true --string-array-encoding 'base64' --dead-code-injection false --ignore-imports true \;
+          echo "JavaScript obfuscation complete."
+
+      - name: Pull latest non-JS code on server
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.VPS_HOST }} # Using same secret names as test-deploy.yml
+          host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
-            echo "Starting deployment to Live Environment..."
-            # Standard application directory (no _Live suffix)
-            APP_DIR="/srv/myflaskapp/WinchallengeGenerator/" 
-            # Standard venv name (no _live suffix)
-            VENV_NAME="venv" 
-       
-
-            echo "Navigating to application directory: $APP_DIR"
+            echo "Pulling latest non-JavaScript changes on server..."
+            APP_DIR="/srv/myflaskapp/WinchallengeGenerator/"
             cd $APP_DIR
-
-            echo "Pulling latest changes from Git (website branch)..."
-            # Ensure this matches the branch specified in the 'on' trigger
-            git checkout website 
+            echo "Current directory: $(pwd)"
+            echo "Checking out website branch..."
+            git checkout website
+            echo "Pulling from origin website..."
             git pull origin website
+            echo "Git pull complete."
 
-            echo "Activating virtual environment and installing dependencies..."
+      - name: Upload Obfuscated JS to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: "app/static/js/" # Source from runner's workspace (contains obfuscated files)
+          target: "/srv/myflaskapp/WinchallengeGenerator/app/static/js/" # Destination on server
+          strip_components: 2 # Copies contents of local 'app/static/js' into remote '.../app/static/js/'
+          overwrite: true
+          
+      - name: Finalize Deployment on Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script: |
+            echo "Finalizing deployment on server..."
+            APP_DIR="/srv/myflaskapp/WinchallengeGenerator/"
+            VENV_NAME="venv" 
+            SERVICE_NAME="myflaskapp.service"
+
+            cd $APP_DIR
+            
+            echo "Activating virtual environment: $VENV_NAME"
             source $VENV_NAME/bin/activate 
+            
+            echo "Installing Python dependencies..."
             pip install -r requirements.txt
 
             echo "Applying database migrations..."
             flask db upgrade 
-            flask seed-db
+
             echo "Deactivating virtual environment..."
             deactivate
 
-            echo "Restarting the application service: myflaskapp.service"
-            sudo systemctl restart myflaskapp.service
+            echo "Restarting the application service: $SERVICE_NAME"
+            sudo systemctl restart $SERVICE_NAME
 
             echo "Deployment to Live Environment finished!"
