@@ -44,7 +44,10 @@ class Config:
     MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'false').lower() in ('true', '1', 't')
     MAIL_USERNAME = os.environ.get('MAILGUN_SMTP_LOGIN')
     MAIL_PASSWORD = os.environ.get('MAILGUN_SMTP_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or '"WinChallenge" <mailgun@yourverifieddomain.com>'
+    # Define sender name and email separately for clarity and robust parsing
+    MAIL_SENDER_NAME = os.environ.get('MAIL_SENDER_NAME') or "WinChallenge"
+    MAIL_SENDER_EMAIL = os.environ.get('MAIL_SENDER_EMAIL') or "please-configure@yourverifieddomain.com" # Ensure this is a valid sending email
+    MAIL_DEFAULT_SENDER = (MAIL_SENDER_NAME, MAIL_SENDER_EMAIL) # Flask-Mail handles this tuple format
     EMAIL_CONFIRMATION_EXPIRATION = 3600
     PASSWORD_RESET_EXPIRATION = 1800
     EMAIL_CHANGE_EXPIRATION = 1800

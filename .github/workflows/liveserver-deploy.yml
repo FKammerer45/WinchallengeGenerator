@@ -31,8 +31,7 @@ jobs:
             APP_DIR="/srv/myflaskapp/WinchallengeGenerator/" 
             # Standard venv name (no _live suffix)
             VENV_NAME="venv" 
-            # Standard service name (no _live suffix)
-            SERVICE_NAME="myflaskapp.service" 
+       
 
             echo "Navigating to application directory: $APP_DIR"
             cd $APP_DIR
@@ -52,7 +51,7 @@ jobs:
             echo "Deactivating virtual environment..."
             deactivate
 
-            echo "Restarting the application service: $SERVICE_NAME"
-            sudo systemctl restart $SERVICE_NAME
+            echo "Restarting the application service: myflaskapp.service"
+            sudo systemctl restart myflaskapp.service
 
             echo "Deployment to Live Environment finished!"
