@@ -24,5 +24,6 @@
 @import url('pages/_my-challenges.css');
 @import url('pages/overlay.css'); /* Existing specific overlay styles */
 @import url('pages/pricing.css'); /* Existing specific pricing styles */
+@import url('easter_eggs/larry_mode.css'); /* Larry Easter Egg Styles */
 
 /* Any remaining global styles or overrides can go here, but ideally, most should be in the imported files. */

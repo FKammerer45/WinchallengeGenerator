@@ -7,6 +7,13 @@
 {% endblock %}
 
 {% block content %}
+{# --- Larry Easter Egg Elements --- #}
+<div id="larryOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0); z-index: 10000; opacity: 0; transition: background-color 1s ease-in-out, opacity 1s ease-in-out;">
+    <img id="larryImage" src="{{ url_for('static', filename='images/larry.png') }}" alt="Larry!" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5); max-width: 90%; max-height: 90%; opacity: 0; transition: opacity 1.5s ease-in-out 0.5s, transform 1.5s ease-in-out 0.5s; z-index: 10001;">
+</div>
+<audio id="larrySound" src="{{ url_for('static', filename='sounds/larry.mp3') }}" preload="auto"></audio>
+{# --- End Larry Easter Egg Elements --- #}
+
 <div class="container mt-4 index-page-container">
     {# --- Enhanced Page Header --- #}
     <div class="text-center mb-5 pt-4">
@@ -404,6 +411,7 @@
 <script type="module" src="{{ url_for('static', filename='js/penalties/penaltyLocalStorageUtils.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/challenge_generator/form.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/challenge_generator/share.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/easter_eggs/larry_mode.js') }}"></script>
 
 {# Script for clamping inputs (remains the same) #}
 <script>

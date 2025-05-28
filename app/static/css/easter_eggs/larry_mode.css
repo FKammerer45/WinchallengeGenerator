@@ -1,0 +1,29 @@
+/* static/css/easter_eggs/larry_mode.css */
+
+/* --- Larry Easter Egg Styles --- */
+.larry-overlay-active { /* Used to trigger display and final opacity for overlay */
+    display: block !important;
+    opacity: 1 !important;
+    background-color: rgba(0,0,0,0.95) !important; /* Final dark background */
+}
+
+.larry-image-active { /* Used to trigger display and final opacity/scale for image */
+    display: block !important;
+    opacity: 1 !important;
+    transform: translate(-50%, -50%) scale(3) !important; /* Increased final scale for more zoom */
+}
+
+.index-page-container.content-fade-out {
+    opacity: 0 !important;
+    transition: opacity 0.7s ease-in-out;
+    pointer-events: none; /* Prevent interaction with faded content */
+}
+
+/* 
+Inline styles in index.html handle initial display:none, opacity:0, and transitions.
+The z-index values are also set inline in index.html:
+#larryOverlay { z-index: 10000; }
+#larryImage { z-index: 10001; }
+These classes primarily ensure the 'active' state overrides initial inline styles if needed,
+and define the final state for transitions.
+*/
